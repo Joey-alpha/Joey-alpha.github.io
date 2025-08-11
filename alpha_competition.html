@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Token Monitor</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -112,15 +113,15 @@
         const API_URL = "https://www.binance.com/bapi/defi/v1/public/wallet-direct/buw/wallet/cex/alpha/all/token/list";
 
         // Target symbols & extra data
-        const target_symbols = ["VRA", "ASP", "ZRC", "YALA", "TA", "MIA"];
-        const reward_vol = [64000, 428, 1785, 357, 1000, 740];
+        const target_symbols = ["ASP", "ZRC", "YALA", "TA", "MIA", "GAME"];
+        const reward_vol = [428, 1785, 357, 1000, 740, 20000];
         const deadline = [
-            "2025-08-10 16:00 (UTC+8)",
             "2025-08-14 00:00 (UTC+8)",
             "2025-08-14 00:00 (UTC+8)",
             "2025-08-14 00:00 (UTC+8)",
             "2025-08-14 00:00 (UTC+8)",
-            "2025-08-15 00:00 (UTC+8)"
+            "2025-08-15 00:00 (UTC+8)",
+            "2025-08-24 15:00 (UTC+8)",
         ];
 
         const FIELDS = [
@@ -137,17 +138,15 @@
         let latestData = [];
 
         // Example daily competition data
-        const competitionData = {
-            dates: ["2025-08-04", "2025-08-05", "2025-08-06", "2025-08-07", "2025-08-08", "2025-08-09", "2025-08-10", "2025-08-11"],
-            tokens: {
-                "ASP": [0, 0, 18, 58, 1238, 30816, 124686, 249795],
-                "ZRC": [0, 0, 0, 0, 0, 0, 0, 6154],
-                "YALA": [0, 66, 9614, 111380, 210655, 249889, 310166, 421932],
-                "TA": [0, 0, 0, 13, 745, 6056, 18389, 55405],
-                "MIA": [0, 0, 0, 0, 0, 0, 0, 0],
-                "VRA": [500, 1200, 1800, 2500, 3000, 5000, 8000, 9000] // Example VRA
-            }
+        const dailyData = {
+            "ASP": [0, 0, 18, 58, 1238, 30816, 124686, 249795],
+            "ZRC": [0, 0, 0, 0, 0, 0, 0, 6154],
+            "YALA": [0, 66, 9614, 111380, 210655, 249889, 310166, 421932],
+            "TA": [0, 0, 0, 13, 745, 6056, 18389, 55405],
+            "MIA": [0, 0, 0, 0, 0, 0, 0, 0],
+            "GAME": [0, 0, 0, 0, 0, 0, 0, 0] // example
         };
+        const dates = ["08-04", "08-05", "08-06", "08-07", "08-08", "08-09", "08-10", "08-11"];
 
         async function fetchData() {
             try {
@@ -162,6 +161,7 @@
                     FIELDS.forEach(f => obj[f] = item[f]);
                     obj.rewardVol = reward_vol[idx];
                     obj.deadline = deadline[idx];
+                    obj.history = dailyData[sym] || [];
                     return obj;
                 });
 
@@ -175,11 +175,10 @@
         function renderCards() {
             const container = document.getElementById("cardContainer");
             container.innerHTML = "";
-            latestData.forEach((item) => {
+            latestData.forEach((item, idx) => {
                 const totalReward = (item.price || 0) * item.rewardVol;
                 const deadlineISO = parseDeadline(item.deadline);
                 const remaining = formatRemaining(deadlineISO - new Date());
-
                 const change = Number(item.percentChange24h || 0);
                 let changeClass = "";
                 if (change > 1.5) changeClass = "change-positive";
@@ -187,47 +186,56 @@
 
                 const card = document.createElement("div");
                 card.className = "card";
+                const canvasId = `chart-${item.symbol}`;
                 card.innerHTML = `
-            <div class="symbol">${item.symbol} - ${item.name || "N/A"}</div>
-            <div class="price">$${Number(item.price || 0).toLocaleString()}</div>
-            <div class="stat ${changeClass}">24h Change: ${change}%</div>
-            <div class="stat">24h Volume: ${Number(item.volume24h || 0).toLocaleString()}</div>
-            <div class="stat">Market Cap: $${Number(item.marketCap || 0).toLocaleString()}</div>
-            <div class="stat">High 24h: $${Number(item.priceHigh24h || 0).toLocaleString()}</div>
-            <div class="stat">Low 24h: $${Number(item.priceLow24h || 0).toLocaleString()}</div>
-            <div class="stat">Reward Vol: ${item.rewardVol.toLocaleString()}</div>
-            <div class="total-reward">Total Reward: $${totalReward.toLocaleString()}</div>
-            <div class="stat">Deadline: ${item.deadline}</div>
-            <div class="stat countdown" data-deadline="${deadlineISO}">Time left: ${remaining}</div>
-            <canvas id="chart-${item.symbol}" height="100"></canvas>
-        `;
+                <div class="symbol">${item.symbol} - ${item.name || "N/A"}</div>
+                <div class="price">$${Number(item.price || 0).toLocaleString()}</div>
+                <div class="stat ${changeClass}">24h Change: ${change}%</div>
+                <div class="stat">24h Volume: ${Number(item.volume24h || 0).toLocaleString()}</div>
+                <div class="stat">Market Cap: $${Number(item.marketCap || 0).toLocaleString()}</div>
+                <div class="stat">High 24h: $${Number(item.priceHigh24h || 0).toLocaleString()}</div>
+                <div class="stat">Low 24h: $${Number(item.priceLow24h || 0).toLocaleString()}</div>
+                <div class="stat">Reward Vol: ${item.rewardVol.toLocaleString()}</div>
+                <div class="total-reward">Total Reward: $${totalReward.toLocaleString()}</div>
+                <div class="stat">Deadline: ${item.deadline}</div>
+                <div class="stat countdown" data-deadline="${deadlineISO}">Time left: ${remaining}</div>
+                <canvas id="${canvasId}" height="120"></canvas>
+            `;
                 container.appendChild(card);
 
-                // Draw chart for this token if data exists
-                if (competitionData.tokens[item.symbol]) {
-                    new Chart(document.getElementById(`chart-${item.symbol}`), {
-                        type: 'line',
-                        data: {
-                            labels: competitionData.dates,
-                            datasets: [{
-                                label: 'Daily Volume',
-                                data: competitionData.tokens[item.symbol],
-                                borderColor: '#007bff',
-                                backgroundColor: 'rgba(0,123,255,0.1)',
-                                fill: true,
-                                tension: 0.3
-                            }]
-                        },
-                        options: {
-                            responsive: true,
-                            plugins: { legend: { display: false } },
-                            scales: {
-                                x: { ticks: { maxRotation: 45, minRotation: 45 } },
-                                y: { beginAtZero: true }
+                // Draw chart
+                new Chart(document.getElementById(canvasId), {
+                    type: 'line',
+                    data: {
+                        labels: dates,
+                        datasets: [{
+                            label: 'Daily Vol',
+                            data: item.history,
+                            borderColor: '#007bff',
+                            backgroundColor: 'rgba(0,123,255,0.1)',
+                            fill: true,
+                            tension: 0.3,
+                            pointRadius: 4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: { display: false },
+                            datalabels: {
+                                color: '#333',
+                                anchor: 'end',
+                                align: 'top',
+                                formatter: (value) => value.toLocaleString()
                             }
+                        },
+                        scales: {
+                            x: {},
+                            y: { beginAtZero: true }
                         }
-                    });
-                }
+                    },
+                    plugins: [ChartDataLabels]
+                });
             });
         }
 
