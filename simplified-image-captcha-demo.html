@@ -5,21 +5,108 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>简化版图片选择验证码 Demo</title>
   <style>
-    body{font-family:-apple-system, BlinkMacSystemFont, Roboto, Arial;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#f3f4f6;margin:0;padding:12px}
-    .card{width:100%;max-width:360px;background:white;padding:18px;border-radius:12px;box-shadow:0 6px 18px rgba(0,0,0,0.1);}
-    h1{font-size:18px;margin:0 0 10px}
-    .desc{font-size:16px;color:#444;margin-bottom:12px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
-    #targetIcon{font-size:26px} /* 放大的目标 emoji */
-    .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
-    .tile{aspect-ratio:1/1;font-size:40px;display:flex;align-items:center;justify-content:center;border-radius:8px;cursor:pointer;transition:.15s;border:2px solid transparent;user-select:none}
-    .tile:active{transform:scale(0.95)}
-    .tile:hover{background:#f9fafb}
-    .tile.selected{border:2px solid #3b82f6;background:#eff6ff}
-    .controls{display:flex;gap:8px}
-    button{flex:1;padding:10px;border-radius:8px;border:0;cursor:pointer;font-weight:600;font-size:15px}
-    button.primary{background:#3b82f6;color:white}
-    button.ghost{background:#f3f4f6;color:#333}
-    .status{margin-top:10px;font-weight:600}
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, Roboto, Arial;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      background: #f3f4f6;
+      margin: 0;
+      padding: 12px
+    }
+
+    .card {
+      width: 100%;
+      max-width: 360px;
+      background: white;
+      padding: 18px;
+      border-radius: 12px;
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.1);
+    }
+
+    h1 {
+      font-size: 18px;
+      margin: 0 0 10px
+    }
+
+    .desc {
+      font-size: 16px;
+      color: #444;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap
+    }
+
+    #targetIcon {
+      font-size: 26px
+    }
+
+    /* 放大的目标 emoji */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-bottom: 12px
+    }
+
+    .tile {
+      aspect-ratio: 1/1;
+      font-size: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: .15s;
+      border: 2px solid transparent;
+      user-select: none
+    }
+
+    .tile:active {
+      transform: scale(0.95)
+    }
+
+    .tile:hover {
+      background: #f9fafb
+    }
+
+    .tile.selected {
+      border: 2px solid #3b82f6;
+      background: #eff6ff
+    }
+
+    .controls {
+      display: flex;
+      gap: 8px
+    }
+
+    button {
+      flex: 1;
+      padding: 10px;
+      border-radius: 8px;
+      border: 0;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 15px
+    }
+
+    button.primary {
+      background: #3b82f6;
+      color: white
+    }
+
+    button.ghost {
+      background: #f3f4f6;
+      color: #333
+    }
+
+    .status {
+      margin-top: 10px;
+      font-weight: 600
+    }
   </style>
 </head>
 <body>
@@ -32,7 +119,7 @@
     <div class="controls">
       <button class="ghost" id="resetBtn">再试一次</button>
       <button class="primary" id="verifyBtn">验证</button>
-      
+
     </div>
 
     <div class="status" id="status"></div>
@@ -41,7 +128,7 @@
   </div>
 
   <script>
-    (function(){
+    (function () {
       const gridEl = document.getElementById('grid');
       const statusEl = document.getElementById('status');
       const timeStatus = document.getElementById('timeStatus');
@@ -52,26 +139,26 @@
       const targetIconEl = document.getElementById('targetIcon');
 
       const ICONS = [
-        {icon:'🚲',label:'自行车'},
-        {icon:'✈️',label:'飞机'},
-        {icon:'🚗',label:'汽车'},
-        {icon:'🚌',label:'公交车'},
-        {icon:'🚕',label:'出租车'},
-        {icon:'🚤',label:'小船'},
-        {icon:'🚂',label:'火车'},
-        {icon:'🐶',label:'小狗'},
-        {icon:'🐱',label:'小猫'},
-        {icon:'🐼',label:'熊猫'},
-        {icon:'🍎',label:'苹果'},
-        {icon:'🍌',label:'香蕉'},
-        {icon:'🍇',label:'葡萄'},
-        {icon:'🏠',label:'房子'},
-        {icon:'🏢',label:'大楼'},
-        {icon:'🌳',label:'树'},
-        {icon:'🌸',label:'花'},
-        {icon:'📚',label:'书籍'},
-        {icon:'💻',label:'电脑'},
-        {icon:'🚦',label:'红绿灯'}
+        { icon: '🚲', label: '自行车' },
+        { icon: '✈️', label: '飞机' },
+        { icon: '🚗', label: '汽车' },
+        { icon: '🚌', label: '公交车' },
+        { icon: '🚕', label: '出租车' },
+        { icon: '🚤', label: '小船' },
+        { icon: '🚂', label: '火车' },
+        { icon: '🐶', label: '小狗' },
+        { icon: '🐱', label: '小猫' },
+        { icon: '🐼', label: '熊猫' },
+        { icon: '🍎', label: '苹果' },
+        { icon: '🍌', label: '香蕉' },
+        { icon: '🍇', label: '葡萄' },
+        { icon: '🏠', label: '房子' },
+        { icon: '🏢', label: '大楼' },
+        { icon: '🌳', label: '树' },
+        { icon: '🌸', label: '花' },
+        { icon: '📚', label: '书籍' },
+        { icon: '💻', label: '电脑' },
+        { icon: '🚦', label: '红绿灯' }
       ];
 
       let target;
@@ -84,9 +171,9 @@
       let attempts = 0;
       let successes = 0;
 
-      function shuffle(arr){ return arr.sort(()=>Math.random()-0.5); }
+      function shuffle(arr) { return arr.sort(() => Math.random() - 0.5); }
 
-      function newChallenge(){
+      function newChallenge() {
         gridEl.innerHTML = '';
         tiles = [];
         correctIds.clear();
@@ -94,44 +181,44 @@
         timeStatus.textContent = '';
         statusEl.style.color = '';
 
-        target = ICONS[Math.floor(Math.random()*ICONS.length)];
+        target = ICONS[Math.floor(Math.random() * ICONS.length)];
         targetIconEl.textContent = target.icon;
         targetLabel.textContent = target.label;
 
         let pool = [];
         pool.push(target.icon, target.icon);
-        while(pool.length<9){ pool.push(ICONS[Math.floor(Math.random()*ICONS.length)].icon); }
+        while (pool.length < 9) { pool.push(ICONS[Math.floor(Math.random() * ICONS.length)].icon); }
         pool = shuffle(pool);
 
-        pool.forEach((icon,idx)=>{
+        pool.forEach((icon, idx) => {
           const t = document.createElement('div');
           t.className = 'tile';
           t.textContent = icon;
           t.dataset.icon = icon;
-          t.addEventListener('click',()=>{ t.classList.toggle('selected'); });
+          t.addEventListener('click', () => { t.classList.toggle('selected'); });
           gridEl.appendChild(t);
           tiles.push(t);
-          if(icon===target.icon) correctIds.add(idx);
+          if (icon === target.icon) correctIds.add(idx);
         });
 
         startTime = performance.now();
       }
 
-      function verify(){
+      function verify() {
         const selected = new Set();
-        tiles.forEach((t,i)=>{ if(t.classList.contains('selected')) selected.add(i); });
+        tiles.forEach((t, i) => { if (t.classList.contains('selected')) selected.add(i); });
         const endTime = performance.now();
-        const duration = ((endTime - startTime)/1000).toFixed(2);
+        const duration = ((endTime - startTime) / 1000).toFixed(2);
         timeStatus.textContent = `提交耗时: ${duration}s`;
 
         attempts++;
 
-        if(selected.size===0){
+        if (selected.size === 0) {
           statusEl.textContent = '请至少选择一个格子。';
           statusEl.style.color = '#dc2626';
           return;
         }
-        if(setEqual(selected,correctIds)){
+        if (setEqual(selected, correctIds)) {
           statusEl.textContent = '验证成功 ✅';
           statusEl.style.color = '#16a34a';
           successes++;
@@ -142,27 +229,27 @@
           statusEl.style.color = '#dc2626';
           times.push(parseFloat(duration));
           updateStats();
-          setTimeout(newChallenge,300);
+          setTimeout(newChallenge, 300);
         }
       }
 
-      function updateStats(){
-        if(times.length===0) return;
-        const avg = (times.reduce((a,b)=>a+b,0)/times.length).toFixed(2);
+      function updateStats() {
+        if (times.length === 0) return;
+        const avg = (times.reduce((a, b) => a + b, 0) / times.length).toFixed(2);
         const best = Math.min(...times).toFixed(2);
         const worst = Math.max(...times).toFixed(2);
-        const successRate = ((successes/attempts)*100).toFixed(1);
+        const successRate = ((successes / attempts) * 100).toFixed(1);
         statsEl.textContent = `平均耗时: ${avg}s | 最快: ${best}s | 最慢: ${worst}s | 成功率: ${successRate}%`;
       }
 
-      function setEqual(a,b){
-        if(a.size!==b.size) return false;
-        for(const x of a){ if(!b.has(x)) return false; }
+      function setEqual(a, b) {
+        if (a.size !== b.size) return false;
+        for (const x of a) { if (!b.has(x)) return false; }
         return true;
       }
 
-      verifyBtn.addEventListener('click',verify);
-      resetBtn.addEventListener('click',newChallenge);
+      verifyBtn.addEventListener('click', verify);
+      resetBtn.addEventListener('click', newChallenge);
 
       newChallenge();
     })();
