@@ -347,8 +347,8 @@
 
             <label for="interval">时间间隔:</label>
             <select id="interval">
-                <option value="1s">1秒</option>
-                <option value="15s" selected>15秒</option>
+                <option value="1s" selected>1秒</option>
+                <option value="15s">15秒</option>
                 <option value="1m">1分钟</option>
                 <option value="3m">3分钟</option>
                 <option value="5m">5分钟</option>
@@ -367,7 +367,7 @@
             </select>
 
             <label for="limit">请求数据数量 (最大1500):</label>
-            <input type="number" id="limit" value="100" placeholder="例如: 100" min="1" max="1500">
+            <input type="number" id="limit" value="300" placeholder="例如: 100" min="1" max="1500">
 
         </div>
     </div>
@@ -383,7 +383,7 @@
                 <!-- New columns for Mean Open/Close Price and Total Quote Volume -->
                 <th class="sortable" data-key="totalQuoteVolume">总交易量 <span class="subl">i.e. 30mins</span></th>
                 <!-- New columns for Variance Calculations -->
-                <th class="sortable" data-key="ratioVariance">收盘/开盘差方差<span class="subl">i.e. 30mins</span></th>
+                <th class="sortable" data-key="ratioVariance">收盘/开盘比方差<span class="subl">i.e. 30mins</span></th>
                 <th class="sortable" data-key="openVariance">开盘价方差<span class="subl">i.e. 30mins</span></th>
                 <th class="sortable" data-key="closeVariance">收盘价方差<span class="subl">i.e. 30mins</span></th>
                 <th class="sortable" data-key="meanOpenPrice">均值开盘价<span class="subl">i.e. 30mins</span></th>
