@@ -1,0 +1,10 @@
+<!--?xml version="1.0" encoding="utf-8"?-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Alpha icon">
+  <!-- dark background -->
+  <rect width="100%" height="100%" fill="#121212"></rect>
+
+  <!-- yellow "Alpha" text, centered -->
+  <text x="50%" y="52%" fill="#FFCC00" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-weight="700" font-size="200" text-anchor="middle" dominant-baseline="middle" style="letter-spacing: -2px;">
+    Alpha
+  </text>
+</svg>
