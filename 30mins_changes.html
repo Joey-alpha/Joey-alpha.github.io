@@ -383,6 +383,8 @@
                 <!-- New columns for Mean Open/Close Price and Total Quote Volume -->
                 <th class="sortable" data-key="totalQuoteVolume">总交易量 <span class="subl">i.e. 30mins</span></th>
                 <!-- New columns for Variance Calculations -->
+                <th class="sortable" data-key="meanPriceRatioFactor">收盘/开盘比 均值 -1<span class="subl">i.e. 30mins</span>
+                </th>
                 <th class="sortable" data-key="ratioVariance">收盘/开盘比方差<span class="subl">i.e. 30mins</span></th>
                 <th class="sortable" data-key="openVariance">开盘价方差<span class="subl">i.e. 30mins</span></th>
                 <th class="sortable" data-key="closeVariance">收盘价方差<span class="subl">i.e. 30mins</span></th>
@@ -511,7 +513,8 @@
                     totalQuoteVolume,
                     openVariance,
                     closeVariance,
-                    ratioVariance
+                    ratioVariance,
+                    meanPriceRatioFactor
                 } = calculateMeanData(klineData);
 
                 // Populate additional data in the token object
@@ -521,6 +524,7 @@
                 r.openVariance = openVariance;
                 r.closeVariance = closeVariance;
                 r.ratioVariance = ratioVariance;
+                r.meanPriceRatioFactor = meanPriceRatioFactor;
 
                 progressEl.textContent = `${Math.floor(++done / total * 100)}%`;
             })));
@@ -562,7 +566,8 @@
                     totalQuoteVolume: 0,
                     openVariance: 0,
                     closeVariance: 0,
-                    ratioVariance: 0
+                    ratioVariance: 0,
+                    meanPriceRatioFactor: 0
                 };
             }
 
@@ -582,13 +587,16 @@
                 ? calculateVariance(priceRatios)
                 : 0;
 
+            const meanPriceRatioFactor = Math.abs(priceRatios.reduce((sum, priceRatio) => sum + priceRatio, 0) / priceRatios.length - 1);
+
             return {
                 meanOpenPrice,
                 meanClosePrice,
                 totalQuoteVolume,
                 openVariance,
                 closeVariance,
-                ratioVariance
+                ratioVariance,
+                meanPriceRatioFactor
             };
         }
 
@@ -622,7 +630,8 @@
                         totalQuoteVolume: 0, // Placeholder
                         openVariance: 0, // Placeholder
                         closeVariance: 0, // Placeholder
-                        ratioVariance: 0 // Placeholder
+                        ratioVariance: 0, // Placeholder
+                        meanPriceRatioFactor: 0 // Placeholder
                     };
                 })
                 .filter(t => t.isNew); // Only include tokens listed within the last 30 days
@@ -655,6 +664,7 @@
                 </td>
                 <td>${nf2.format(t.price)}</td>
                 <td>${t.totalQuoteVolume ? nf0.format(t.totalQuoteVolume) : '…'}</td>
+                <td>${t.meanPriceRatioFactor ? t.meanPriceRatioFactor.toExponential(2) : '…'}</td>
                 <td>${t.ratioVariance ? t.ratioVariance.toExponential(2) : '…'}</td>
                 <td>${t.openVariance ? t.openVariance.toExponential(2) : '…'}</td>
                 <td>${t.closeVariance ? t.closeVariance.toExponential(2) : '…'}</td>
