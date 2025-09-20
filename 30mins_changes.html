@@ -749,6 +749,9 @@
                 sortDir = 'desc';
                 top15 = sortRows(rows).slice(0, 15)
                 await fillMeanAll(top15);
+                sortKey = 'meanPriceRatioFactor';
+                sortDir = 'asc';
+                top15 = sortRows(top15).slice(0, 15)
                 render();  // Render after sorting
                 lastUpEl.textContent = `最后更新时间： ${fmtFull(Date.now())}`;
                 window._boundary = today8;
