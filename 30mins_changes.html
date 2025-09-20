@@ -346,8 +346,8 @@
 
             <label for="interval">时间间隔:</label>
             <select id="interval">
-                <option value="1s" selected>1秒</option>
-                <option value="15s">15秒</option>
+                <option value="1s">1秒</option>
+                <option value="15s" selected>15秒</option>
                 <option value="1m">1分钟</option>
                 <option value="3m">3分钟</option>
                 <option value="5m">5分钟</option>
@@ -366,7 +366,7 @@
             </select>
 
             <label for="limit">请求数据数量 (最大1500):</label>
-            <input type="number" id="limit" value="300" placeholder="例如: 100" min="1" max="1500">
+            <input type="number" id="limit" value="50" placeholder="例如: 100" min="1" max="1500">
 
         </div>
     </div>
@@ -695,31 +695,41 @@
 
             updateSortIcons();
 
-            // Draw Chart.js line chart for each token
+            // Draw Chart.js line chart for each token (open & close)
             sorted.forEach(t => {
                 const canvas = document.getElementById(`chart-${t.sym}`);
-                if (!canvas || !t.klines || !t.klines.closes || t.klines.closes.length === 0) return;
+                if (!canvas || !t.klines || !t.klines.closes || t.klines.closes.length === 0 || !t.klines.opens || t.klines.opens.length === 0) return;
 
                 // Prepare data
                 const labels = t.klines.timestamps.map(ts => {
                     const d = new Date(ts);
                     return `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
                 });
-                const data = t.klines.closes;
 
                 new Chart(canvas, {
                     type: 'line',
                     data: {
                         labels: labels,
-                        datasets: [{
-                            label: 'Close',
-                            data: data,
-                            borderColor: '#2563eb',
-                            backgroundColor: 'rgba(37,99,235,0.08)',
-                            fill: true,
-                            tension: 0.3,
-                            pointRadius: 0
-                        }]
+                        datasets: [
+                            {
+                                label: 'Open',
+                                data: t.klines.opens,
+                                borderColor: '#16a34a',
+                                backgroundColor: 'rgba(22,163,74,0.08)',
+                                fill: false,
+                                tension: 0.03,
+                                pointRadius: 0
+                            },
+                            {
+                                label: 'Close',
+                                data: t.klines.closes,
+                                borderColor: '#2563eb',
+                                backgroundColor: 'rgba(37,99,235,0.08)',
+                                fill: false,
+                                tension: 0.03,
+                                pointRadius: 0
+                            }
+                        ]
                     },
                     options: {
                         responsive: false,
@@ -778,7 +788,7 @@
         document.addEventListener('visibilitychange', () => {
             if (document.visibilityState === 'visible' && nearest8UTC() !== window._boundary) reloadAll();
         });
-        setInterval(() => { if (document.visibilityState === 'visible') reloadAll(); }, 300000);
+        setInterval(() => { if (document.visibilityState === 'visible') reloadAll(); }, 60000);
 
         /* ---------- 首次加载 ---------- */
         reloadAll();
