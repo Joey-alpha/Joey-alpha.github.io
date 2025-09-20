@@ -358,9 +358,6 @@
     <div id="bar">
         <div id="bar-left">
 
-
-            <button id="refreshBtn" class="btn"> ⟳ 刷新数据 <span id="progress" class="badge">0%</span> </button>
-
             <label for="interval">时间间隔:</label>
             <select id="interval">
                 <option value="1s">1秒</option>
@@ -394,6 +391,9 @@
 
             <label for="closeVarianceThreshold">收盘价方差阈值:</label>
             <input type="number" id="closeVarianceThreshold" value="5e-9" step="1e-9" placeholder="例如: 5e-9" min="0">
+
+            <div style="flex-basis: 100%; height: 0;"></div>
+            <button id="refreshBtn" class="btn"> ⟳ 刷新数据 <span id="progress" class="badge">0%</span> </button>
 
         </div>
     </div>
