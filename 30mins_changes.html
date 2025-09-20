@@ -383,17 +383,17 @@
             </select>
 
             <label for="limit">请求数据数量 (最大1500):</label>
-            <input type="number" id="limit" value="50" placeholder="例如: 100" min="1" max="1500">
+            <input type="number" id="limit" value="40" placeholder="例如: 100" min="1" max="1500">
 
             <div style="flex-basis: 100%; height: 0;"></div>
             <label for="meanPriceRatioThreshold">收盘/开盘比 均值 -1 阈值:</label>
-            <input type="number" id="meanPriceRatioThreshold" value="5e-5" step="0.01" placeholder="例如: 5e-5" min="0">
+            <input type="number" id="meanPriceRatioThreshold" value="5e-5" step="1e-5" placeholder="例如: 5e-5" min="0">
 
             <label for="openVarianceThreshold">开盘价方差阈值:</label>
-            <input type="number" id="openVarianceThreshold" value="5e-9" step="0.01" placeholder="例如: 5e-9" min="0">
+            <input type="number" id="openVarianceThreshold" value="5e-9" step="1e-9" placeholder="例如: 5e-9" min="0">
 
             <label for="closeVarianceThreshold">收盘价方差阈值:</label>
-            <input type="number" id="closeVarianceThreshold" value="5e-9" step="0.01" placeholder="例如: 5e-9" min="0">
+            <input type="number" id="closeVarianceThreshold" value="5e-9" step="1e-9" placeholder="例如: 5e-9" min="0">
 
         </div>
     </div>
