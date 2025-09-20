@@ -331,6 +331,8 @@
             }
         }
     </style>
+    <!-- 1. Add Lightweight Charts CDN in <head> (if not already included) -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
     <h1>Binance&nbsp;Alpha&nbsp;—&nbsp;24H&nbsp;交易量排行榜</h1>
@@ -377,9 +379,8 @@
                 <th style="width:26px"></th>
                 <th>代币名字</th>
                 <th id="thPrice" class="sortable" data-key="price">价格</th>
-                <!-- New columns for Mean Open/Close Price and Total Quote Volume -->
+                <th>走势</th> <!-- 新增：图表表头 -->
                 <th class="sortable" data-key="totalQuoteVolume">总交易量 <span class="subl">i.e. 30mins</span></th>
-                <!-- New columns for Variance Calculations -->
                 <th class="sortable" data-key="meanPriceRatioFactor">收盘/开盘比 均值 -1<span class="subl">i.e. 30mins</span>
                 </th>
                 <th class="sortable" data-key="ratioVariance">收盘/开盘比方差<span class="subl">i.e. 30mins</span></th>
@@ -518,6 +519,16 @@
                 r.ratioVariance = ratioVariance;
                 r.meanPriceRatioFactor = meanPriceRatioFactor;
 
+
+                // Fill the klines object
+                klineData.forEach(kline => {
+                    r.klines.opens.push(parseFloat(kline[1]));   // Open price
+                    r.klines.closes.push(parseFloat(kline[4]));  // Close price
+                    r.klines.highs.push(parseFloat(kline[2]));   // High price
+                    r.klines.lows.push(parseFloat(kline[3]));    // Low price
+                    r.klines.volumes.push(parseFloat(kline[5])); // Volume
+                    r.klines.timestamps.push(parseInt(kline[0])); // Open time (timestamp)
+                });
                 progressEl.textContent = `${Math.floor(++done / total * 100)}%`;
             })));
             progressEl.style.display = 'none';
@@ -623,7 +634,17 @@
                         openVariance: 0, // Placeholder
                         closeVariance: 0, // Placeholder
                         ratioVariance: 0, // Placeholder
-                        meanPriceRatioFactor: 0 // Placeholder
+                        meanPriceRatioFactor: 0, // Placeholder
+
+                        // 🔽 Single container for raw klinedata (~300 points each)
+                        klines: {
+                            opens: [],    // open prices
+                            closes: [],   // close prices
+                            highs: [],    // high prices (optional)
+                            lows: [],     // low prices (optional)
+                            volumes: [],   // volumes (optional)
+                            timestamps: [],   // volumes (optional)
+                        }
                     };
                 })
                 .filter(t => t.isNew); // Only include tokens listed within the last 30 days
@@ -646,30 +667,72 @@
         function render() {
             const sorted = sortRows(top15);
             tbody.innerHTML = sorted.map((t, i) => `
-            <tr data-sym="${t.sym}">
-                <td>${i + 1}</td>
-                <td title="${t.listingTimeFmt ? ('上新：' + t.listingTimeFmt) : ''}">
-                    <img class="logo" loading="lazy" src="${t.icon}" referrerpolicy="no-referrer"
-                         onerror="this.src='https://bin.bnbstatic.com/static/images/common/base-token-default.png'">
-                    ${t.symbol}
-                    ${t.isNew ? `<span class="tag-new" title="上新：${t.listingTimeFmt}">🆕</span>` : ''}
-                </td>
-                <td>${nf2.format(t.price)}</td>
-                <td>${t.totalQuoteVolume ? nf0.format(t.totalQuoteVolume) : '…'}</td>
-                <td>${t.meanPriceRatioFactor ? t.meanPriceRatioFactor.toExponential(2) : '…'}</td>
-                <td>${t.ratioVariance ? t.ratioVariance.toExponential(2) : '…'}</td>
-                <td>${t.openVariance ? t.openVariance.toExponential(2) : '…'}</td>
-                <td>${t.closeVariance ? t.closeVariance.toExponential(2) : '…'}</td>
-                <td>${t.meanOpenPrice ? t.meanOpenPrice.toExponential(2) : '…'}</td>
-                <td>${t.meanClosePrice ? t.meanClosePrice.toExponential(2) : '…'}</td>
-                <td>${nf0.format(t.vol24h)}</td>
-                <td class="${t.chg >= 0 ? 'up' : 'down'}">${t.chg.toFixed(2)}%</td>
-                <td>${t.todayQV ? nf0.format(t.todayQV) : '…'}</td>
-                <td>${t.prevQV ? nf0.format(t.prevQV) : '…'}</td>
-            </tr>
-        `).join('');
+        <tr data-sym="${t.sym}">
+            <td>${i + 1}</td>
+            <td title="${t.listingTimeFmt ? ('上新：' + t.listingTimeFmt) : ''}">
+                <img class="logo" loading="lazy" src="${t.icon}" referrerpolicy="no-referrer"
+                     onerror="this.src='https://bin.bnbstatic.com/static/images/common/base-token-default.png'">
+                ${t.symbol}
+                ${t.isNew ? `<span class="tag-new" title="上新：${t.listingTimeFmt}">🆕</span>` : ''}
+            </td>
+            <td>${nf2.format(t.price)}</td>
+            <td>
+                <canvas id="chart-${t.sym}" width="120" height="60"></canvas>
+            </td>
+            <td>${t.totalQuoteVolume ? nf0.format(t.totalQuoteVolume) : '…'}</td>
+            <td>${t.meanPriceRatioFactor ? t.meanPriceRatioFactor.toExponential(2) : '…'}</td>
+            <td>${t.ratioVariance ? t.ratioVariance.toExponential(2) : '…'}</td>
+            <td>${t.openVariance ? t.openVariance.toExponential(2) : '…'}</td>
+            <td>${t.closeVariance ? t.closeVariance.toExponential(2) : '…'}</td>
+            <td>${t.meanOpenPrice ? t.meanOpenPrice.toExponential(2) : '…'}</td>
+            <td>${t.meanClosePrice ? t.meanClosePrice.toExponential(2) : '…'}</td>
+            <td>${nf0.format(t.vol24h)}</td>
+            <td class="${t.chg >= 0 ? 'up' : 'down'}">${t.chg.toFixed(2)}%</td>
+            <td>${t.todayQV ? nf0.format(t.todayQV) : '…'}</td>
+            <td>${t.prevQV ? nf0.format(t.prevQV) : '…'}</td>
+        </tr>
+    `).join('');
+
             updateSortIcons();
+
+            // Draw Chart.js line chart for each token
+            sorted.forEach(t => {
+                const canvas = document.getElementById(`chart-${t.sym}`);
+                if (!canvas || !t.klines || !t.klines.closes || t.klines.closes.length === 0) return;
+
+                // Prepare data
+                const labels = t.klines.timestamps.map(ts => {
+                    const d = new Date(ts);
+                    return `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
+                });
+                const data = t.klines.closes;
+
+                new Chart(canvas, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Close',
+                            data: data,
+                            borderColor: '#2563eb',
+                            backgroundColor: 'rgba(37,99,235,0.08)',
+                            fill: true,
+                            tension: 0.3,
+                            pointRadius: 0
+                        }]
+                    },
+                    options: {
+                        responsive: false,
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            x: { display: false },
+                            y: { display: false }
+                        }
+                    }
+                });
+            });
         }
+
 
         /* ---------- 刷新数据 ---------- */
         async function reloadAll() {
