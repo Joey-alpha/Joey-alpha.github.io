@@ -65,11 +65,10 @@
         }
 
         #bar-left {
-            flex: 1;
             display: flex;
             flex-wrap: wrap;
-            align-items: center;
-            gap: 8px
+            gap: 8px;
+            align-items: flex-start;
         }
 
         #bar-left input[type="search"] {
@@ -79,6 +78,10 @@
 
         #bar-left input[type="text"] {
             width: 120px
+        }
+
+        #bar-left input[type="number"] {
+            width: 40px;
         }
 
         #bar-left input[type="datetime-local"] {
@@ -347,6 +350,24 @@
                 margin-left: 0
             }
         }
+
+        /* 新增：表单行样式 */
+        .form-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 4px;
+        }
+
+        .form-row label {
+            white-space: nowrap;
+        }
+
+        .form-row input,
+        .form-row select {
+            min-width: 75px;
+            flex: 1;
+        }
     </style>
     <!-- 1. Add Lightweight Charts CDN in <head> (if not already included) -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -358,43 +379,50 @@
     <div id="bar">
         <div id="bar-left">
 
-            <label for="interval">时间间隔:</label>
-            <select id="interval">
-                <option value="1s">1秒</option>
-                <option value="15s" selected>15秒</option>
-                <option value="1m">1分钟</option>
-                <option value="3m">3分钟</option>
-                <option value="5m">5分钟</option>
-                <option value="15m">15分钟</option>
-                <option value="30m">30分钟</option>
-                <option value="1h">1小时</option>
-                <option value="2h">2小时</option>
-                <option value="4h">4小时</option>
-                <option value="6h">6小时</option>
-                <option value="8h">8小时</option>
-                <option value="12h">12小时</option>
-                <option value="1d">1天</option>
-                <option value="3d">3天</option>
-                <option value="1w">1周</option>
-                <option value="1M">1月</option>
-            </select>
 
-            <label for="limit">请求数据数量 (最大1500):</label>
-            <input type="number" id="limit" value="40" placeholder="例如: 100" min="1" max="1500">
+            <div class="form-row">
+                <label for="interval">时间间隔:</label>
+                <select id="interval">
+                    <option value="1s">1秒</option>
+                    <option value="15s" selected>15秒</option>
+                    <option value="1m">1分钟</option>
+                    <option value="3m">3分钟</option>
+                    <option value="5m">5分钟</option>
+                    <option value="15m">15分钟</option>
+                    <option value="30m">30分钟</option>
+                    <option value="1h">1小时</option>
+                    <option value="2h">2小时</option>
+                    <option value="4h">4小时</option>
+                    <option value="6h">6小时</option>
+                    <option value="8h">8小时</option>
+                    <option value="12h">12小时</option>
+                    <option value="1d">1天</option>
+                    <option value="3d">3天</option>
+                    <option value="1w">1周</option>
+                    <option value="1M">1月</option>
+                </select>
+            </div>
+            <div class="form-row">
+                <label for="limit">请求数据数量 (最大1500):</label>
+                <input type="number" id="limit" value="40" placeholder="例如: 100" min="1" max="1500">
+            </div>
+            <div class="form-row">
+                <label for="meanPriceRatioThreshold">收盘/开盘比 均值 -1 阈值:</label>
+                <input type="number" id="meanPriceRatioThreshold" value="5e-5" step="1e-5" placeholder="例如: 5e-5"
+                    min="0">
+            </div>
+            <div class="form-row">
+                <label for="openVarianceThreshold">开盘价方差阈值:</label>
+                <input type="number" id="openVarianceThreshold" value="5e-9" step="1e-9" placeholder="例如: 5e-9" min="0">
+            </div>
+            <div class="form-row">
+                <label for="closeVarianceThreshold">收盘价方差阈值:</label>
+                <input type="number" id="closeVarianceThreshold" value="5e-9" step="1e-9" placeholder="例如: 5e-9"
+                    min="0">
+            </div>
 
-            <div style="flex-basis: 100%; height: 0;"></div>
-            <label for="meanPriceRatioThreshold">收盘/开盘比 均值 -1 阈值:</label>
-            <input type="number" id="meanPriceRatioThreshold" value="5e-5" step="1e-5" placeholder="例如: 5e-5" min="0">
 
-            <label for="openVarianceThreshold">开盘价方差阈值:</label>
-            <input type="number" id="openVarianceThreshold" value="5e-9" step="1e-9" placeholder="例如: 5e-9" min="0">
-
-            <label for="closeVarianceThreshold">收盘价方差阈值:</label>
-            <input type="number" id="closeVarianceThreshold" value="5e-9" step="1e-9" placeholder="例如: 5e-9" min="0">
-
-            <div style="flex-basis: 100%; height: 0;"></div>
             <button id="refreshBtn" class="btn"> ⟳ 刷新数据 <span id="progress" class="badge">0%</span> </button>
-
         </div>
     </div>
 
@@ -409,9 +437,7 @@
                 <th>走势</th> <!-- 新增：图表表头 -->
                 <th id="thVol24h" class="sortable" data-key="vol24h">24H 交易量</th>
                 <th class="sortable" data-key="chg">24H 变化</th>
-                <th class="sortable" data-key="totalQuoteVolume">
-                    总交易量
-                    <span class="subl" id="totalVolDesc"></span>
+                <th class="sortable" data-key="totalQuoteVolume">总交易量<span class="subl" id="totalVolDesc"></span>
                 </th>
                 <th class="sortable" data-key="meanPriceRatioFactor">收盘/开盘比 均值 -1<span class="subl"></span>
                 </th>
