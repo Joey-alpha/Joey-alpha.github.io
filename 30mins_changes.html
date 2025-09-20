@@ -122,6 +122,23 @@
             color: var(--primary)
         }
 
+        /* Star */
+        .star {
+            cursor: pointer;
+            font-size: 1rem;
+            color: var(--sub);
+            user-select: none;
+            transition: transform .15s, color .15s
+        }
+
+        .star.fav {
+            color: #f7b500
+        }
+
+        .star.bounce {
+            transform: scale(1.4)
+        }
+
         #author {
             font-size: .8rem;
             white-space: nowrap
@@ -367,6 +384,16 @@
 
             <label for="limit">请求数据数量 (最大1500):</label>
             <input type="number" id="limit" value="50" placeholder="例如: 100" min="1" max="1500">
+
+            <div style="flex-basis: 100%; height: 0;"></div>
+            <label for="meanPriceRatioThreshold">收盘/开盘比 均值 -1 阈值:</label>
+            <input type="number" id="meanPriceRatioThreshold" value="5e-5" step="0.01" placeholder="例如: 5e-5" min="0">
+
+            <label for="openVarianceThreshold">开盘价方差阈值:</label>
+            <input type="number" id="openVarianceThreshold" value="5e-9" step="0.01" placeholder="例如: 5e-9" min="0">
+
+            <label for="closeVarianceThreshold">收盘价方差阈值:</label>
+            <input type="number" id="closeVarianceThreshold" value="5e-9" step="0.01" placeholder="例如: 5e-9" min="0">
 
         </div>
     </div>
@@ -704,32 +731,43 @@
 
         function render() {
             const sorted = sortRows(top15);
-            tbody.innerHTML = sorted.map((t, i) => `
-        <tr data-sym="${t.sym}">
-            <td>${i + 1}</td>
-            <td title="${t.listingTimeFmt ? ('上新：' + t.listingTimeFmt) : ''}">
-                <img class="logo" loading="lazy" src="${t.icon}" referrerpolicy="no-referrer"
-                     onerror="this.src='https://bin.bnbstatic.com/static/images/common/base-token-default.png'">
-                ${t.symbol}
-            </td>
 
-            <td>${nf5.format(t.price)}</td>
-            <td>
-                <canvas id="chart-${t.sym}" width="120" height="60"></canvas>
-            </td>
-            <td>${t.totalQuoteVolume ? nf0.format(t.totalQuoteVolume) : '…'}</td>
-            <td>${t.meanPriceRatioFactor ? t.meanPriceRatioFactor.toExponential(2) : '…'}</td>
-            <td>${t.ratioVariance ? t.ratioVariance.toExponential(2) : '…'}</td>
-            <td>${t.openVariance ? t.openVariance.toExponential(2) : '…'}</td>
-            <td>${t.closeVariance ? t.closeVariance.toExponential(2) : '…'}</td>
-            <td>${t.meanOpenPrice ? t.meanOpenPrice.toExponential(2) : '…'}</td>
-            <td>${t.meanClosePrice ? t.meanClosePrice.toExponential(2) : '…'}</td>
-            <td>${nf0.format(t.vol24h)}</td>
-            <td class="${t.chg >= 0 ? 'up' : 'down'}">${t.chg.toFixed(2)}%</td>
-            <td>${t.todayQV ? nf0.format(t.todayQV) : '…'}</td>
-            <td>${t.prevQV ? nf0.format(t.prevQV) : '…'}</td>
-        </tr>
-    `).join('');
+            const meanPriceRatioThreshold = parseFloat(document.getElementById('meanPriceRatioThreshold').value) || 0;
+            const openVarianceThreshold = parseFloat(document.getElementById('openVarianceThreshold').value) || 0;
+            const closeVarianceThreshold = parseFloat(document.getElementById('closeVarianceThreshold').value) || 0;
+
+            tbody.innerHTML = sorted.map((t, i) => {
+                const isFav = t.meanPriceRatioFactor <= meanPriceRatioThreshold &&
+                    t.openVariance <= openVarianceThreshold &&
+                    t.closeVariance <= closeVarianceThreshold;
+
+                return `
+                    <tr data-sym="${t.sym}">
+                        <td>${i + 1}</td>
+                        <td title="${t.listingTimeFmt ? ('上新：' + t.listingTimeFmt) : ''}" class="star${isFav ? ' fav' : ''}">
+                            ${isFav ? '★ ' : ''}
+                            <img class="logo" loading="lazy" src="${t.icon}" referrerpolicy="no-referrer"
+                                onerror="this.src='https://bin.bnbstatic.com/static/images/common/base-token-default.png'">
+                            ${t.symbol}
+                        </td>
+                        <td>${nf5.format(t.price)}</td>
+                        <td>
+                            <canvas id="chart-${t.sym}" width="120" height="60"></canvas>
+                        </td>
+                        <td>${t.totalQuoteVolume ? nf0.format(t.totalQuoteVolume) : '…'}</td>
+                        <td>${t.meanPriceRatioFactor ? t.meanPriceRatioFactor.toExponential(2) : '…'}</td>
+                        <td>${t.ratioVariance ? t.ratioVariance.toExponential(2) : '…'}</td>
+                        <td>${t.openVariance ? t.openVariance.toExponential(2) : '…'}</td>
+                        <td>${t.closeVariance ? t.closeVariance.toExponential(2) : '…'}</td>
+                        <td>${t.meanOpenPrice ? t.meanOpenPrice.toExponential(2) : '…'}</td>
+                        <td>${t.meanClosePrice ? t.meanClosePrice.toExponential(2) : '…'}</td>
+                        <td>${nf0.format(t.vol24h)}</td>
+                        <td class="${t.chg >= 0 ? 'up' : 'down'}">${t.chg.toFixed(2)}%</td>
+                        <td>${t.todayQV ? nf0.format(t.todayQV) : '…'}</td>
+                        <td>${t.prevQV ? nf0.format(t.prevQV) : '…'}</td>
+                    </tr>
+                    `;
+            }).join('');
 
             updateSortIcons();
 
