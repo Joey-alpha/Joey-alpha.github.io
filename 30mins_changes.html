@@ -447,7 +447,7 @@
         const LIST_API = 'https://www.binance.com/bapi/defi/v1/public/wallet-direct/buw/wallet/cex/alpha/all/token/list';
         const K_API = 'https://www.binance.com/bapi/defi/v1/public/alpha-trade/klines';
         const nf0 = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
-        const nf2 = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const nf5 = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 5 });
         const CONCURRENCY = 5;
         const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000; // 30 days in milliseconds
 
@@ -711,9 +711,9 @@
                 <img class="logo" loading="lazy" src="${t.icon}" referrerpolicy="no-referrer"
                      onerror="this.src='https://bin.bnbstatic.com/static/images/common/base-token-default.png'">
                 ${t.symbol}
-                ${t.isNew ? `<span class="tag-new" title="上新：${t.listingTimeFmt}">🆕</span>` : ''}
             </td>
-            <td>${nf2.format(t.price)}</td>
+
+            <td>${nf5.format(t.price)}</td>
             <td>
                 <canvas id="chart-${t.sym}" width="120" height="60"></canvas>
             </td>
