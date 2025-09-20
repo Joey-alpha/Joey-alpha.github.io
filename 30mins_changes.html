@@ -380,14 +380,17 @@
                 <th>代币名字</th>
                 <th id="thPrice" class="sortable" data-key="price">价格</th>
                 <th>走势</th> <!-- 新增：图表表头 -->
-                <th class="sortable" data-key="totalQuoteVolume">总交易量 <span class="subl">i.e. 30mins</span></th>
-                <th class="sortable" data-key="meanPriceRatioFactor">收盘/开盘比 均值 -1<span class="subl">i.e. 30mins</span>
+                <th class="sortable" data-key="totalQuoteVolume">
+                    总交易量
+                    <span class="subl" id="totalVolDesc"></span>
                 </th>
-                <th class="sortable" data-key="ratioVariance">收盘/开盘比方差<span class="subl">i.e. 30mins</span></th>
-                <th class="sortable" data-key="openVariance">开盘价方差<span class="subl">i.e. 30mins</span></th>
-                <th class="sortable" data-key="closeVariance">收盘价方差<span class="subl">i.e. 30mins</span></th>
-                <th class="sortable" data-key="meanOpenPrice">均值开盘价<span class="subl">i.e. 30mins</span></th>
-                <th class="sortable" data-key="meanClosePrice">均值收盘价<span class="subl">i.e. 30mins</span></th>
+                <th class="sortable" data-key="meanPriceRatioFactor">收盘/开盘比 均值 -1<span class="subl"></span>
+                </th>
+                <th class="sortable" data-key="ratioVariance">收盘/开盘比方差<span class="subl"></span></th>
+                <th class="sortable" data-key="openVariance">开盘价方差<span class="subl"></span></th>
+                <th class="sortable" data-key="closeVariance">收盘价方差<span class="subl"></span></th>
+                <th class="sortable" data-key="meanOpenPrice">均值开盘价<span class="subl"></span></th>
+                <th class="sortable" data-key="meanClosePrice">均值收盘价<span class="subl"></span></th>
                 <th id="thVol24h" class="sortable" data-key="vol24h">24H 交易量</th>
                 <th class="sortable" data-key="chg">24H 变化</th>
                 <th id="thToday" class="sortable" data-key="todayQV">当天限价单成交额</th>
@@ -403,6 +406,41 @@
 
     <div id="toast"></div>
     <footer></footer>
+
+    <script>
+        function intervalToMs(interval) {
+            const map = { s: 1000, m: 60000, h: 3600000, d: 86400000, w: 604800000, M: 2592000000 };
+            const match = interval.match(/^(\d+)([smhdwM])$/);
+            if (!match) return 0;
+            return parseInt(match[1]) * (map[match[2]] || 0);
+        }
+        function msToHuman(ms) {
+            if (ms < 60000) return `${ms / 1000}秒`;
+            if (ms < 3600000) return `${Math.round(ms / 60000)}分钟`;
+            if (ms < 86400000) return `${Math.round(ms / 3600000)}小时`;
+            if (ms < 2592000000) return `${Math.round(ms / 86400000)}天`;
+            return `${Math.round(ms / 2592000000)}月`;
+        }
+        function updateTotalVolDesc() {
+            const interval = document.getElementById('interval').value;
+            const limit = parseInt(document.getElementById('limit').value) || 0;
+            const ms = intervalToMs(interval) * limit;
+            const desc = ms ? `(${msToHuman(ms)})` : '';
+
+            // Update all .subl spans in thead except those for 24H/prev/today
+            const thead = document.querySelector('#tokenTable thead');
+            thead.querySelectorAll('.subl').forEach(span => {
+                // Only update if not inside thVol24h, thToday, thPrev
+                const th = span.closest('th');
+                if (th && !['thVol24h', 'thToday', 'thPrev'].includes(th.id)) {
+                    span.textContent = desc;
+                }
+            });
+        }
+        document.getElementById('interval').addEventListener('change', updateTotalVolDesc);
+        document.getElementById('limit').addEventListener('input', updateTotalVolDesc);
+        updateTotalVolDesc();
+    </script>
 
     <script>
         /* ---------- 常量 & 工具 ---------- */
