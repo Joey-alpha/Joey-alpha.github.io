@@ -407,6 +407,8 @@
                 <th>代币名字</th>
                 <th id="thPrice" class="sortable" data-key="price">价格</th>
                 <th>走势</th> <!-- 新增：图表表头 -->
+                <th id="thVol24h" class="sortable" data-key="vol24h">24H 交易量</th>
+                <th class="sortable" data-key="chg">24H 变化</th>
                 <th class="sortable" data-key="totalQuoteVolume">
                     总交易量
                     <span class="subl" id="totalVolDesc"></span>
@@ -418,8 +420,6 @@
                 <th class="sortable" data-key="closeVariance">收盘价方差<span class="subl"></span></th>
                 <th class="sortable" data-key="meanOpenPrice">均值开盘价<span class="subl"></span></th>
                 <th class="sortable" data-key="meanClosePrice">均值收盘价<span class="subl"></span></th>
-                <th id="thVol24h" class="sortable" data-key="vol24h">24H 交易量</th>
-                <th class="sortable" data-key="chg">24H 变化</th>
                 <th id="thToday" class="sortable" data-key="todayQV">当天限价单成交额</th>
                 <th id="thPrev" class="sortable" data-key="prevQV">前一天限价单成交额</th>
             </tr>
@@ -754,6 +754,8 @@
                         <td>
                             <canvas id="chart-${t.sym}" width="120" height="60"></canvas>
                         </td>
+                        <td>${nf0.format(t.vol24h)}</td>
+                        <td class="${t.chg >= 0 ? 'up' : 'down'}">${t.chg.toFixed(2)}%</td>
                         <td>${t.totalQuoteVolume ? nf0.format(t.totalQuoteVolume) : '…'}</td>
                         <td>${t.meanPriceRatioFactor ? t.meanPriceRatioFactor.toExponential(2) : '…'}</td>
                         <td>${t.ratioVariance ? t.ratioVariance.toExponential(2) : '…'}</td>
@@ -761,8 +763,6 @@
                         <td>${t.closeVariance ? t.closeVariance.toExponential(2) : '…'}</td>
                         <td>${t.meanOpenPrice ? t.meanOpenPrice.toExponential(2) : '…'}</td>
                         <td>${t.meanClosePrice ? t.meanClosePrice.toExponential(2) : '…'}</td>
-                        <td>${nf0.format(t.vol24h)}</td>
-                        <td class="${t.chg >= 0 ? 'up' : 'down'}">${t.chg.toFixed(2)}%</td>
                         <td>${t.todayQV ? nf0.format(t.todayQV) : '…'}</td>
                         <td>${t.prevQV ? nf0.format(t.prevQV) : '…'}</td>
                     </tr>
