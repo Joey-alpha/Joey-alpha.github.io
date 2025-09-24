@@ -430,7 +430,8 @@
             <button id="refreshBtn" class="btn"> ⟳ 刷新数据 <span id="progress" class="badge">0%</span> </button>
 
             <button id="btn10min" class="btn" type="button">看10分钟 1分钟级别波动</button>
-            <button id="btn5min" class="btn" type="button">看五分钟 15秒级别波动</button>
+            <button id="btn5min" class="btn" type="button">看5分钟 15秒级别波动</button>
+            <button id="btn3min" class="btn" type="button">看3分钟 1秒级别波动</button>
         </div>
     </div>
 
@@ -469,6 +470,12 @@
     <footer></footer>
 
     <script>
+        document.getElementById('btn3min').onclick = function () {
+            document.getElementById('interval').value = '1s';
+            document.getElementById('limit').value = 180;
+            updateTotalVolDesc();
+            document.getElementById('refreshBtn').click();
+        };
         document.getElementById('btn5min').onclick = function () {
             document.getElementById('interval').value = '15s';
             document.getElementById('limit').value = 20;
