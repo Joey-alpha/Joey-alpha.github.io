@@ -351,7 +351,7 @@
             }
         }
 
-        
+
         /* 新增：表单行样式 */
         .form-row {
             display: flex;
@@ -421,7 +421,11 @@
                 <input type="number" id="closeVarianceThreshold" value="5e-9" step="1e-9" placeholder="例如: 5e-9"
                     min="0">
             </div>
-
+            <div class="form-row">
+                <label for="tradeVolumePerMinute">每分钟成交量:</label>
+                <input type="number" id="tradeVolumePerMinute" value="5e5" step="1e5" placeholder="例如: 100000"
+                    min="5e5">
+            </div>
 
             <button id="refreshBtn" class="btn"> ⟳ 刷新数据 <span id="progress" class="badge">0%</span> </button>
         </div>
@@ -762,11 +766,13 @@
             const meanPriceRatioThreshold = parseFloat(document.getElementById('meanPriceRatioThreshold').value) || 0;
             const openVarianceThreshold = parseFloat(document.getElementById('openVarianceThreshold').value) || 0;
             const closeVarianceThreshold = parseFloat(document.getElementById('closeVarianceThreshold').value) || 0;
+            const tradeVolumePerMinute = parseFloat(document.getElementById('tradeVolumePerMinute').value) || 0;
 
             tbody.innerHTML = sorted.map((t, i) => {
                 const isFav = t.meanPriceRatioFactor <= meanPriceRatioThreshold &&
                     t.openVariance <= openVarianceThreshold &&
-                    t.closeVariance <= closeVarianceThreshold;
+                    t.closeVariance <= closeVarianceThreshold &&
+                    t.totalQuoteVolume >= tradeVolumePerMinute * (intervalToMs(document.getElementById('interval').value) * (parseInt(document.getElementById('limit').value) || 0) / 60000)
 
                 return `
                     <tr data-sym="${t.sym}">
