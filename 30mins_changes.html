@@ -472,11 +472,13 @@
         document.getElementById('btn5min').onclick = function () {
             document.getElementById('interval').value = '15s';
             document.getElementById('limit').value = 20;
+            updateTotalVolDesc();
             document.getElementById('refreshBtn').click();
         };
         document.getElementById('btn10min').onclick = function () {
             document.getElementById('interval').value = '1m';
             document.getElementById('limit').value = 10;
+            updateTotalVolDesc();
             document.getElementById('refreshBtn').click();
         };
     </script>
