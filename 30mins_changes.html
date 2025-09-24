@@ -428,6 +428,9 @@
             </div>
 
             <button id="refreshBtn" class="btn"> ⟳ 刷新数据 <span id="progress" class="badge">0%</span> </button>
+
+            <button id="btn10min" class="btn" type="button">看10分钟 1分钟级别波动</button>
+            <button id="btn5min" class="btn" type="button">看五分钟 15秒级别波动</button>
         </div>
     </div>
 
@@ -464,6 +467,19 @@
 
     <div id="toast"></div>
     <footer></footer>
+
+    <script>
+        document.getElementById('btn5min').onclick = function () {
+            document.getElementById('interval').value = '15s';
+            document.getElementById('limit').value = 20;
+            document.getElementById('refreshBtn').click();
+        };
+        document.getElementById('btn10min').onclick = function () {
+            document.getElementById('interval').value = '1m';
+            document.getElementById('limit').value = 10;
+            document.getElementById('refreshBtn').click();
+        };
+    </script>
 
     <script>
         function intervalToMs(interval) {
