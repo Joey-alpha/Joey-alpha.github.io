@@ -712,6 +712,15 @@
                     const ltMs = raw ? (raw < 1e12 ? raw * 1000 : raw) : 0;
                     const isNew = ltMs ? (Date.now() - ltMs) <= THIRTY_DAYS : false;
 
+                    // 预先计算剩余天数
+                    let daysLeft = 0, showDaysLeft = false;
+                    if (ltMs) {
+                        const expire = ltMs + 29 * 24 * 60 * 60 * 1000;
+                        const diffMs = expire - Date.now();
+                        daysLeft = diffMs / (24 * 60 * 60 * 1000);
+                        showDaysLeft = daysLeft > 0 && daysLeft < 5;
+                    }
+
                     return {
                         price: +t.price,
                         vol24h: +t.volume24h,
@@ -719,28 +728,28 @@
                         symbol: t.symbol,
                         icon: t.iconUrl,
                         sym: `${t.alphaId}USDT`,
-                        todayQV: 0, // Placeholder
-                        prevQV: 0, // Placeholder
+                        todayQV: 0,
+                        prevQV: 0,
                         listingTime: ltMs,
                         listingTimeFmt: ltMs ? fmtFull(ltMs) : '',
                         isNew,
-                        meanOpenPrice: 0, // Placeholder
-                        meanClosePrice: 0, // Placeholder
-                        totalQuoteVolume: 0, // Placeholder
-                        openVariance: 0, // Placeholder
-                        closeVariance: 0, // Placeholder
-                        ratioVariance: 0, // Placeholder
-                        meanPriceRatioFactor: 0, // Placeholder
-
-                        // 🔽 Single container for raw klinedata (~300 points each)
+                        meanOpenPrice: 0,
+                        meanClosePrice: 0,
+                        totalQuoteVolume: 0,
+                        openVariance: 0,
+                        closeVariance: 0,
+                        ratioVariance: 0,
+                        meanPriceRatioFactor: 0,
                         klines: {
-                            opens: [],    // open prices
-                            closes: [],   // close prices
-                            highs: [],    // high prices (optional)
-                            lows: [],     // low prices (optional)
-                            volumes: [],   // volumes (optional)
-                            timestamps: [],   // volumes (optional)
-                        }
+                            opens: [],
+                            closes: [],
+                            highs: [],
+                            lows: [],
+                            volumes: [],
+                            timestamps: [],
+                        },
+                        daysLeft,
+                        showDaysLeft
                     };
                 })
                 .filter(t => t.isNew); // Only include tokens listed within the last 30 days
@@ -782,17 +791,8 @@
                             <img class="logo" loading="lazy" src="${t.icon}" referrerpolicy="no-referrer"
                                 onerror="this.src='https://bin.bnbstatic.com/static/images/common/base-token-default.png'">
                             ${t.symbol}
-                            ${t.listingTime
-                        ? (() => {
-                            const now = Date.now();
-                            const expire = t.listingTime + 29 * 24 * 60 * 60 * 1000;
-                            const diffMs = expire - now;
-                            const diffDays = diffMs / (24 * 60 * 60 * 1000);
-                            if (diffDays > 0 && diffDays < 10) {
-                                return `<span style="color:#dc2626;font-size:0.75em;margin-left:4px;">剩余${diffDays.toFixed(1)}天</span>`;
-                            }
-                            return '';
-                        })()
+                            ${t.showDaysLeft
+                        ? `<span style="color:#dc2626;font-size:0.75em;margin-left:4px;">剩余${t.daysLeft.toFixed(0)}天</span>`
                         : ''
                     }
                         </td>
