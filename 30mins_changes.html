@@ -782,6 +782,19 @@
                             <img class="logo" loading="lazy" src="${t.icon}" referrerpolicy="no-referrer"
                                 onerror="this.src='https://bin.bnbstatic.com/static/images/common/base-token-default.png'">
                             ${t.symbol}
+                            ${t.listingTime
+                        ? (() => {
+                            const now = Date.now();
+                            const expire = t.listingTime + 29 * 24 * 60 * 60 * 1000;
+                            const diffMs = expire - now;
+                            const diffDays = diffMs / (24 * 60 * 60 * 1000);
+                            if (diffDays > 0 && diffDays < 10) {
+                                return `<span style="color:#dc2626;font-size:0.75em;margin-left:4px;">剩余${diffDays.toFixed(1)}天</span>`;
+                            }
+                            return '';
+                        })()
+                        : ''
+                    }
                         </td>
                         <td>${nf5.format(t.price)}</td>
                         <td>
