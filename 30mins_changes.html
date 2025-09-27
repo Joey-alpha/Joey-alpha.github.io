@@ -795,18 +795,22 @@
         }
 
         function render() {
-            const sorted = sortRows(top15);
+
 
             const meanPriceRatioThreshold = parseFloat(document.getElementById('meanPriceRatioThreshold').value) || 0;
             const openVarianceThreshold = parseFloat(document.getElementById('openVarianceThreshold').value) || 0;
             const closeVarianceThreshold = parseFloat(document.getElementById('closeVarianceThreshold').value) || 0;
             const tradeVolumePerMinute = parseFloat(document.getElementById('tradeVolumePerMinute').value) || 0;
 
-            tbody.innerHTML = sorted.map((t, i) => {
+            // filter out by totalQuoteVolume threshold
+            const displayList = top15.filter(t => t.totalQuoteVolume >= tradeVolumePerMinute * (intervalToMs(document.getElementById('interval').value) * (parseInt(document.getElementById('limit').value) || 0) / 60000));
+
+
+
+            tbody.innerHTML = displayList.map((t, i) => {
                 const isFav = t.meanPriceRatioFactor <= meanPriceRatioThreshold &&
                     t.openVariance <= openVarianceThreshold &&
-                    t.closeVariance <= closeVarianceThreshold &&
-                    t.totalQuoteVolume >= tradeVolumePerMinute * (intervalToMs(document.getElementById('interval').value) * (parseInt(document.getElementById('limit').value) || 0) / 60000)
+                    t.closeVariance <= closeVarianceThreshold
 
                 return `
                     <tr data-sym="${t.sym}">
@@ -843,7 +847,7 @@
             updateSortIcons();
 
             // Draw Chart.js line chart for each token (open & close)
-            sorted.forEach(t => {
+            displayList.forEach(t => {
                 const canvas = document.getElementById(`chart-${t.sym}`);
                 if (!canvas || !t.klines || !t.klines.closes || t.klines.closes.length === 0 || !t.klines.opens || t.klines.opens.length === 0) return;
 
@@ -908,7 +912,7 @@
                 await fillMeanAll(top15);
                 sortKey = 'meanPriceRatioFactor';
                 sortDir = 'asc';
-                top15 = sortRows(top15).slice(0, 15)
+                top15 = sortRows(top15)
                 render();  // Render after sorting
                 lastUpEl.textContent = `最后更新时间： ${fmtFull(Date.now())}`;
                 window._boundary = today8;
