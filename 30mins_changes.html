@@ -795,6 +795,7 @@
         }
 
         function render() {
+            top15 = sortRows(top15)
 
 
             const meanPriceRatioThreshold = parseFloat(document.getElementById('meanPriceRatioThreshold').value) || 0;
@@ -912,7 +913,6 @@
                 await fillMeanAll(top15);
                 sortKey = 'meanPriceRatioFactor';
                 sortDir = 'asc';
-                top15 = sortRows(top15)
                 render();  // Render after sorting
                 lastUpEl.textContent = `最后更新时间： ${fmtFull(Date.now())}`;
                 window._boundary = today8;
@@ -931,7 +931,9 @@
         document.querySelectorAll('th.sortable').forEach(th => {
             th.addEventListener('click', () => {
                 const key = th.dataset.key;
-                sortDir = (sortKey === key && sortDir === 'desc') ? 'asc' : 'desc'; sortKey = key; render();
+                sortDir = (sortKey === key && sortDir === 'desc') ? 'asc' : 'desc';
+                sortKey = key;
+                render();
             });
         });
 
