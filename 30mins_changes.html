@@ -427,6 +427,12 @@
                     min="5e5">
             </div>
 
+            <div class="form-row">
+                <label for="tradeVolumeVarianceThreshold">成交量方差 &gt; </label>
+                <input type="number" id="tradeVolumeVarianceThreshold" value="1e6" step="1e6" placeholder="例如: 1000000"
+                    min="1e6">
+            </div>
+
             <button id="refreshBtn" class="btn"> ⟳ 刷新数据 <span id="progress" class="badge">0%</span> </button>
 
             <button id="btn10min" class="btn" type="button">看10分钟 1分钟级别波动</button>
@@ -446,8 +452,9 @@
                 <th>走势</th> <!-- 新增：图表表头 -->
                 <th id="thVol24h" class="sortable" data-key="vol24h">24H 交易量</th>
                 <th class="sortable" data-key="chg">24H 变化</th>
-                <th class="sortable" data-key="totalQuoteVolume">总交易量<span class="subl" id="totalVolDesc"></span>
+                <th class="sortable" data-key="totalQuoteVolume">总交易量<span class="subl"></span>
                 </th>
+                <th class="sortable" data-key="tradeVolumeVariance">交易量方差<span class="subl"></span></th>
                 <th class="sortable" data-key="meanPriceRatioFactor">收盘/开盘比 均值 -1<span class="subl"></span>
                 </th>
                 <th class="sortable" data-key="ratioVariance">收盘/开盘比方差<span class="subl"></span></th>
@@ -625,6 +632,7 @@
                     meanOpenPrice,
                     meanClosePrice,
                     totalQuoteVolume,
+                    tradeVolumeVariance,
                     openVariance,
                     closeVariance,
                     ratioVariance,
@@ -635,6 +643,7 @@
                 r.meanOpenPrice = meanOpenPrice;
                 r.meanClosePrice = meanClosePrice;
                 r.totalQuoteVolume = totalQuoteVolume;
+                r.tradeVolumeVariance = tradeVolumeVariance;
                 r.openVariance = openVariance;
                 r.closeVariance = closeVariance;
                 r.ratioVariance = ratioVariance;
@@ -673,13 +682,20 @@
             return data;
         }
 
-        function calculateVariance(values) {
+        function calculateCV(values) {
+            if (values.length === 0) return 0;
+
             const mean = values.reduce((sum, val) => sum + val, 0) / values.length;
+            if (mean === 0) return 0;
+
             const variance = values.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / values.length;
-            return variance;
+            const stdDev = Math.sqrt(variance);
+
+            return stdDev / mean;
         }
 
         function calculateMeanData(klineData) {
+            const tradeVolumes = klineData.map(d => parseFloat(d[7]));
             const openPrices = klineData.map(d => parseFloat(d[1]));
             const closePrices = klineData.map(d => parseFloat(d[4]));
 
@@ -688,6 +704,7 @@
                     meanOpenPrice: 0,
                     meanClosePrice: 0,
                     totalQuoteVolume: 0,
+                    tradeVolumeVariance: 0,
                     openVariance: 0,
                     closeVariance: 0,
                     ratioVariance: 0,
@@ -703,12 +720,16 @@
             const meanClosePrice = closePrices.reduce((sum, price) => sum + price, 0) / closePrices.length;
 
             const totalQuoteVolume = klineData.reduce((sum, data) => sum + parseFloat(data[7]), 0);
+            const tradeVolumeVariance = tradeVolumes.length > 1
+                ? calculateCV(tradeVolumes.slice(0, -1))
+                : 0;
 
-            const openVariance = openPrices.length > 1 ? calculateVariance(openPrices) : 0;
-            const closeVariance = closePrices.length > 1 ? calculateVariance(closePrices) : 0;
+
+            const openVariance = openPrices.length > 1 ? calculateCV(openPrices) : 0;
+            const closeVariance = closePrices.length > 1 ? calculateCV(closePrices) : 0;
 
             const ratioVariance = priceRatios.length > 1 && priceRatios.some(r => r !== 0)
-                ? calculateVariance(priceRatios)
+                ? calculateCV(priceRatios)
                 : 0;
 
             const meanPriceRatioFactor = Math.abs(priceRatios.reduce((sum, priceRatio) => sum + priceRatio, 0) / priceRatios.length - 1);
@@ -717,6 +738,7 @@
                 meanOpenPrice,
                 meanClosePrice,
                 totalQuoteVolume,
+                tradeVolumeVariance,
                 openVariance,
                 closeVariance,
                 ratioVariance,
@@ -761,6 +783,7 @@
                         meanOpenPrice: 0,
                         meanClosePrice: 0,
                         totalQuoteVolume: 0,
+                        tradeVolumeVariance: 0,
                         openVariance: 0,
                         closeVariance: 0,
                         ratioVariance: 0,
@@ -799,12 +822,14 @@
 
 
             const meanPriceRatioThreshold = parseFloat(document.getElementById('meanPriceRatioThreshold').value) || 0;
+            const tradeVolumeVarianceThreshold = parseFloat(document.getElementById('tradeVolumeVarianceThreshold').value) || 0;
             const openVarianceThreshold = parseFloat(document.getElementById('openVarianceThreshold').value) || 0;
             const closeVarianceThreshold = parseFloat(document.getElementById('closeVarianceThreshold').value) || 0;
             const tradeVolumePerMinute = parseFloat(document.getElementById('tradeVolumePerMinute').value) || 0;
 
             // filter out by totalQuoteVolume threshold
-            const displayList = top15.filter(t => t.totalQuoteVolume >= tradeVolumePerMinute * (intervalToMs(document.getElementById('interval').value) * (parseInt(document.getElementById('limit').value) || 0) / 60000));
+            // const displayList = top15.filter(t => t.totalQuoteVolume >= tradeVolumePerMinute * (intervalToMs(document.getElementById('interval').value) * (parseInt(document.getElementById('limit').value) || 0) / 60000));
+            const displayList = top15;
 
 
 
@@ -833,6 +858,7 @@
                         <td>${nf0.format(t.vol24h)}</td>
                         <td class="${t.chg >= 0 ? 'up' : 'down'}">${t.chg.toFixed(2)}%</td>
                         <td>${t.totalQuoteVolume ? nf0.format(t.totalQuoteVolume) : '…'}</td>
+                        <td>${t.tradeVolumeVariance ? t.tradeVolumeVariance.toExponential(2) : '…'}</td>
                         <td>${t.meanPriceRatioFactor ? t.meanPriceRatioFactor.toExponential(2) : '…'}</td>
                         <td>${t.ratioVariance ? t.ratioVariance.toExponential(2) : '…'}</td>
                         <td>${t.openVariance ? t.openVariance.toExponential(2) : '…'}</td>
