@@ -84,6 +84,20 @@
             width: 40px;
         }
 
+        #bar-left input[type="checkbox"] {
+            width: auto;
+            /* 不要强制宽度 */
+            padding: 0;
+            /* 去掉内边距 */
+            margin: 0;
+            /* 去掉外边距 */
+            vertical-align: middle;
+            /* 垂直对齐文字 */
+            border: none;
+            /* 去掉边框 */
+        }
+
+
         #bar-left input[type="datetime-local"] {
             width: 190px
         }
@@ -364,10 +378,19 @@
             white-space: nowrap;
         }
 
-        .form-row input,
+        .form-row input:not([type="checkbox"]),
         .form-row select {
             min-width: 75px;
             flex: 1;
+        }
+
+        .form-row input[type="checkbox"] {
+            flex: 0;
+            /* 不占空间 */
+            min-width: 10px;
+            /* 不要强制宽度 */
+            width: auto;
+            /* 恢复原始宽度 */
         }
     </style>
     <!-- 1. Add Lightweight Charts CDN in <head> (if not already included) -->
@@ -438,6 +461,12 @@
             <button id="btn10min" class="btn" type="button">看10分钟 1分钟级别波动</button>
             <button id="btn5min" class="btn" type="button">看5分钟 15秒级别波动</button>
             <button id="btn3min" class="btn" type="button">看3分钟 1秒级别波动</button>
+            <div class="form-row">
+                <input type="checkbox" id="showKoge" checked>
+                <label for="showKoge">是否显示KOGE</label>
+            </div>
+
+
         </div>
     </div>
 
@@ -800,7 +829,7 @@
                         showDaysLeft
                     };
                 })
-                .filter(t => t.isNew); // Only include tokens listed within the last 30 days
+                .filter(t => t.isNew || (t.symbol.toLowerCase() === "koge" && document.getElementById('showKoge').checked)); // Only include tokens listed within the last 30 days
 
             // Sort the list by todayQV and take top 15
             return sortedList;
@@ -828,7 +857,7 @@
             const tradeVolumePerMinute = parseFloat(document.getElementById('tradeVolumePerMinute').value) || 0;
 
             // filter out by totalQuoteVolume threshold
-            const displayList = top15.filter(t => t.totalQuoteVolume >= tradeVolumePerMinute * (intervalToMs(document.getElementById('interval').value) * (parseInt(document.getElementById('limit').value) || 0) / 60000));
+            const displayList = top15.filter(t => t.totalQuoteVolume >= tradeVolumePerMinute * (intervalToMs(document.getElementById('interval').value) * (parseInt(document.getElementById('limit').value) || 0) / 60000) || (t.symbol.toLowerCase() === "koge" && document.getElementById('showKoge').checked));
 
 
             tbody.innerHTML = displayList.map((t, i) => {
