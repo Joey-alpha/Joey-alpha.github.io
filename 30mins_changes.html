@@ -996,7 +996,7 @@
         document.addEventListener('visibilitychange', () => {
             if (document.visibilityState === 'visible' && nearest8UTC() !== window._boundary) reloadAll();
         });
-        setInterval(() => { if (document.visibilityState === 'visible') reloadAll(); }, 60000);
+        setInterval(() => { if (document.visibilityState === 'visible') reloadAll(); }, 30000);
 
         /* ---------- 首次加载 ---------- */
         reloadAll();
