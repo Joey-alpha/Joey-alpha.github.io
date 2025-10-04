@@ -617,227 +617,6 @@
         }
         const limit = pLimit(CONCURRENCY);
 
-        /* ---------- Quote Volume ---------- */
-        async function qv(sym, start, end) {
-            if (start >= end) return 0;
-            const url = `${K_API}?symbol=${sym}&interval=1h&startTime=${start}&endTime=${end}&limit=1500`;
-            try {
-                const { data = [] } = await fetch(url).then(r => r.json());
-                return data.reduce((s, k) => s + parseFloat(k[7]), 0);
-            } catch { return 0; }
-        }
-
-        // Modified fillQVAll to also fetch 15s data and other statistics
-        async function fillQVAll(list, today8, yest8, endTs) {
-            let done = 0, total = list.length;
-            progressEl.style.display = 'inline-block';
-            await Promise.all(list.map(r => limit(async () => {
-                // Fetch volume data first
-                [r.todayQV, r.prevQV] = await Promise.all([
-                    qv(r.sym, today8, endTs),
-                    qv(r.sym, yest8, today8 - 1)
-                ]);
-                progressEl.textContent = `${Math.floor(++done / total * 100)}%`;
-            })));
-            progressEl.style.display = 'none';
-        }
-
-
-        // Modified fillQVAll to also fetch 15s data and other statistics
-        async function fillMeanAll(list) {
-            let done = 0, total = list.length;
-            progressEl.style.display = 'inline-block';
-            await Promise.all(list.map(r => limit(async () => {
-
-                // 获取用户输入的时间间隔和数量
-                const userInterval = document.getElementById('interval').value;
-                const userLimit = document.getElementById('limit').value;
-
-                // 如果用户没有输入，则使用默认值
-                const interval = userInterval || '15s';
-                const limit = userLimit ? Math.min(parseInt(userLimit), 1500) : 100; // 限制最大数量为1500
-
-
-                // Fetch 15s Kline data for each token and calculate the necessary stats
-                const klineData = await fetch15sData(r.sym, interval, limit);
-                const {
-                    meanOpenPrice,
-                    meanClosePrice,
-                    totalQuoteVolume,
-                    tradeVolumeVariance,
-                    openVariance,
-                    closeVariance,
-                    ratioVariance,
-                    meanPriceRatioFactor
-                } = calculateMeanData(klineData);
-
-                // Populate additional data in the token object
-                r.meanOpenPrice = meanOpenPrice;
-                r.meanClosePrice = meanClosePrice;
-                r.totalQuoteVolume = totalQuoteVolume;
-                r.tradeVolumeVariance = tradeVolumeVariance;
-                r.openVariance = openVariance;
-                r.closeVariance = closeVariance;
-                r.ratioVariance = ratioVariance;
-                r.meanPriceRatioFactor = meanPriceRatioFactor;
-
-
-                // Fill the klines object
-                klineData.forEach(kline => {
-                    r.klines.opens.push(parseFloat(kline[1]));   // Open price
-                    r.klines.closes.push(parseFloat(kline[4]));  // Close price
-                    r.klines.highs.push(parseFloat(kline[2]));   // High price
-                    r.klines.lows.push(parseFloat(kline[3]));    // Low price
-                    r.klines.volumes.push(parseFloat(kline[5])); // Volume
-                    r.klines.timestamps.push(parseInt(kline[0])); // Open time (timestamp)
-                });
-                progressEl.textContent = `${Math.floor(++done / total * 100)}%`;
-            })));
-            progressEl.style.display = 'none';
-        }
-
-
-        async function fetch15sData(symbol, interval = '15s', limit = 100) {
-            const data = [];
-
-            // Fetch the latest 100 data points
-            const url = `${K_API}?symbol=${symbol}&interval=${interval}&limit=${limit}`;
-            try {
-                const { data: klineData } = await fetch(url).then(r => r.json());
-                if (klineData && klineData.length > 0) {
-                    data.push(...klineData);
-                }
-            } catch (error) {
-                console.error('Error fetching Kline data:', error);
-            }
-
-            return data;
-        }
-
-        function calculateCV(values) {
-            if (values.length === 0) return 0;
-
-            const mean = values.reduce((sum, val) => sum + val, 0) / values.length;
-            if (mean === 0) return 0;
-
-            const variance = values.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / values.length;
-            const stdDev = Math.sqrt(variance);
-
-            return stdDev / mean;
-        }
-
-        function calculateMeanData(klineData) {
-            const tradeVolumes = klineData.map(d => parseFloat(d[7]));
-            const openPrices = klineData.map(d => parseFloat(d[1]));
-            const closePrices = klineData.map(d => parseFloat(d[4]));
-
-            if (openPrices.some(isNaN) || closePrices.some(isNaN)) {
-                return {
-                    meanOpenPrice: 0,
-                    meanClosePrice: 0,
-                    totalQuoteVolume: 0,
-                    tradeVolumeVariance: 0,
-                    openVariance: 0,
-                    closeVariance: 0,
-                    ratioVariance: 0,
-                    meanPriceRatioFactor: 0
-                };
-            }
-
-            const priceRatios = openPrices.map((open, index) => {
-                return open !== 0 ? closePrices[index] / open : 0;
-            });
-
-            const meanOpenPrice = openPrices.reduce((sum, price) => sum + price, 0) / openPrices.length;
-            const meanClosePrice = closePrices.reduce((sum, price) => sum + price, 0) / closePrices.length;
-
-            const totalQuoteVolume = klineData.reduce((sum, data) => sum + parseFloat(data[7]), 0);
-            const tradeVolumeVariance = tradeVolumes.length > 1
-                ? calculateCV(tradeVolumes.slice(0, -1))
-                : 0;
-
-
-            const openVariance = openPrices.length > 1 ? calculateCV(openPrices) : 0;
-            const closeVariance = closePrices.length > 1 ? calculateCV(closePrices) : 0;
-
-            const ratioVariance = priceRatios.length > 1 && priceRatios.some(r => r !== 0)
-                ? calculateCV(priceRatios)
-                : 0;
-
-            const meanPriceRatioFactor = Math.abs(priceRatios.reduce((sum, priceRatio) => sum + priceRatio, 0) / priceRatios.length - 1);
-
-            return {
-                meanOpenPrice,
-                meanClosePrice,
-                totalQuoteVolume,
-                tradeVolumeVariance,
-                openVariance,
-                closeVariance,
-                ratioVariance,
-                meanPriceRatioFactor
-            };
-        }
-
-        /* ---------- 拉取列表（过滤仅30天内上新） ---------- */
-        async function fetchList() {
-            const resp = await fetch(LIST_API);
-            if (!resp.ok) throw new Error('LIST_API Error');
-            const { data = [] } = await resp.json();
-
-            const sortedList = data
-                .filter(t => +t.volume24h > 0)
-                .map(t => {
-                    const raw = Number(t.listingTime || 0);
-                    const ltMs = raw ? (raw < 1e12 ? raw * 1000 : raw) : 0;
-                    const isNew = ltMs ? (Date.now() - ltMs) <= THIRTY_DAYS : false;
-
-                    // 预先计算剩余天数
-                    let daysLeft = 0, showDaysLeft = false;
-                    if (ltMs) {
-                        const expire = ltMs + 29 * 24 * 60 * 60 * 1000;
-                        const diffMs = expire - Date.now();
-                        daysLeft = diffMs / (24 * 60 * 60 * 1000);
-                        showDaysLeft = daysLeft > 0 && daysLeft < 5;
-                    }
-
-                    return {
-                        price: +t.price,
-                        vol24h: +t.volume24h,
-                        chg: +t.percentChange24h,
-                        symbol: t.symbol,
-                        icon: t.iconUrl,
-                        sym: `${t.alphaId}USDT`,
-                        todayQV: 0,
-                        prevQV: 0,
-                        listingTime: ltMs,
-                        listingTimeFmt: ltMs ? fmtFull(ltMs) : '',
-                        isNew,
-                        meanOpenPrice: 0,
-                        meanClosePrice: 0,
-                        totalQuoteVolume: 0,
-                        tradeVolumeVariance: 0,
-                        openVariance: 0,
-                        closeVariance: 0,
-                        ratioVariance: 0,
-                        meanPriceRatioFactor: 0,
-                        klines: {
-                            opens: [],
-                            closes: [],
-                            highs: [],
-                            lows: [],
-                            volumes: [],
-                            timestamps: [],
-                        },
-                        daysLeft,
-                        showDaysLeft
-                    };
-                })
-                .filter(t => t.isNew || (t.symbol.toLowerCase() === "koge" && document.getElementById('showKoge').checked)); // Only include tokens listed within the last 30 days
-
-            // Sort the list by todayQV and take top 15
-            return sortedList;
-        }
-
         /* ---------- 排序 & 渲染 ---------- */
         function sortRows(arr) {
             return [...arr].sort((a, b) => sortDir === 'desc' ? b[sortKey] - a[sortKey] : a[sortKey] - b[sortKey]);
@@ -848,6 +627,9 @@
                 if (th.dataset.key === sortKey) th.classList.add(sortDir);
             });
         }
+
+        /* ---------- 刷新数据 ---------- */
+
 
         function render() {
             top15 = sortRows(top15)
@@ -953,8 +735,6 @@
             });
         }
 
-
-        /* ---------- 刷新数据 ---------- */
         async function reloadAll() {
             refreshBtn.disabled = true; progressEl.textContent = '0%';
             const today8 = nearest8UTC(), yest8 = today8 - 864e5, endTs = Date.now();
@@ -963,12 +743,12 @@
             thPrev.innerHTML = `前一天限价单成交额<span class="subl">(${fmtShort(yest8)}&nbsp;~&nbsp;${fmtShort(today8 - 1)})</span>`;
 
             try {
-                rows = await fetchList();
-                await fillQVAll(rows, today8, yest8, endTs);  // Fetch QV data and other stats
+                rows = await fetchTokenList();
+                await fillTodayQuoteVolumeAll(rows, today8, yest8, endTs);  // Fetch QV data and other stats
                 sortKey = 'todayQV';
                 sortDir = 'desc';
                 top15 = sortRows(rows).slice(0, 15)
-                await fillMeanAll(top15);
+                await fillShortTimeStatisticValueAll(top15);
                 sortKey = 'meanPriceRatioFactor';
                 sortDir = 'asc';
                 render();  // Render after sorting
@@ -983,6 +763,229 @@
             }
         }
 
+        /* ---------- 拉取列表（过滤仅30天内上新） ---------- */
+        async function fetchTokenList() {
+            const resp = await fetch(LIST_API);
+            if (!resp.ok) throw new Error('LIST_API Error');
+            const { data = [] } = await resp.json();
+
+            const sortedList = data
+                .filter(t => +t.volume24h > 0)
+                .map(t => {
+                    const raw = Number(t.listingTime || 0);
+                    const ltMs = raw ? (raw < 1e12 ? raw * 1000 : raw) : 0;
+                    const isNew = ltMs ? (Date.now() - ltMs) <= THIRTY_DAYS : false;
+
+                    // 预先计算剩余天数
+                    let daysLeft = 0, showDaysLeft = false;
+                    if (ltMs) {
+                        const expire = ltMs + 29 * 24 * 60 * 60 * 1000;
+                        const diffMs = expire - Date.now();
+                        daysLeft = diffMs / (24 * 60 * 60 * 1000);
+                        showDaysLeft = daysLeft > 0 && daysLeft < 5;
+                    }
+
+                    return {
+                        price: +t.price,
+                        vol24h: +t.volume24h,
+                        chg: +t.percentChange24h,
+                        symbol: t.symbol,
+                        icon: t.iconUrl,
+                        sym: `${t.alphaId}USDT`,
+                        todayQV: 0,
+                        prevQV: 0,
+                        listingTime: ltMs,
+                        listingTimeFmt: ltMs ? fmtFull(ltMs) : '',
+                        isNew,
+                        meanOpenPrice: 0,
+                        meanClosePrice: 0,
+                        totalQuoteVolume: 0,
+                        tradeVolumeVariance: 0,
+                        openVariance: 0,
+                        closeVariance: 0,
+                        ratioVariance: 0,
+                        meanPriceRatioFactor: 0,
+                        klines: {
+                            opens: [],
+                            closes: [],
+                            highs: [],
+                            lows: [],
+                            volumes: [],
+                            timestamps: [],
+                        },
+                        daysLeft,
+                        showDaysLeft
+                    };
+                })
+                .filter(t => t.isNew || (t.symbol.toLowerCase() === "koge" && document.getElementById('showKoge').checked)); // Only include tokens listed within the last 30 days
+
+            // Sort the list by todayQV and take top 15
+            return sortedList;
+        }
+
+        /* ---------- Today's Quote Volume ---------- */
+        // Modified fillTodayQuoteVolumeAll to also fetch 15s data and other statistics
+        async function fillTodayQuoteVolumeAll(list, today8, yest8, endTs) {
+            let done = 0, total = list.length;
+            progressEl.style.display = 'inline-block';
+            await Promise.all(list.map(r => limit(async () => {
+                // Fetch volume data first
+                [r.todayQV, r.prevQV] = await Promise.all([
+                    fetchTodaySQuoteVolume(r.sym, today8, endTs),
+                    fetchTodaySQuoteVolume(r.sym, yest8, today8 - 1)
+                ]);
+                progressEl.textContent = `${Math.floor(++done / total * 100)}%`;
+            })));
+            progressEl.style.display = 'none';
+        }
+
+        async function fetchTodaySQuoteVolume(sym, start, end) {
+            if (start >= end) return 0;
+            const url = `${K_API}?symbol=${sym}&interval=1h&startTime=${start}&endTime=${end}&limit=1500`;
+            try {
+                const { data = [] } = await fetch(url).then(r => r.json());
+                return data.reduce((s, k) => s + parseFloat(k[7]), 0);
+            } catch { return 0; }
+        }
+
+
+        /* ---------- Short Time Quote Volume ---------- */
+        async function fillShortTimeStatisticValueAll(list) {
+            let done = 0, total = list.length;
+            progressEl.style.display = 'inline-block';
+            await Promise.all(list.map(r => limit(async () => {
+
+                // 获取用户输入的时间间隔和数量
+                const userInterval = document.getElementById('interval').value;
+                const userLimit = document.getElementById('limit').value;
+
+                // 如果用户没有输入，则使用默认值
+                const interval = userInterval || '15s';
+                const limit = userLimit ? Math.min(parseInt(userLimit), 1500) : 100; // 限制最大数量为1500
+
+
+                // Fetch 15s Kline data for each token and calculate the necessary stats
+                const klineData = await fetchShortTimeData(r.sym, interval, limit);
+                const {
+                    meanOpenPrice,
+                    meanClosePrice,
+                    totalQuoteVolume,
+                    tradeVolumeVariance,
+                    openVariance,
+                    closeVariance,
+                    ratioVariance,
+                    meanPriceRatioFactor
+                } = calculateStatisticData(klineData);
+
+                // Populate additional data in the token object
+                r.meanOpenPrice = meanOpenPrice;
+                r.meanClosePrice = meanClosePrice;
+                r.totalQuoteVolume = totalQuoteVolume;
+                r.tradeVolumeVariance = tradeVolumeVariance;
+                r.openVariance = openVariance;
+                r.closeVariance = closeVariance;
+                r.ratioVariance = ratioVariance;
+                r.meanPriceRatioFactor = meanPriceRatioFactor;
+
+
+                // Fill the klines object
+                klineData.forEach(kline => {
+                    r.klines.opens.push(parseFloat(kline[1]));   // Open price
+                    r.klines.closes.push(parseFloat(kline[4]));  // Close price
+                    r.klines.highs.push(parseFloat(kline[2]));   // High price
+                    r.klines.lows.push(parseFloat(kline[3]));    // Low price
+                    r.klines.volumes.push(parseFloat(kline[5])); // Volume
+                    r.klines.timestamps.push(parseInt(kline[0])); // Open time (timestamp)
+                });
+                progressEl.textContent = `${Math.floor(++done / total * 100)}%`;
+            })));
+            progressEl.style.display = 'none';
+        }
+
+        async function fetchShortTimeData(symbol, interval = '15s', limit = 100) {
+            const data = [];
+
+            // Fetch the latest 100 data points
+            const url = `${K_API}?symbol=${symbol}&interval=${interval}&limit=${limit}`;
+            try {
+                const { data: klineData } = await fetch(url).then(r => r.json());
+                if (klineData && klineData.length > 0) {
+                    data.push(...klineData);
+                }
+            } catch (error) {
+                console.error('Error fetching Kline data:', error);
+            }
+
+            return data;
+        }
+
+        function calculateCV(values) {
+            if (values.length === 0) return 0;
+
+            const mean = values.reduce((sum, val) => sum + val, 0) / values.length;
+            if (mean === 0) return 0;
+
+            const variance = values.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / values.length;
+            const stdDev = Math.sqrt(variance);
+
+            return stdDev / mean;
+        }
+
+        function calculateStatisticData(klineData) {
+            const tradeVolumes = klineData.map(d => parseFloat(d[7]));
+            const openPrices = klineData.map(d => parseFloat(d[1]));
+            const closePrices = klineData.map(d => parseFloat(d[4]));
+
+            if (openPrices.some(isNaN) || closePrices.some(isNaN)) {
+                return {
+                    meanOpenPrice: 0,
+                    meanClosePrice: 0,
+                    totalQuoteVolume: 0,
+                    tradeVolumeVariance: 0,
+                    openVariance: 0,
+                    closeVariance: 0,
+                    ratioVariance: 0,
+                    meanPriceRatioFactor: 0
+                };
+            }
+
+            const priceRatios = openPrices.map((open, index) => {
+                return open !== 0 ? closePrices[index] / open : 0;
+            });
+
+            const meanOpenPrice = openPrices.reduce((sum, price) => sum + price, 0) / openPrices.length;
+            const meanClosePrice = closePrices.reduce((sum, price) => sum + price, 0) / closePrices.length;
+
+            const totalQuoteVolume = klineData.reduce((sum, data) => sum + parseFloat(data[7]), 0);
+            const tradeVolumeVariance = tradeVolumes.length > 1
+                ? calculateCV(tradeVolumes.slice(0, -1))
+                : 0;
+
+
+            const openVariance = openPrices.length > 1 ? calculateCV(openPrices) : 0;
+            const closeVariance = closePrices.length > 1 ? calculateCV(closePrices) : 0;
+
+            const ratioVariance = priceRatios.length > 1 && priceRatios.some(r => r !== 0)
+                ? calculateCV(priceRatios)
+                : 0;
+
+            const meanPriceRatioFactor = Math.abs(priceRatios.reduce((sum, priceRatio) => sum + priceRatio, 0) / priceRatios.length - 1);
+
+            return {
+                meanOpenPrice,
+                meanClosePrice,
+                totalQuoteVolume,
+                tradeVolumeVariance,
+                openVariance,
+                closeVariance,
+                ratioVariance,
+                meanPriceRatioFactor
+            };
+        }
+
+    </script>
+
+    <script>
         /* ★ 绑定刷新按钮 */
         refreshBtn.addEventListener('click', reloadAll);
 
