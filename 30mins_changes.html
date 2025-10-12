@@ -432,16 +432,16 @@
             </div>
             <div class="form-row">
                 <label for="meanPriceRatioThreshold">收盘/开盘比 均值 -1 &lt; </label>
-                <input type="number" id="meanPriceRatioThreshold" value="5e-5" step="1e-5" placeholder="例如: 1e-5"
+                <input type="number" id="meanPriceRatioThreshold" value="2e-5" step="1e-5" placeholder="例如: 1e-5"
                     min="0">
             </div>
             <div class="form-row">
                 <label for="openVarianceThreshold">开盘价方差 &lt; </label>
-                <input type="number" id="openVarianceThreshold" value="8e-4" step="1e-4" placeholder="例如: 1e-4" min="0">
+                <input type="number" id="openVarianceThreshold" value="8e-5" step="1e-5" placeholder="例如: 1e-5" min="0">
             </div>
             <div class="form-row">
                 <label for="closeVarianceThreshold">收盘价方差 &lt; </label>
-                <input type="number" id="closeVarianceThreshold" value="8e-4" step="1e-4" placeholder="例如: 1e-4"
+                <input type="number" id="closeVarianceThreshold" value="8e-5" step="1e-5" placeholder="例如: 1e-5"
                     min="0">
             </div>
             <div class="form-row">
@@ -452,7 +452,7 @@
 
             <div class="form-row">
                 <label for="tradeVolumeVarianceThreshold">成交量方差 &lt; </label>
-                <input type="number" id="tradeVolumeVarianceThreshold" value="0.1" step="0.1" placeholder="例如: 1000000"
+                <input type="number" id="tradeVolumeVarianceThreshold" value="0.2" step="0.1" placeholder="例如: 1000000"
                     min="0.1">
             </div>
 
@@ -509,14 +509,20 @@
         document.getElementById('btn3min').onclick = function () {
             document.getElementById('interval').value = '1s';
             document.getElementById('limit').value = 180;
-            document.getElementById('tradeVolumeVarianceThreshold').value = 0.5;
+            document.getElementById('tradeVolumeVarianceThreshold').value = 0.53;
+            document.getElementById('meanPriceRatioThreshold').value = 1.2e-5;
+            document.getElementById('openVarianceThreshold').value = 2e-5;
+            document.getElementById('closeVarianceThreshold').value = 2e-5;
             updateTotalVolDesc();
             document.getElementById('refreshBtn').click();
         };
         document.getElementById('btn5min').onclick = function () {
             document.getElementById('interval').value = '15s';
             document.getElementById('limit').value = 20;
-            document.getElementById('tradeVolumeVarianceThreshold').value = 0.1;
+            document.getElementById('tradeVolumeVarianceThreshold').value = 0.15;
+            document.getElementById('meanPriceRatioThreshold').value = 5e-6;
+            document.getElementById('openVarianceThreshold').value = 4e-5;
+            document.getElementById('closeVarianceThreshold').value = 4e-5;
             updateTotalVolDesc();
             document.getElementById('refreshBtn').click();
         };
@@ -524,6 +530,9 @@
             document.getElementById('interval').value = '1m';
             document.getElementById('limit').value = 10;
             document.getElementById('tradeVolumeVarianceThreshold').value = 0.1;
+            document.getElementById('meanPriceRatioThreshold').value = 1e-4;
+            document.getElementById('openVarianceThreshold').value = 4e-5;
+            document.getElementById('closeVarianceThreshold').value = 4e-5;
             updateTotalVolDesc();
             document.getElementById('refreshBtn').click();
         };
