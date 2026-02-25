@@ -84,6 +84,7 @@
       position: absolute;
       width: 1000px;
       height: 1000px;
+      transform-style: preserve-3d;
     }
 
     .loop-svg {
@@ -129,6 +130,14 @@
       /* 自动根据内容撑开 */
       min-height: 80px;
       /* 可选：最小高度 */
+    }
+
+
+    .step-node {
+      transform: translate(-50%, -50%) translateZ(0);
+      backface-visibility: hidden;
+      will-change: transform;
+      -webkit-backdrop-filter: blur(6px);
     }
 
     .step-node textarea {
