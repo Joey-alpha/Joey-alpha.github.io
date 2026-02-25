@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <style>
+    :root {
+      --primary: #ff4d4d;
+      --bg: #121212;
+      --text: #eee;
+      --step-bg: rgba(30, 30, 30, 0.95);
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Microsoft YaHei", "微软雅黑", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      letter-spacing: -0.01em;
+      margin: 0;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+
+    .nav-header {
+      width: 100%;
+      padding: 16px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #1f1f1f;
+      box-sizing: border-box;
+      z-index: 1000;
+      border-bottom: 1px solid #333;
+      font-size: 14px;
+    }
+
+    .controls {
+      display: flex;
+      gap: 10px;
+    }
+
+    button {
+      cursor: pointer;
+      background: #2a2a2a;
+      color: white;
+      border: none;
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+
+    button:hover {
+      background: var(--primary);
+      transform: scale(1.05);
+    }
+
+    #viewport {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+      width: 100vw;
+      background: #111;
+      cursor: grab;
+    }
+
+    #viewport:active {
+      cursor: grabbing;
+    }
+
+    #world {
+      position: absolute;
+      top: 0;
+      left: 0;
+      transform-origin: 0 0;
+      will-change: transform;
+    }
+
+    .canvas-layer {
+      position: absolute;
+      width: 1000px;
+      height: 1000px;
+    }
+
+    .loop-svg {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      overflow: visible;
+    }
+
+    .loop-path {
+      fill: none;
+      stroke: #555;
+      stroke-width: 3;
+      stroke-dasharray: 8, 4;
+      stroke-linecap: round;
+      opacity: 0.5;
+    }
+
+    .step-node {
+      position: absolute;
+      width: 200px;
+      transform: translate(-50%, -50%);
+      background: var(--step-bg);
+      backdrop-filter: blur(6px);
+      border: 1px solid #444;
+      border-radius: 14px;
+      padding: 14px;
+      z-index: 10;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 8px 18px rgba(0, 0, 0, 0.4);
+      font-size: 14px;
+      line-height: 1.5;
+
+      display: flex;
+      flex-direction: column;
+      /* 竖直堆叠 label + textarea + button */
+      align-items: stretch;
+
+      height: auto;
+      /* 自动根据内容撑开 */
+      min-height: 80px;
+      /* 可选：最小高度 */
+    }
+
+    .step-node textarea {
+      width: 100%;
+      background: transparent;
+      border: none;
+      color: #eee;
+      resize: none;
+      font-size: 14px;
+      font-family: "Microsoft YaHei", "微软雅黑", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      min-height: 55px;
+      max-height: 300px;
+      /* 可选限制最大高度 */
+      outline: none;
+      line-height: 1.5;
+      overflow: hidden;
+      /* 自动扩展，不出现滚动条 */
+    }
+
+    .step-node:hover {
+      border-color: var(--primary);
+      transform: translate(-50%, -55%);
+      box-shadow: 0 16px 30px rgba(255, 77, 77, 0.25);
+    }
+
+    .step-label {
+      font-size: 14px;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: var(--primary);
+      margin-bottom: 8px;
+      letter-spacing: 0.5px;
+    }
+
+    textarea {
+      width: 100%;
+      background: transparent;
+      border: none;
+      color: #eee;
+      resize: none;
+      font-size: 14px;
+      font-family: "Microsoft YaHei", "微软雅黑", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      height: 55px;
+      outline: none;
+      line-height: 1.5;
+    }
+
+    .expand-btn {
+      width: 100%;
+      margin-top: 8px;
+      font-size: 12px;
+      background: #111;
+      padding: 6px;
+      border: 1px solid #333;
+      border-radius: 5px;
+      color: #ccc;
+      transition: all 0.2s;
+    }
+
+    .expand-btn:hover {
+      color: white;
+      border-color: var(--primary);
+      transform: scale(1.03);
+    }
+
+    .center-evolution {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      width: 220px;
+      pointer-events: none;
+      opacity: 0.35;
+    }
+
+    .center-evolution h1 {
+      margin: 0;
+      font-size: 28px;
+      font-weight: 800;
+      text-shadow: 1px 1px 6px rgba(0, 0, 0, 0.5);
+    }
+
+    .center-evolution p {
+      margin: 4px 0 0 0;
+      font-size: 14px;
+      color: #bbb;
+    }
+
+    /* minimap */
+    #minimap {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      width: 220px;
+      height: 150px;
+      background: #000;
+      border: 1px solid #444;
+      border-radius: 6px;
+      z-index: 9999;
+      opacity: 0.9;
+    }
+
+    .expand-btn:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="nav-header">
+    <div class="controls">
+      <button id="backBtn" onclick="goBack()">← Zoom Out</button>
+      <button onclick="resetView()">Reset View</button>
+      <button onclick="showGlobalMap()">🌐 Global Map</button>
+      <button id="exportBtn" onclick="exportMarkdownDFS()">📄 Export MD</button>
+      <button onclick="importMarkdown()">📥 Import MD</button>
+      <input type="file" id="mdFileInput" accept=".md" style="display:none">
+    </div>
+    <div id="current-title" style="font-weight:bold;color:var(--primary)">MAIN MACHINE</div>
+
+    <div style="font-size:12px;color:#888;">
+      DEPTH: <span id="level-idx" style="color:white">0</span>
+    </div>
+  </div>
+
+  <div id="viewport">
+    <div id="world"></div>
+  </div>
+
+  <canvas id="minimap"></canvas>
+
+  <script>
+    const MAX_DEPTH = 4;
+    const LOOP_W = 1000;
+    const LOOP_H = 1000;
+    const stepNames = ["Goals", "Problems", "Diagnosis", "Design", "Doing"];
+
+    const world = document.getElementById('world');
+    const viewport = document.getElementById('viewport');
+
+    let stateTree = {
+      id: 'root',
+      title: 'MAIN MACHINE',
+      content: ["", "", "", "", ""],
+      children: {},
+      x: 0, y: 0, scale: 1
+    };
+
+    let navigationStack = [stateTree];
+
+    let cam = {
+      x: 0,
+      y: 0,
+      zoom: 0.8,
+      isDragging: false,
+      lastMouseX: 0,
+      lastMouseY: 0
+    };
+
+    /* ---------- RENDER ---------- */
+
+    function renderAll(animate = true) {
+
+      const current = navigationStack[navigationStack.length - 1];
+
+      // ====== 1. 隐藏已有 DOM（不销毁，避免反复创建导致卡顿） ======
+      const allLoops = collectAllLoops(stateTree);
+      allLoops.forEach(l => {
+        if (l.dom) l.dom.style.display = 'none';
+      });
+
+      // ====== 2. 只渲染必要的三个层级 ======
+      // 当前
+      drawLoop(current);
+      if (current.dom) current.dom.style.display = 'block';
+
+      // 父级（如果有）
+      if (navigationStack.length > 1) {
+        const parent = navigationStack[navigationStack.length - 2];
+        drawLoop(parent);
+        if (parent.dom) parent.dom.style.display = 'block';
+      }
+
+      // 子级
+      Object.values(current.children).forEach(child => {
+        drawLoop(child);
+        if (child.dom) child.dom.style.display = 'block';
+      });
+
+      // ====== 3. 更新标题与层级 ======
+      document.getElementById('current-title').innerText = current.title;
+      document.getElementById('level-idx').innerText = navigationStack.length - 1;
+      document.getElementById('backBtn').style.visibility =
+        navigationStack.length > 1 ? 'visible' : 'hidden';
+
+      // ====== 4. 镜头动画（聚焦当前 loop） ======
+      if (animate) {
+        cam.zoom = 1 / current.scale;
+        cam.x = window.innerWidth / 2 - (current.x + 500 * current.scale) * cam.zoom;
+        cam.y = window.innerHeight / 2 - (current.y + 500 * current.scale) * cam.zoom;
+        world.style.transition = "transform .8s cubic-bezier(.85,0,.15,1)";
+      } else {
+        world.style.transition = "none";
+      }
+
+      updateWorld();
+
+      // ====== 5. minimap（建议只在 render 时画一次） ======
+      drawMiniMap();
+    }
+
+    function showGlobalMap() {
+      const allLoops = collectAllLoops(stateTree);
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      allLoops.forEach(l => {
+        minX = Math.min(minX, l.x);
+        minY = Math.min(minY, l.y);
+        maxX = Math.max(maxX, l.x + LOOP_W * l.scale);
+        maxY = Math.max(maxY, l.y + LOOP_H * l.scale);
+      });
+      const worldWidth = maxX - minX;
+      const worldHeight = maxY - minY;
+      const scaleX = window.innerWidth / worldWidth;
+      const scaleY = window.innerHeight / worldHeight;
+      const targetZoom = Math.min(scaleX, scaleY) * 0.95;
+      cam.zoom = targetZoom;
+      cam.x = window.innerWidth / 2 - (minX + worldWidth / 2) * cam.zoom;
+      cam.y = window.innerHeight / 2 - (minY + worldHeight / 2) * cam.zoom;
+      world.style.transition = "transform 0.8s cubic-bezier(0.85,0,0.15,1)";
+      updateWorld();
+    }
+
+    function collectAllLoops(root) {
+      let arr = [root];
+      Object.values(root.children).forEach(c => {
+        arr = arr.concat(collectAllLoops(c));
+      });
+      return arr;
+    }
+
+    function updateWorld() {
+      world.style.transform = `translate(${cam.x}px,${cam.y}px) scale(${cam.zoom})`;
+    }
+
+    /* ---------- DRAW LOOP ---------- */
+
+    function drawLoop(data) {
+      if (data.dom) {
+        data.dom.style.left = `${data.x}px`;
+        data.dom.style.top = `${data.y}px`;
+        data.dom.style.transform = `scale(${data.scale})`;
+        return;
+      }
+      const layer = document.createElement('div');
+      data.dom = layer;
+      layer.className = 'canvas-layer';
+      layer.style.cssText = `left:${data.x}px;top:${data.y}px;transform:scale(${data.scale});transform-origin:0 0;`;
+
+      layer.innerHTML = `
+        <svg width="1000" height="1000" viewBox="0 0 1000 1000" xmlns="http://www.w3.org">
+            <defs>
+                <marker id="arrowhead" markerWidth="15" markerHeight="10" refX="0" refY="5" orient="auto">
+                    <polygon points="0 0,15 5,0 10" fill="var(--primary)" />
+                </marker>
+            </defs>
+            <g transform="translate(360, 380) scale(0.4, -0.4) translate(-1100, -1000)" fill="#000000">
+                <path d="M2060 1729 c-218 -157 -435 -336 -589 -486 l-104 -102 -67 -10 c-194
+                        -30 -431 -146 -632 -307 -81 -65 -228 -211 -228 -226 0 -6 25 16 55 50 165
+                        182 430 357 653 432 82 27 202 53 202 42 0 -2 -22 -35 -50 -72 -158 -213 -212
+                        -461 -134 -616 42 -84 88 -117 170 -122 59 -4 72 -1 138 32 130 64 246 217
+                        277 363 15 74 6 189 -19 245 -50 113 -173 187 -315 188 -31 1 -30 3 74 104
+                        155 151 461 400 649 528 14 9 21 17 15 17 -5 0 -48 -27 -95 -60z m-506 -625
+                        c63 -22 138 -92 165 -155 66 -153 19 -347 -121 -494 -135 -143 -283 -175 -378
+                        -82 -144 140 -82 479 133 724 31 35 32 35 93 29 34 -3 82 -13 108 -22z"/>
+            </g>
+        </svg>
+        <div class="center-evolution"><h1>${data.title}</h1></div>
+    `;
+
+      // 均匀环形布局 step
+      const N = stepNames.length;
+      const radiusX = LOOP_W * 0.3;
+      const radiusY = LOOP_H * 0.3;
+
+      stepNames.forEach((name, i) => {
+        const mappedI = i === 0 ? 4 : (i === 4 ? 0 : i);
+        const angle = 2 * Math.PI * mappedI / N - Math.PI / 2;
+        const cx = 0.5 * LOOP_W + radiusX * Math.cos(angle);
+        const cy = 0.5 * LOOP_H + radiusY * Math.sin(angle);
+        const node = document.createElement('div');
+        node.className = `step-node`;
+        node.style.left = `${cx}px`;
+        node.style.top = `${cy}px`;
+        node.innerHTML = `
+            <div class="step-label">${i + 1}. ${name}</div>
+            <textarea placeholder="Details...">${data.content[i]}</textarea>
+            <button class="expand-btn" ${navigationStack.length >= MAX_DEPTH ? "disabled" : ""}>
+            EXPAND LOOP ↘
+            </button>
+        `;
+        node.querySelector('textarea').oninput = e => data.content[i] = e.target.value;
+        node.querySelector('button').onclick = e => {
+          e.stopPropagation();
+          drillDown(data, i, angle);
+        };
+        // 在创建 step-node 时加：
+        const ta = node.querySelector('textarea');
+        ta.oninput = e => {
+          data.content[i] = e.target.value;
+          ta.style.height = 'auto';       // 重置高度
+          ta.style.height = ta.scrollHeight + 'px'; // 根据内容撑开
+        };
+
+        // 初始化时也撑开已有内容
+        ta.style.height = 'auto';
+        ta.style.height = ta.scrollHeight + 'px';
+        layer.appendChild(node);
+      });
+
+      world.appendChild(layer);
+    }
+
+    /* ---------- CREATE CHILD LOOP (CLOSE BUT NOT OVERLAP) ---------- */
+    function drillDown(p, idx, angle) {
+
+      // ===== 限制最大层级 =====
+      if (navigationStack.length >= MAX_DEPTH) {
+        return;   // 超过深度直接不允许进入
+      }
+
+      if (!p.children[idx]) {
+        const title = p.content[idx] ? p.content[idx].toUpperCase() : stepNames[idx].toUpperCase();
+        const CHILD_SCALE = p.scale * 0.1;
+        const parentCenterX = p.x + LOOP_W * p.scale / 2;
+        const parentCenterY = p.y + LOOP_H * p.scale / 2;
+
+        const parentRadius = Math.max(LOOP_W, LOOP_H) * p.scale * 0.45;
+        const childRadius = Math.max(LOOP_W, LOOP_H) * CHILD_SCALE * 0.45;
+        const baseDistance = parentRadius + childRadius + 40;
+
+        let childCenterX = parentCenterX + Math.cos(angle) * baseDistance;
+        let childCenterY = parentCenterY + Math.sin(angle) * baseDistance;
+
+        // ===== 兄弟避让 =====
+        const siblings = Object.values(p.children);
+        const minGap = 120;
+        siblings.forEach(sib => {
+          const sx = sib.x + LOOP_W * sib.scale / 2;
+          const sy = sib.y + LOOP_H * sib.scale / 2;
+          const dist = Math.hypot(childCenterX - sx, childCenterY - sy);
+          if (dist < minGap) {
+            const push = (minGap - dist);
+            const dirX = (childCenterX - sx) / (dist || 1);
+            const dirY = (childCenterY - sy) / (dist || 1);
+            childCenterX += dirX * push;
+            childCenterY += dirY * push;
+          }
+        });
+
+        const childX = childCenterX - LOOP_W * CHILD_SCALE / 2;
+        const childY = childCenterY - LOOP_H * CHILD_SCALE / 2;
+
+        p.children[idx] = {
+          id: Math.random(),
+          title,
+          content: ["", "", "", "", ""],
+          children: {},
+          x: childX,
+          y: childY,
+          scale: CHILD_SCALE,
+          animFrom: { x: parentCenterX, y: parentCenterY }
+        };
+      }
+
+      navigationStack.push(p.children[idx]);
+      renderAll(true);
+    }
+
+    function goBack() {
+      if (navigationStack.length > 1) {
+        navigationStack.pop();
+        renderAll(true);
+      }
+    }
+
+    function resetView() { renderAll(true); }
+
+    /* ---------- DRAG PAN ---------- */
+
+    viewport.addEventListener('mousedown', e => {
+      if (e.target.closest('.step-node')) return;
+      cam.isDragging = true;
+      cam.lastMouseX = e.clientX;
+      cam.lastMouseY = e.clientY;
+      document.body.style.userSelect = 'none';
+    });
+
+    window.addEventListener('mousemove', e => {
+      if (!cam.isDragging) return;
+      cam.x += e.clientX - cam.lastMouseX;
+      cam.y += e.clientY - cam.lastMouseY;
+      cam.lastMouseX = e.clientX;
+      cam.lastMouseY = e.clientY;
+      updateWorld();
+      drawMiniMap();
+    });
+
+    window.addEventListener('mouseup', () => {
+      cam.isDragging = false;
+      document.body.style.userSelect = '';
+    });
+
+    /* ---------- MOUSE ZOOM ---------- */
+    viewport.addEventListener('wheel', e => {
+      e.preventDefault();
+      const zoomIntensity = 0.0015;
+      const mouseX = e.clientX;
+      const mouseY = e.clientY;
+      const worldX = (mouseX - cam.x) / cam.zoom;
+      const worldY = (mouseY - cam.y) / cam.zoom;
+      cam.zoom *= Math.exp(-e.deltaY * zoomIntensity);
+      cam.zoom = Math.min(Math.max(cam.zoom, 0.05), 10);
+      cam.x = mouseX - worldX * cam.zoom;
+      cam.y = mouseY - worldY * cam.zoom;
+      updateWorld();
+      drawMiniMap();
+    }, { passive: false });
+
+    /* ---------- MINIMAP ---------- */
+    const minimap = document.getElementById('minimap');
+    const mmCtx = minimap.getContext('2d');
+
+    function getBounds() {
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      navigationStack.forEach(l => {
+        minX = Math.min(minX, l.x);
+        minY = Math.min(minY, l.y);
+        maxX = Math.max(maxX, l.x + LOOP_W * l.scale);
+        maxY = Math.max(maxY, l.y + LOOP_H * l.scale);
+      });
+      if (!isFinite(minX)) return null;
+      return { minX, minY, maxX, maxY };
+    }
+
+    function drawMiniMap() {
+      const w = minimap.width = minimap.clientWidth;
+      const h = minimap.height = minimap.clientHeight;
+      mmCtx.clearRect(0, 0, w, h);
+      const b = getBounds();
+      if (!b) return;
+      const worldW = b.maxX - b.minX;
+      const worldH = b.maxY - b.minY;
+      const scale = Math.min(w / worldW, h / worldH) * 0.9;
+      const offsetX = (w - worldW * scale) / 2;
+      const offsetY = (h - worldH * scale) / 2;
+
+      navigationStack.forEach(l => {
+        mmCtx.strokeStyle = '#888';
+        mmCtx.strokeRect(
+          offsetX + (l.x - b.minX) * scale,
+          offsetY + (l.y - b.minY) * scale,
+          LOOP_W * l.scale * scale,
+          LOOP_H * l.scale * scale
+        );
+      });
+
+      const viewLeft = (-cam.x) / cam.zoom;
+      const viewTop = (-cam.y) / cam.zoom;
+      const viewW = viewport.clientWidth / cam.zoom;
+      const viewH = viewport.clientHeight / cam.zoom;
+
+      mmCtx.strokeStyle = '#ff4d4d';
+      mmCtx.lineWidth = 2;
+      mmCtx.strokeRect(
+        offsetX + (viewLeft - b.minX) * scale,
+        offsetY + (viewTop - b.minY) * scale,
+        viewW * scale,
+        viewH * scale
+      );
+    }
+
+    minimap.addEventListener('click', e => {
+      const rect = minimap.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+      const b = getBounds();
+      if (!b) return;
+      const worldW = b.maxX - b.minX;
+      const worldH = b.maxY - b.minY;
+      const scale = Math.min(minimap.width / worldW, minimap.height / worldH) * 0.9;
+      const offsetX = (minimap.width - worldW * scale) / 2;
+      const offsetY = (minimap.height - worldH * scale) / 2;
+      const worldX = (mx - offsetX) / scale + b.minX;
+      const worldY = (my - offsetY) / scale + b.minY;
+      cam.x = viewport.clientWidth / 2 - worldX * cam.zoom;
+      cam.y = viewport.clientHeight / 2 - worldY * cam.zoom;
+      updateWorld();
+      drawMiniMap();
+    });
+
+    renderAll(true);
+
+    function exportMarkdownDFS() {
+      function loopToMarkdownDFS(loop, level = 0) {
+        // 当前 loop 标题
+        let md = `${'#'.repeat(level + 1)} ${loop.title}\n\n`;
+
+        // 每个 step
+        for (let i = 0; i < stepNames.length; i++) {
+          const content = loop.content[i];
+          if (content) {
+            md += `**${i + 1}. ${stepNames[i]}**\n\n${content}\n\n`;
+          }
+
+          // 如果该 step 下有 child，DFS 先导出 child
+          const child = loop.children[i];
+          if (child) {
+            md += loopToMarkdownDFS(child, level + 1);
+          }
+        }
+
+        return md;
+      }
+
+      const markdown = loopToMarkdownDFS(stateTree);
+
+      // 下载文件
+      const blob = new Blob([markdown], { type: 'text/markdown' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'loops.md';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+    function importMarkdown() {
+
+      document.getElementById('mdFileInput').click();
+    }
+
+    document.getElementById('mdFileInput').addEventListener('change', e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = ev => parseMarkdown(ev.target.result);
+      reader.readAsText(file);
+    });
+
+    function parseMarkdown(md) {
+
+      const lines = md.split(/\r?\n/);
+
+      // ===== 重建 root =====
+      stateTree = {
+        id: 'root',
+        title: 'MAIN MACHINE',
+        content: ["", "", "", "", ""],
+        children: {},
+        x: 0,
+        y: 0,
+        scale: 1
+      };
+
+      navigationStack = [stateTree];
+
+      const stack = [stateTree];
+      let current = stateTree;
+      let currentStep = -1;
+      let firstHeading = false;
+
+      function createChild(parent, title, idx) {
+
+        const N = stepNames.length;
+        const mappedI = idx === 0 ? 4 : (idx === 4 ? 0 : idx);
+        const angle = 2 * Math.PI * mappedI / N - Math.PI / 2;
+
+        const CHILD_SCALE = parent.scale * 0.1;
+
+        const parentCenterX = parent.x + LOOP_W * parent.scale / 2;
+        const parentCenterY = parent.y + LOOP_H * parent.scale / 2;
+
+        const parentRadius = Math.max(LOOP_W, LOOP_H) * parent.scale * 0.45;
+        const childRadius = Math.max(LOOP_W, LOOP_H) * CHILD_SCALE * 0.45;
+        const baseDistance = parentRadius + childRadius + 40;
+
+        const childCenterX = parentCenterX + Math.cos(angle) * baseDistance;
+        const childCenterY = parentCenterY + Math.sin(angle) * baseDistance;
+
+        const childX = childCenterX - LOOP_W * CHILD_SCALE / 2;
+        const childY = childCenterY - LOOP_H * CHILD_SCALE / 2;
+
+        const child = {
+          id: Math.random(),
+          title,
+          content: ["", "", "", "", ""],
+          children: {},
+          x: childX,
+          y: childY,
+          scale: CHILD_SCALE
+        };
+
+        parent.children[idx] = child;
+        return child;
+      }
+
+      for (const raw of lines) {
+
+        const line = raw.trim();
+        if (!line) continue;
+
+        // ===== 标题 =====
+        const h = line.match(/^(#+)\s+(.*)$/);
+        if (h) {
+
+          const depth = h[1].length;
+          const title = h[2];
+
+          // 第一个 # 是 root
+          if (!firstHeading && depth === 1) {
+            stateTree.title = title;
+            firstHeading = true;
+            current = stateTree;
+            stack.length = 1;
+            currentStep = -1;
+            continue;
+          }
+
+          // 找父节点
+          while (stack.length >= depth) {
+            stack.pop();
+          }
+
+          const parent = stack[stack.length - 1];
+
+          // child index = parent 当前 children 数量
+          // child index = 最近一次 step
+          let idx = currentStep >= 0 ? currentStep : 0;
+
+          // 如果这个位置已存在 child，则找下一个空位（防止覆盖）
+          if (parent.children[idx]) {
+            for (let i = 0; i < 5; i++) {
+              if (!parent.children[i]) {
+                idx = i;
+                break;
+              }
+            }
+          }
+
+          const child = createChild(parent, title, idx);
+
+          stack.push(child);
+          current = child;
+          currentStep = -1;
+          continue;
+        }
+
+        // ===== step =====
+        const s = line.match(/^\*\*(\d+)\.\s*(.*?)\*\*$/);
+        if (s) {
+          currentStep = parseInt(s[1]) - 1;
+          continue;
+        }
+
+        // ===== 内容 =====
+        if (currentStep >= 0 && currentStep < 5) {
+          if (current.content[currentStep])
+            current.content[currentStep] += "\n" + line;
+          else
+            current.content[currentStep] = line;
+        }
+      }
+
+      // ===== 清空旧 DOM 并重新渲染 =====
+      world.innerHTML = '';
+      renderAll(true);
+    }
+
+    document.addEventListener('keydown', (e) => {
+      const tag = document.activeElement.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement.isContentEditable) return;
+
+      // Ctrl + Left  -> Back
+      if (e.ctrlKey && e.key === 'ArrowLeft') { e.preventDefault(); goBack(); return; }
+
+      // Ctrl + /  -> Reset View
+      if (e.ctrlKey && (e.key === '/' || e.key === '?')) { e.preventDefault(); resetView(); return; }
+
+      // Ctrl + +  -> Zoom In
+      if (e.ctrlKey && (e.key === '+' || e.key === '=')) { e.preventDefault(); zoom(1.2); return; }
+
+      // Ctrl + -  -> Zoom Out
+      if (e.ctrlKey && e.key === '-') { e.preventDefault(); zoom(1 / 1.2); return; }
+
+      // Ctrl + 0  -> Reset Zoom
+      if (e.ctrlKey && e.key === '0') { e.preventDefault(); resetView(); return; }
+    });
+
+    function zoom(factor) {
+      const viewportCenterX = viewport.clientWidth / 2;
+      const viewportCenterY = viewport.clientHeight / 2;
+      const worldX = (viewportCenterX - cam.x) / cam.zoom;
+      const worldY = (viewportCenterY - cam.y) / cam.zoom;
+      cam.zoom *= factor;
+      cam.x = viewportCenterX - worldX * cam.zoom;
+      cam.y = viewportCenterY - worldY * cam.zoom;
+      updateWorld();
+      drawMiniMap();
+    }
+  </script>
+</body>
+
+</html>
