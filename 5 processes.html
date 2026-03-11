@@ -1,356 +1,580 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-CN">
 
 <head>
-  <meta charset="UTF-8">
-  <style>
-    :root {
-      --primary: #ff4d4d;
-      --bg: #111;
-      --text: #eee;
-      --step-bg: rgba(25, 25, 25, 0.9);
-    }
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Loop Machine</title>
+    <style>
+        :root {
+            --primary: #ff4d4d;
+            --bg: #111;
+            --text: #eee;
+            --step-bg: rgba(25, 25, 25, 0.9);
+            --success: #38d39f;
+            --warn: #ffb84d;
+        }
 
-    body {
-      margin: 0;
-      height: 100vh;
-      display: flex;
-      flex-direction: column;
-      font-family: "Microsoft YaHei", "微软雅黑", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      color: var(--text);
-      background: var(--bg);
-      -webkit-font-smoothing: antialiased;
-      -moz-osx-font-smoothing: grayscale;
-      letter-spacing: -0.01em;
-      overflow: hidden;
-    }
+        * {
+            box-sizing: border-box;
+        }
 
-    .nav-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 16px 24px;
-      width: 100%;
-      background: #1a1a1a;
-      border-bottom: 1px solid #333;
-      font-size: 14px;
-      box-sizing: border-box;
-      z-index: 1000;
-    }
+        body {
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            font-family: "Microsoft YaHei", "微软雅黑", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            color: var(--text);
+            background: var(--bg);
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            letter-spacing: -0.01em;
+            overflow: hidden;
+        }
 
-    .controls {
-      display: flex;
-      gap: 8px;
-    }
+        .nav-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 24px;
+            width: 100%;
+            background: #1a1a1a;
+            border-bottom: 1px solid #333;
+            font-size: 14px;
+            z-index: 1000;
+            gap: 16px;
+        }
 
-    button {
-      cursor: pointer;
-      background: #222;
-      color: #fff;
-      border: none;
-      padding: 6px 12px;
-      border-radius: 6px;
-      font-weight: 600;
-      transition: transform 0.15s ease, background 0.15s ease;
-    }
+        .controls {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
 
-    button:hover {
-      background: var(--primary);
-      transform: scale(1.05);
-    }
+        .status-wrap {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 210px;
+            justify-content: flex-end;
+        }
 
-    #viewport {
-      flex: 1;
-      position: relative;
-      width: 100%;
-      overflow: hidden;
-      background: #111;
-      cursor: grab;
-    }
+        button {
+            cursor: pointer;
+            background: #222;
+            color: #fff;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-weight: 600;
+            transition: transform 0.15s ease, background 0.15s ease, opacity 0.15s ease;
+        }
 
-    #viewport:active {
-      cursor: grabbing;
-    }
+        button:hover {
+            background: var(--primary);
+            transform: scale(1.05);
+        }
 
-    #world {
-      position: absolute;
-      top: 0;
-      left: 0;
-      transform-origin: 0 0;
-      will-change: transform;
-    }
+        button:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            transform: none;
+        }
 
-    .canvas-layer {
-      position: absolute;
-      width: 1000px;
-      height: 1000px;
-      transform-style: preserve-3d;
-    }
+        #viewport {
+            flex: 1;
+            position: relative;
+            width: 100%;
+            overflow: hidden;
+            background: #111;
+            cursor: grab;
+        }
 
-    .loop-svg {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      pointer-events: none;
-      overflow: visible;
-    }
+        #viewport:active {
+            cursor: grabbing;
+        }
 
-    .loop-path {
-      fill: none;
-      stroke: #555;
-      stroke-width: 3;
-      stroke-dasharray: 8, 4;
-      stroke-linecap: round;
-      opacity: 0.5;
-    }
+        #world {
+            position: absolute;
+            top: 0;
+            left: 0;
+            transform-origin: 0 0;
+            will-change: transform;
+        }
 
-    .step-node {
-      position: absolute;
-      width: 200px;
-      min-height: 80px;
-      padding: 12px;
-      background: var(--step-bg);
-      border-radius: 14px;
-      border: 1px solid #444;
-      backdrop-filter: blur(6px);
-      -webkit-backdrop-filter: blur(6px);
-      box-shadow: 0 6px 14px rgba(0, 0, 0, 0.35);
-      display: flex;
-      flex-direction: column;
-      align-items: stretch;
-      font-size: 14px;
-      line-height: 1.5;
-      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-      transform: translate(-50%, -50%) translateZ(0);
-      backface-visibility: hidden;
-      will-change: transform;
-    }
+        .canvas-layer {
+            position: absolute;
+            width: 1000px;
+            height: 1000px;
+            transform-style: preserve-3d;
+        }
 
-    .step-node:hover {
-      border-color: var(--primary);
-      transform: translate(-50%, -55%);
-      box-shadow: 0 12px 26px rgba(255, 77, 77, 0.25);
-    }
+        .step-node {
+            position: absolute;
+            width: 200px;
+            min-height: 80px;
+            padding: 12px;
+            background: var(--step-bg);
+            border-radius: 14px;
+            border: 1px solid #444;
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
+            box-shadow: 0 6px 14px rgba(0, 0, 0, 0.35);
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+            font-size: 14px;
+            line-height: 1.5;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            transform: translate(-50%, -50%) translateZ(0);
+            backface-visibility: hidden;
+            will-change: transform;
+        }
 
-    .step-node textarea {
-      width: 100%;
-      background: transparent;
-      border: none;
-      outline: none;
-      resize: none;
-      font-size: 14px;
-      color: var(--text);
-      font-family: inherit;
-      line-height: 1.5;
-      overflow: hidden;
-      min-height: 55px;
-      max-height: 300px;
-    }
+        .step-node:hover {
+            border-color: var(--primary);
+            transform: translate(-50%, -55%);
+            box-shadow: 0 12px 26px rgba(255, 77, 77, 0.25);
+        }
 
-    .step-label {
-      font-weight: 700;
-      font-size: 14px;
-      text-transform: uppercase;
-      color: var(--primary);
-      margin-bottom: 6px;
-      letter-spacing: 0.5px;
-    }
+        .step-node textarea {
+            width: 100%;
+            background: transparent;
+            border: none;
+            outline: none;
+            resize: none;
+            font-size: 14px;
+            color: var(--text);
+            font-family: inherit;
+            line-height: 1.5;
+            overflow: hidden;
+            min-height: 55px;
+            max-height: 300px;
+        }
 
-    .expand-btn {
-      width: 100%;
-      margin-top: 6px;
-      padding: 5px;
-      font-size: 12px;
-      background: #111;
-      color: #ccc;
-      border: 1px solid #333;
-      border-radius: 5px;
-      transition: all 0.15s;
-    }
+        .step-label {
+            font-weight: 700;
+            font-size: 14px;
+            text-transform: uppercase;
+            color: var(--primary);
+            margin-bottom: 6px;
+            letter-spacing: 0.5px;
+        }
 
-    .expand-btn:hover:not(:disabled) {
-      color: #fff;
-      border-color: var(--primary);
-      transform: scale(1.03);
-    }
+        .expand-btn {
+            width: 100%;
+            margin-top: 6px;
+            padding: 5px;
+            font-size: 12px;
+            background: #111;
+            color: #ccc;
+            border: 1px solid #333;
+            border-radius: 5px;
+            transition: all 0.15s;
+        }
 
-    .expand-btn:disabled {
-      opacity: 0.35;
-      cursor: not-allowed;
-    }
+        .expand-btn:hover:not(:disabled) {
+            color: #fff;
+            border-color: var(--primary);
+            transform: scale(1.03);
+        }
 
-    .center-evolution {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      width: 220px;
-      text-align: center;
-      pointer-events: none;
-      opacity: 0.35;
-    }
+        .expand-btn:disabled {
+            opacity: 0.35;
+            cursor: not-allowed;
+        }
 
-    .center-evolution h1 {
-      margin: 0;
-      font-size: 28px;
-      font-weight: 800;
-      text-shadow: 1px 1px 6px rgba(0, 0, 0, 0.5);
-    }
+        .center-evolution {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 220px;
+            text-align: center;
+            pointer-events: none;
+            opacity: 0.35;
+        }
 
-    .center-evolution p {
-      margin: 4px 0 0 0;
-      font-size: 14px;
-      color: #bbb;
-    }
+        .center-evolution h1 {
+            margin: 0;
+            font-size: 28px;
+            font-weight: 800;
+            text-shadow: 1px 1px 6px rgba(0, 0, 0, 0.5);
+        }
 
-    #minimap {
-      position: fixed;
-      right: 16px;
-      bottom: 16px;
-      width: 220px;
-      height: 150px;
-      background: #000;
-      border: 1px solid #444;
-      border-radius: 6px;
-      z-index: 9999;
-      opacity: 0.9;
-    }
-  </style>
+        #minimap {
+            position: fixed;
+            right: 16px;
+            bottom: 16px;
+            width: 220px;
+            height: 150px;
+            background: #000;
+            border: 1px solid #444;
+            border-radius: 6px;
+            z-index: 9999;
+            opacity: 0.92;
+        }
+
+        .save-indicator {
+            min-width: 110px;
+            text-align: right;
+            font-size: 12px;
+            color: #999;
+            user-select: none;
+            transition: color 0.2s ease, opacity 0.2s ease;
+        }
+
+        .save-indicator.saving {
+            color: var(--warn);
+        }
+
+        .save-indicator.saved {
+            color: var(--success);
+        }
+
+        .save-indicator.error {
+            color: var(--primary);
+        }
+
+        .toast {
+            position: fixed;
+            top: 72px;
+            right: 16px;
+            background: rgba(20, 20, 20, 0.96);
+            border: 1px solid #333;
+            color: #fff;
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 13px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+            z-index: 10001;
+            opacity: 0;
+            transform: translateY(-8px);
+            pointer-events: none;
+            transition: opacity 0.22s ease, transform 0.22s ease;
+        }
+
+        .toast.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    </style>
 </head>
 
 <body>
 
-  <div class="nav-header">
-    <div class="controls">
-      <button id="backBtn" onclick="goBack()">← Zoom Out</button>
-      <button onclick="resetView()">Reset View</button>
-      <button onclick="showGlobalMap()">🌐 Global Map</button>
-      <button id="exportMD" onclick="exportMarkdownDFS()">📄 Export MD</button>
-      <button id="exportJSONBtn" onclick="exportJSON()">📄 Export JSON</button>
-      <button onclick="document.getElementById('importInput').click()">📥 Import JSON</button>
-      <input type="file" id="mdFileInput" accept=".md" style="display:none">
-      <input type="file" id="importInput" accept=".json" style="display:none">
+    <div class="nav-header">
+        <div class="controls">
+            <button id="backBtn" onclick="goBack()">← Zoom Out</button>
+            <button onclick="resetView()">Reset View</button>
+            <button onclick="showGlobalMap()">🌐 Global Map</button>
+            <button onclick="clearCanvas()">🆕 New / Clear</button>
+            <button onclick="clearAutoSave()">🗑 Clear Cache</button>
+            <button id="exportMD" onclick="exportMarkdownDFS()">📄 Export MD</button>
+            <button id="exportJSONBtn" onclick="exportJSON()">📄 Export JSON</button>
+            <button onclick="document.getElementById('importInput').click()">📥 Import JSON</button>
+            <input type="file" id="importInput" accept=".json" style="display:none">
+        </div>
+
+        <div id="current-title" style="font-weight:bold;color:var(--primary)">MAIN MACHINE</div>
+
+        <div class="status-wrap">
+            <div style="font-size:12px;color:#888;">
+                DEPTH: <span id="level-idx" style="color:white">0</span>
+            </div>
+            <div id="saveIndicator" class="save-indicator">Not saved yet</div>
+        </div>
     </div>
-    <div id="current-title" style="font-weight:bold;color:var(--primary)">MAIN MACHINE</div>
-    <div style="font-size:12px;color:#888;">
-      DEPTH: <span id="level-idx" style="color:white">0</span>
+
+    <div id="viewport">
+        <div id="world"></div>
     </div>
-  </div>
 
-  <div id="viewport">
-    <div id="world"></div>
-  </div>
+    <canvas id="minimap"></canvas>
+    <div id="toast" class="toast"></div>
 
-  <canvas id="minimap"></canvas>
+    <script>
+        const MAX_DEPTH = 4;
+        const LOOP_W = 1000;
+        const LOOP_H = 1000;
+        const stepNames = ["Goals", "Problems", "Diagnosis", "Design", "Doing"];
 
-  <script>
-    const MAX_DEPTH = 4;
-    const LOOP_W = 1000;
-    const LOOP_H = 1000;
-    const stepNames = ["Goals", "Problems", "Diagnosis", "Design", "Doing"];
+        const STORAGE_KEY = "loopMachine_autosave_v1";
+        const STORAGE_META_KEY = "loopMachine_autosave_meta_v1";
+        const SAVE_DEBOUNCE_MS = 500;
 
-    const world = document.getElementById('world');
-    const viewport = document.getElementById('viewport');
-    const minimap = document.getElementById('minimap');
-    const mmCtx = minimap.getContext('2d');
+        const world = document.getElementById("world");
+        const viewport = document.getElementById("viewport");
+        const minimap = document.getElementById("minimap");
+        const mmCtx = minimap.getContext("2d");
+        const saveIndicator = document.getElementById("saveIndicator");
+        const toast = document.getElementById("toast");
 
-    let stateTree = {
-      id: 'root',
-      title: 'MAIN MACHINE',
-      content: ["", "", "", "", ""],
-      children: {},
-      x: 0, y: 0, scale: 1
-    };
-    let navigationStack = [stateTree];
+        function createEmptyState() {
+            return {
+                id: "root",
+                title: "MAIN MACHINE",
+                content: ["", "", "", "", ""],
+                children: {},
+                x: 0,
+                y: 0,
+                scale: 1
+            };
+        }
 
-    let cam = { x: 0, y: 0, zoom: 0.8, isDragging: false, lastMouseX: 0, lastMouseY: 0 };
+        let stateTree = createEmptyState();
+        let navigationStack = [stateTree];
 
-    /* ---------- RENDER ---------- */
-    function renderAll(animate = true) {
-      const current = navigationStack[navigationStack.length - 1];
-      const allLoops = collectAllLoops(stateTree);
+        let cam = {
+            x: 0,
+            y: 0,
+            zoom: 0.8,
+            isDragging: false,
+            lastMouseX: 0,
+            lastMouseY: 0
+        };
 
-      allLoops.forEach(l => { if (l.dom) l.dom.style.display = 'none'; });
+        let saveTimer = null;
+        let toastTimer = null;
 
-      drawLoop(current);
-      current.dom && (current.dom.style.display = 'block');
+        function showToast(message, duration = 1800) {
+            toast.textContent = message;
+            toast.classList.add("show");
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => {
+                toast.classList.remove("show");
+            }, duration);
+        }
 
-      if (navigationStack.length > 1) {
-        const parent = navigationStack[navigationStack.length - 2];
-        drawLoop(parent);
-        parent.dom && (parent.dom.style.display = 'block');
-      }
+        function setSaveStatus(status, text) {
+            saveIndicator.className = "save-indicator";
+            if (status) saveIndicator.classList.add(status);
+            saveIndicator.textContent = text;
+        }
 
-      Object.values(current.children).forEach(child => {
-        drawLoop(child);
-        child.dom && (child.dom.style.display = 'block');
-      });
+        function serializeLoop(loop) {
+            const steps = {};
+            const children = {};
+            for (let i = 0; i < stepNames.length; i++) {
+                if (loop.content[i]) steps[stepNames[i]] = loop.content[i];
+                if (loop.children[i]) children[stepNames[i]] = serializeLoop(loop.children[i]);
+            }
+            return {
+                title: loop.title,
+                x: loop.x,
+                y: loop.y,
+                scale: loop.scale,
+                steps,
+                children
+            };
+        }
 
-      document.getElementById('current-title').innerText = current.title;
-      document.getElementById('level-idx').innerText = navigationStack.length - 1;
-      document.getElementById('backBtn').style.visibility = navigationStack.length > 1 ? 'visible' : 'hidden';
+        function deserializeLoop(data) {
+            const node = {
+                id: Math.random().toString(36).slice(2),
+                title: data.title || "",
+                content: ["", "", "", "", ""],
+                children: {},
+                x: data.x ?? 0,
+                y: data.y ?? 0,
+                scale: data.scale ?? 1
+            };
 
-      if (animate) {
-        cam.zoom = 1 / current.scale;
-        cam.x = window.innerWidth / 2 - (current.x + 0.5 * LOOP_W * current.scale) * cam.zoom;
-        cam.y = window.innerHeight / 2 - (current.y + 0.5 * LOOP_H * current.scale) * cam.zoom;
-        world.style.transition = "transform 0.8s cubic-bezier(.85,0,.15,1)";
-      } else {
-        world.style.transition = "none";
-      }
+            if (data.steps) {
+                Object.entries(data.steps).forEach(([k, v]) => {
+                    const i = stepNames.indexOf(k);
+                    if (i >= 0) node.content[i] = v;
+                });
+            }
 
-      updateWorld();
-      drawMiniMap();
-    }
+            if (data.children) {
+                Object.entries(data.children).forEach(([k, v]) => {
+                    const i = stepNames.indexOf(k);
+                    if (i >= 0) node.children[i] = deserializeLoop(v);
+                });
+            }
 
-    function showGlobalMap() {
-      const allLoops = collectAllLoops(stateTree);
-      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-      allLoops.forEach(l => {
-        minX = Math.min(minX, l.x);
-        minY = Math.min(minY, l.y);
-        maxX = Math.max(maxX, l.x + LOOP_W * l.scale);
-        maxY = Math.max(maxY, l.y + LOOP_H * l.scale);
-      });
-      const worldWidth = maxX - minX;
-      const worldHeight = maxY - minY;
-      const scaleX = window.innerWidth / worldWidth;
-      const scaleY = window.innerHeight / worldHeight;
-      const targetZoom = Math.min(scaleX, scaleY) * 0.95;
-      cam.zoom = targetZoom;
-      cam.x = window.innerWidth / 2 - (minX + worldWidth / 2) * cam.zoom;
-      cam.y = window.innerHeight / 2 - (minY + worldHeight / 2) * cam.zoom;
-      world.style.transition = "transform 0.8s cubic-bezier(0.85,0,0.15,1)";
-      updateWorld();
-    }
+            return node;
+        }
 
-    function collectAllLoops(root) {
-      let arr = [root];
-      Object.values(root.children).forEach(c => arr.push(...collectAllLoops(c)));
-      return arr;
-    }
+        function stripRuntimeFields(node) {
+            if (!node) return;
+            delete node.dom;
+            Object.values(node.children || {}).forEach(stripRuntimeFields);
+        }
 
-    function updateWorld() {
-      world.style.transform = `translate(${cam.x}px,${cam.y}px) scale(${cam.zoom})`;
-    }
+        function autoSave(immediate = false) {
+            const doSave = () => {
+                try {
+                    const payload = {
+                        version: 1,
+                        time: Date.now(),
+                        root: serializeLoop(stateTree)
+                    };
 
-    /* ---------- DRAW LOOP ---------- */
-    function drawLoop(data) {
-      if (data.dom) {
-        data.dom.style.left = `${data.x}px`;
-        data.dom.style.top = `${data.y}px`;
-        data.dom.style.transform = `scale(${data.scale})`;
-        return;
-      }
+                    const meta = {
+                        savedAt: payload.time,
+                        title: stateTree.title || "MAIN MACHINE"
+                    };
 
-      const layer = document.createElement('div');
-      layer.className = 'canvas-layer';
-      layer.style.cssText = `left:${data.x}px;top:${data.y}px;transform:scale(${data.scale});transform-origin:0 0;`;
-      data.dom = layer;
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+                    localStorage.setItem(STORAGE_META_KEY, JSON.stringify(meta));
 
-      layer.innerHTML = `
+                    const savedTime = new Date(payload.time).toLocaleTimeString();
+                    setSaveStatus("saved", `Saved ✓ ${savedTime}`);
+                } catch (err) {
+                    console.error("AutoSave failed:", err);
+                    setSaveStatus("error", "Save failed");
+                }
+            };
+
+            clearTimeout(saveTimer);
+            setSaveStatus("saving", "Saving...");
+
+            if (immediate) {
+                doSave();
+            } else {
+                saveTimer = setTimeout(doSave, SAVE_DEBOUNCE_MS);
+            }
+        }
+
+        function tryRestore() {
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (!saved) return false;
+
+            try {
+                const data = JSON.parse(saved);
+                if (!data || !data.root) return false;
+
+                stateTree = deserializeLoop(data.root);
+                stripRuntimeFields(stateTree);
+                navigationStack = [stateTree];
+
+                const savedAt = data.time ? new Date(data.time).toLocaleString() : "未知时间";
+                setSaveStatus("saved", "Recovered ✓");
+                showToast(`已恢复上次缓存（${savedAt}）`, 2200);
+                return true;
+            } catch (err) {
+                console.error("Restore failed:", err);
+                setSaveStatus("error", "Restore failed");
+                return false;
+            }
+        }
+
+        function clearAutoSave() {
+            localStorage.removeItem(STORAGE_KEY);
+            localStorage.removeItem(STORAGE_META_KEY);
+            setSaveStatus("", "Cache cleared");
+            showToast("本地缓存已清除");
+        }
+
+        function clearCanvas() {
+            const ok = confirm("确定要清空当前画布吗？此操作会同时清除本地自动保存缓存。");
+            if (!ok) return;
+
+            stateTree = createEmptyState();
+            navigationStack = [stateTree];
+            world.innerHTML = "";
+
+            localStorage.removeItem(STORAGE_KEY);
+            localStorage.removeItem(STORAGE_META_KEY);
+
+            setSaveStatus("", "Cleared");
+            renderAll(true);
+            showToast("画布已清空");
+        }
+
+        function collectAllLoops(root) {
+            let arr = [root];
+            Object.values(root.children).forEach(c => arr.push(...collectAllLoops(c)));
+            return arr;
+        }
+
+        function updateWorld() {
+            world.style.transform = `translate(${cam.x}px, ${cam.y}px) scale(${cam.zoom})`;
+        }
+
+        function renderAll(animate = true) {
+            const current = navigationStack[navigationStack.length - 1];
+            const allLoops = collectAllLoops(stateTree);
+
+            allLoops.forEach(l => {
+                if (l.dom) l.dom.style.display = "none";
+            });
+
+            drawLoop(current);
+            if (current.dom) current.dom.style.display = "block";
+
+            if (navigationStack.length > 1) {
+                const parent = navigationStack[navigationStack.length - 2];
+                drawLoop(parent);
+                if (parent.dom) parent.dom.style.display = "block";
+            }
+
+            Object.values(current.children).forEach(child => {
+                drawLoop(child);
+                if (child.dom) child.dom.style.display = "block";
+            });
+
+            document.getElementById("current-title").innerText = current.title;
+            document.getElementById("level-idx").innerText = navigationStack.length - 1;
+            document.getElementById("backBtn").style.visibility = navigationStack.length > 1 ? "visible" : "hidden";
+
+            if (animate) {
+                cam.zoom = 1 / current.scale;
+                cam.x = window.innerWidth / 2 - (current.x + 0.5 * LOOP_W * current.scale) * cam.zoom;
+                cam.y = window.innerHeight / 2 - (current.y + 0.5 * LOOP_H * current.scale) * cam.zoom;
+                world.style.transition = "transform 0.8s cubic-bezier(.85,0,.15,1)";
+            } else {
+                world.style.transition = "none";
+            }
+
+            updateWorld();
+            drawMiniMap();
+        }
+
+        function showGlobalMap() {
+            const allLoops = collectAllLoops(stateTree);
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+
+            allLoops.forEach(l => {
+                minX = Math.min(minX, l.x);
+                minY = Math.min(minY, l.y);
+                maxX = Math.max(maxX, l.x + LOOP_W * l.scale);
+                maxY = Math.max(maxY, l.y + LOOP_H * l.scale);
+            });
+
+            const worldWidth = maxX - minX;
+            const worldHeight = maxY - minY;
+            const scaleX = window.innerWidth / worldWidth;
+            const scaleY = window.innerHeight / worldHeight;
+            const targetZoom = Math.min(scaleX, scaleY) * 0.95;
+
+            cam.zoom = targetZoom;
+            cam.x = window.innerWidth / 2 - (minX + worldWidth / 2) * cam.zoom;
+            cam.y = window.innerHeight / 2 - (minY + worldHeight / 2) * cam.zoom;
+
+            world.style.transition = "transform 0.8s cubic-bezier(0.85,0,0.15,1)";
+            updateWorld();
+            drawMiniMap();
+        }
+
+        function drawLoop(data) {
+            if (data.dom) {
+                data.dom.style.left = `${data.x}px`;
+                data.dom.style.top = `${data.y}px`;
+                data.dom.style.transform = `scale(${data.scale})`;
+                return;
+            }
+
+            const layer = document.createElement("div");
+            layer.className = "canvas-layer";
+            layer.style.cssText = `left:${data.x}px;top:${data.y}px;transform:scale(${data.scale});transform-origin:0 0;`;
+            data.dom = layer;
+
+            layer.innerHTML = `
                 <svg width="1000" height="1000" viewBox="0 0 1000 1000" xmlns="http://www.w3.org/2000/svg">
                     <defs>
                         <marker id="arrowhead" markerWidth="15" markerHeight="10" refX="0" refY="5" orient="auto">
@@ -361,305 +585,383 @@
                         <path d="M2060 1729 c-218 -157 -435 -336 -589 -486 l-104 -102 -67 -10 c-194 -30 -431 -146 -632 -307 -81 -65 -228 -211 -228 -226 0 -6 25 16 55 50 165 182 430 357 653 432 82 27 202 53 202 42 0 -2 -22 -35 -50 -72 -158 -213 -212 -461 -134 -616 42 -84 88 -117 170 -122 59 -4 72 -1 138 32 130 64 246 217 277 363 15 74 6 189 -19 245 -50 113 -173 187 -315 188 -31 1 -30 3 74 104 155 151 461 400 649 528 14 9 21 17 15 17 -5 0 -48 -27 -95 -60z m-506 -625 c63 -22 138 -92 165 -155 66 -153 19 -347 -121 -494 -135 -143 -283 -175 -378 -82 -144 140 -82 479 133 724 31 35 32 35 93 29 34 -3 82 -13 108 -22z"/>
                     </g>
                 </svg>
-                <div class="center-evolution"><h1>${data.title}</h1></div>
+                <div class="center-evolution"><h1>${escapeHtml(data.title)}</h1></div>
             `;
 
-      const N = stepNames.length;
-      const radiusX = LOOP_W * 0.3;
-      const radiusY = LOOP_H * 0.3;
+            const N = stepNames.length;
+            const radiusX = LOOP_W * 0.3;
+            const radiusY = LOOP_H * 0.3;
 
-      stepNames.forEach((name, i) => {
-        const mappedI = i === 0 ? 4 : (i === 4 ? 0 : i);
-        const angle = 2 * Math.PI * mappedI / N - Math.PI / 2;
-        const cx = 0.5 * LOOP_W + radiusX * Math.cos(angle);
-        const cy = 0.5 * LOOP_H + radiusY * Math.sin(angle);
-        const node = document.createElement('div');
-        node.className = 'step-node';
-        node.style.left = `${cx}px`;
-        node.style.top = `${cy}px`;
-        node.innerHTML = `
+            stepNames.forEach((name, i) => {
+                const mappedI = i === 0 ? 4 : (i === 4 ? 0 : i);
+                const angle = 2 * Math.PI * mappedI / N - Math.PI / 2;
+                const cx = 0.5 * LOOP_W + radiusX * Math.cos(angle);
+                const cy = 0.5 * LOOP_H + radiusY * Math.sin(angle);
+
+                const node = document.createElement("div");
+                node.className = "step-node";
+                node.style.left = `${cx}px`;
+                node.style.top = `${cy}px`;
+
+                node.innerHTML = `
                     <div class="step-label">${i + 1}. ${name}</div>
-                    <textarea placeholder="Details...">${data.content[i]}</textarea>
+                    <textarea placeholder="Details..."></textarea>
                     <button class="expand-btn" ${navigationStack.length >= MAX_DEPTH ? "disabled" : ""}>EXPAND LOOP ↘</button>
                 `;
-        const ta = node.querySelector('textarea');
-        ta.oninput = e => {
-          data.content[i] = e.target.value;
-          ta.style.height = 'auto';
-          ta.style.height = ta.scrollHeight + 'px';
-        };
-        ta.style.height = 'auto';
-        ta.style.height = ta.scrollHeight + 'px';
 
-        node.querySelector('button').onclick = e => {
-          e.stopPropagation();
-          drillDown(data, i, angle);
-        };
+                const ta = node.querySelector("textarea");
+                ta.value = data.content[i] || "";
 
-        layer.appendChild(node);
-      });
+                ta.oninput = (e) => {
+                    data.content[i] = e.target.value;
+                    ta.style.height = "auto";
+                    ta.style.height = ta.scrollHeight + "px";
+                    autoSave(false);
+                };
 
-      world.appendChild(layer);
-    }
+                ta.onblur = () => autoSave(true);
 
-    /* ---------- CREATE CHILD LOOP ---------- */
-    function drillDown(p, idx, angle) {
-      if (navigationStack.length >= MAX_DEPTH) return;
+                ta.style.height = "auto";
+                ta.style.height = ta.scrollHeight + "px";
 
-      if (!p.children[idx]) {
-        const title = (p.content[idx] || stepNames[idx]).toUpperCase();
-        const CHILD_SCALE = p.scale * 0.1;
-        const parentCenterX = p.x + 0.5 * LOOP_W * p.scale;
-        const parentCenterY = p.y + 0.5 * LOOP_H * p.scale;
-        const parentRadius = Math.max(LOOP_W, LOOP_H) * p.scale * 0.45;
-        const childRadius = Math.max(LOOP_W, LOOP_H) * CHILD_SCALE * 0.45;
-        const baseDistance = parentRadius + childRadius + 40;
+                node.querySelector("button").onclick = (e) => {
+                    e.stopPropagation();
+                    drillDown(data, i, angle);
+                };
 
-        let childCenterX = parentCenterX + Math.cos(angle) * baseDistance;
-        let childCenterY = parentCenterY + Math.sin(angle) * baseDistance;
+                layer.appendChild(node);
+            });
 
-        Object.values(p.children).forEach(sib => {
-          const sx = sib.x + 0.5 * LOOP_W * sib.scale;
-          const sy = sib.y + 0.5 * LOOP_H * sib.scale;
-          const dist = Math.hypot(childCenterX - sx, childCenterY - sy);
-          const minGap = 120;
-          if (dist < minGap) {
-            const push = minGap - dist;
-            childCenterX += ((childCenterX - sx) / (dist || 1)) * push;
-            childCenterY += ((childCenterY - sy) / (dist || 1)) * push;
-          }
+            world.appendChild(layer);
+        }
+
+        function drillDown(p, idx, angle) {
+            if (navigationStack.length >= MAX_DEPTH) return;
+
+            if (!p.children[idx]) {
+                const title = (p.content[idx] || stepNames[idx]).toUpperCase();
+                const CHILD_SCALE = p.scale * 0.1;
+                const parentCenterX = p.x + 0.5 * LOOP_W * p.scale;
+                const parentCenterY = p.y + 0.5 * LOOP_H * p.scale;
+                const parentRadius = Math.max(LOOP_W, LOOP_H) * p.scale * 0.45;
+                const childRadius = Math.max(LOOP_W, LOOP_H) * CHILD_SCALE * 0.45;
+                const baseDistance = parentRadius + childRadius + 40;
+
+                let childCenterX = parentCenterX + Math.cos(angle) * baseDistance;
+                let childCenterY = parentCenterY + Math.sin(angle) * baseDistance;
+
+                Object.values(p.children).forEach(sib => {
+                    const sx = sib.x + 0.5 * LOOP_W * sib.scale;
+                    const sy = sib.y + 0.5 * LOOP_H * sib.scale;
+                    const dist = Math.hypot(childCenterX - sx, childCenterY - sy);
+                    const minGap = 120;
+                    if (dist < minGap) {
+                        const push = minGap - dist;
+                        childCenterX += ((childCenterX - sx) / (dist || 1)) * push;
+                        childCenterY += ((childCenterY - sy) / (dist || 1)) * push;
+                    }
+                });
+
+                const childX = childCenterX - 0.5 * LOOP_W * CHILD_SCALE;
+                const childY = childCenterY - 0.5 * LOOP_H * CHILD_SCALE;
+
+                p.children[idx] = {
+                    id: Math.random().toString(36).slice(2),
+                    title,
+                    content: ["", "", "", "", ""],
+                    children: {},
+                    x: childX,
+                    y: childY,
+                    scale: CHILD_SCALE,
+                    animFrom: { x: parentCenterX, y: parentCenterY }
+                };
+
+                autoSave(false);
+            }
+
+            navigationStack.push(p.children[idx]);
+            renderAll(true);
+            autoSave(false);
+        }
+
+        function goBack() {
+            if (navigationStack.length > 1) {
+                navigationStack.pop();
+                renderAll(true);
+                autoSave(false);
+            }
+        }
+
+        function resetView() {
+            renderAll(true);
+        }
+
+        function zoom(factor) {
+            const viewportCenterX = viewport.clientWidth / 2;
+            const viewportCenterY = viewport.clientHeight / 2;
+            const worldX = (viewportCenterX - cam.x) / cam.zoom;
+            const worldY = (viewportCenterY - cam.y) / cam.zoom;
+            cam.zoom *= factor;
+            cam.x = viewportCenterX - worldX * cam.zoom;
+            cam.y = viewportCenterY - worldY * cam.zoom;
+            updateWorld();
+            drawMiniMap();
+        }
+
+        function getBounds() {
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+
+            navigationStack.forEach(l => {
+                minX = Math.min(minX, l.x);
+                minY = Math.min(minY, l.y);
+                maxX = Math.max(maxX, l.x + LOOP_W * l.scale);
+                maxY = Math.max(maxY, l.y + LOOP_H * l.scale);
+            });
+
+            if (!isFinite(minX)) return null;
+            return { minX, minY, maxX, maxY };
+        }
+
+        function drawMiniMap() {
+            const w = minimap.width = minimap.clientWidth;
+            const h = minimap.height = minimap.clientHeight;
+
+            mmCtx.clearRect(0, 0, w, h);
+
+            const b = getBounds();
+            if (!b) return;
+
+            const worldW = b.maxX - b.minX;
+            const worldH = b.maxY - b.minY;
+            const scale = Math.min(w / worldW, h / worldH) * 0.9;
+            const offsetX = (w - worldW * scale) / 2;
+            const offsetY = (h - worldH * scale) / 2;
+
+            navigationStack.forEach(l => {
+                mmCtx.strokeStyle = "#888";
+                mmCtx.lineWidth = 1;
+                mmCtx.strokeRect(
+                    offsetX + (l.x - b.minX) * scale,
+                    offsetY + (l.y - b.minY) * scale,
+                    LOOP_W * l.scale * scale,
+                    LOOP_H * l.scale * scale
+                );
+            });
+
+            const viewLeft = (-cam.x) / cam.zoom;
+            const viewTop = (-cam.y) / cam.zoom;
+            const viewW = viewport.clientWidth / cam.zoom;
+            const viewH = viewport.clientHeight / cam.zoom;
+
+            mmCtx.strokeStyle = "#ff4d4d";
+            mmCtx.lineWidth = 2;
+            mmCtx.strokeRect(
+                offsetX + (viewLeft - b.minX) * scale,
+                offsetY + (viewTop - b.minY) * scale,
+                viewW * scale,
+                viewH * scale
+            );
+        }
+
+        function exportMarkdownDFS() {
+            function loopToMarkdownDFS(loop, level = 0) {
+                let md = `${"#".repeat(level + 1)} ${loop.title}\n\n`;
+                for (let i = 0; i < stepNames.length; i++) {
+                    if (loop.content[i]) {
+                        md += `**${i + 1}. ${stepNames[i]}**\n\n${loop.content[i]}\n\n`;
+                    }
+                    if (loop.children[i]) {
+                        md += loopToMarkdownDFS(loop.children[i], level + 1);
+                    }
+                }
+                return md;
+            }
+
+            const blob = new Blob([loopToMarkdownDFS(stateTree)], { type: "text/markdown" });
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(blob);
+            a.download = "loops.md";
+            a.click();
+            URL.revokeObjectURL(a.href);
+        }
+
+        function exportJSON() {
+            const json = JSON.stringify({
+                version: 1,
+                exportTime: Date.now(),
+                root: serializeLoop(stateTree)
+            }, null, 2);
+
+            const blob = new Blob([json], { type: "application/json" });
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(blob);
+            a.download = "loops.json";
+            a.click();
+            URL.revokeObjectURL(a.href);
+        }
+
+        function parseJSON(jsonText) {
+            let data;
+            try {
+                data = JSON.parse(jsonText);
+            } catch (e) {
+                alert("Invalid JSON");
+                return;
+            }
+
+            if (!data?.root) {
+                alert("Invalid JSON structure");
+                return;
+            }
+
+            stateTree = deserializeLoop(data.root);
+            stripRuntimeFields(stateTree);
+            navigationStack = [stateTree];
+            world.innerHTML = "";
+            renderAll(true);
+            autoSave(true);
+            showToast("JSON 已导入并写入本地缓存");
+        }
+
+        function escapeHtml(str) {
+            return String(str)
+                .replaceAll("&", "&amp;")
+                .replaceAll("<", "&lt;")
+                .replaceAll(">", "&gt;")
+                .replaceAll('"', "&quot;")
+                .replaceAll("'", "&#39;");
+        }
+
+        viewport.addEventListener("mousedown", e => {
+            if (e.target.closest(".step-node")) return;
+            cam.isDragging = true;
+            cam.lastMouseX = e.clientX;
+            cam.lastMouseY = e.clientY;
+            document.body.style.userSelect = "none";
         });
 
-        const childX = childCenterX - 0.5 * LOOP_W * CHILD_SCALE;
-        const childY = childCenterY - 0.5 * LOOP_H * CHILD_SCALE;
+        window.addEventListener("mousemove", e => {
+            if (!cam.isDragging) return;
 
-        p.children[idx] = {
-          id: Math.random(),
-          title,
-          content: ["", "", "", "", ""],
-          children: {},
-          x: childX,
-          y: childY,
-          scale: CHILD_SCALE,
-          animFrom: { x: parentCenterX, y: parentCenterY }
-        };
-      }
+            cam.x += e.clientX - cam.lastMouseX;
+            cam.y += e.clientY - cam.lastMouseY;
+            cam.lastMouseX = e.clientX;
+            cam.lastMouseY = e.clientY;
 
-      navigationStack.push(p.children[idx]);
-      renderAll(true);
-    }
+            updateWorld();
+            drawMiniMap();
+        });
 
-    /* ---------- NAVIGATION ---------- */
-    function goBack() {
-      if (navigationStack.length > 1) {
-        navigationStack.pop();
+        window.addEventListener("mouseup", () => {
+            cam.isDragging = false;
+            document.body.style.userSelect = "";
+        });
+
+        viewport.addEventListener("wheel", e => {
+            e.preventDefault();
+
+            const zoomIntensity = 0.0015;
+            const mouseX = e.clientX;
+            const mouseY = e.clientY;
+
+            const worldX = (mouseX - cam.x) / cam.zoom;
+            const worldY = (mouseY - cam.y) / cam.zoom;
+
+            cam.zoom *= Math.exp(-e.deltaY * zoomIntensity);
+            cam.zoom = Math.min(Math.max(cam.zoom, 0.05), 10);
+
+            cam.x = mouseX - worldX * cam.zoom;
+            cam.y = mouseY - worldY * cam.zoom;
+
+            updateWorld();
+            drawMiniMap();
+        }, { passive: false });
+
+        minimap.addEventListener("click", e => {
+            const rect = minimap.getBoundingClientRect();
+            const mx = e.clientX - rect.left;
+            const my = e.clientY - rect.top;
+
+            const b = getBounds();
+            if (!b) return;
+
+            const worldW = b.maxX - b.minX;
+            const worldH = b.maxY - b.minY;
+            const scale = Math.min(minimap.width / worldW, minimap.height / worldH) * 0.9;
+            const offsetX = (minimap.width - worldW * scale) / 2;
+            const offsetY = (minimap.height - worldH * scale) / 2;
+
+            const worldX = (mx - offsetX) / scale + b.minX;
+            const worldY = (my - offsetY) / scale + b.minY;
+
+            cam.x = viewport.clientWidth / 2 - worldX * cam.zoom;
+            cam.y = viewport.clientHeight / 2 - worldY * cam.zoom;
+
+            updateWorld();
+            drawMiniMap();
+        });
+
+        document.getElementById("importInput").addEventListener("change", e => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = ev => parseJSON(ev.target.result);
+            reader.readAsText(file);
+
+            e.target.value = "";
+        });
+
+        window.addEventListener("beforeunload", () => {
+            autoSave(true);
+        });
+
+        window.addEventListener("resize", () => {
+            drawMiniMap();
+        });
+
+        document.addEventListener("keydown", e => {
+            const active = document.activeElement;
+            const tag = active?.tagName;
+
+            if (tag === "INPUT" || tag === "TEXTAREA" || active?.isContentEditable) return;
+
+            if (e.ctrlKey) {
+                switch (e.key) {
+                    case "ArrowLeft":
+                        e.preventDefault();
+                        goBack();
+                        break;
+                    case "/":
+                    case "?":
+                        e.preventDefault();
+                        resetView();
+                        break;
+                    case "+":
+                    case "=":
+                        e.preventDefault();
+                        zoom(1.2);
+                        break;
+                    case "-":
+                        e.preventDefault();
+                        zoom(1 / 1.2);
+                        break;
+                    case "0":
+                        e.preventDefault();
+                        resetView();
+                        break;
+                }
+            }
+        });
+
+        const restored = tryRestore();
+        if (!restored) {
+            setSaveStatus("", "Ready");
+        }
+
         renderAll(true);
-      }
-    }
-
-    function resetView() { renderAll(true); }
-
-    function zoom(factor) {
-      const viewportCenterX = viewport.clientWidth / 2;
-      const viewportCenterY = viewport.clientHeight / 2;
-      const worldX = (viewportCenterX - cam.x) / cam.zoom;
-      const worldY = (viewportCenterY - cam.y) / cam.zoom;
-      cam.zoom *= factor;
-      cam.x = viewportCenterX - worldX * cam.zoom;
-      cam.y = viewportCenterY - worldY * cam.zoom;
-      updateWorld();
-      drawMiniMap();
-    }
-
-    /* ---------- DRAG PAN ---------- */
-    viewport.addEventListener('mousedown', e => {
-      if (e.target.closest('.step-node')) return;
-      cam.isDragging = true;
-      cam.lastMouseX = e.clientX;
-      cam.lastMouseY = e.clientY;
-      document.body.style.userSelect = 'none';
-    });
-    window.addEventListener('mousemove', e => {
-      if (!cam.isDragging) return;
-      cam.x += e.clientX - cam.lastMouseX;
-      cam.y += e.clientY - cam.lastMouseY;
-      cam.lastMouseX = e.clientX;
-      cam.lastMouseY = e.clientY;
-      updateWorld();
-      drawMiniMap();
-    });
-    window.addEventListener('mouseup', () => {
-      cam.isDragging = false;
-      document.body.style.userSelect = '';
-    });
-
-    /* ---------- MOUSE ZOOM ---------- */
-    viewport.addEventListener('wheel', e => {
-      e.preventDefault();
-      const zoomIntensity = 0.0015;
-      const mouseX = e.clientX;
-      const mouseY = e.clientY;
-      const worldX = (mouseX - cam.x) / cam.zoom;
-      const worldY = (mouseY - cam.y) / cam.zoom;
-      cam.zoom *= Math.exp(-e.deltaY * zoomIntensity);
-      cam.zoom = Math.min(Math.max(cam.zoom, 0.05), 10);
-      cam.x = mouseX - worldX * cam.zoom;
-      cam.y = mouseY - worldY * cam.zoom;
-      updateWorld();
-      drawMiniMap();
-    }, { passive: false });
-
-    /* ---------- MINIMAP ---------- */
-    function getBounds() {
-      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-      navigationStack.forEach(l => {
-        minX = Math.min(minX, l.x);
-        minY = Math.min(minY, l.y);
-        maxX = Math.max(maxX, l.x + LOOP_W * l.scale);
-        maxY = Math.max(maxY, l.y + LOOP_H * l.scale);
-      });
-      if (!isFinite(minX)) return null;
-      return { minX, minY, maxX, maxY };
-    }
-
-    function drawMiniMap() {
-      const w = minimap.width = minimap.clientWidth;
-      const h = minimap.height = minimap.clientHeight;
-      mmCtx.clearRect(0, 0, w, h);
-      const b = getBounds();
-      if (!b) return;
-      const worldW = b.maxX - b.minX;
-      const worldH = b.maxY - b.minY;
-      const scale = Math.min(w / worldW, h / worldH) * 0.9;
-      const offsetX = (w - worldW * scale) / 2;
-      const offsetY = (h - worldH * scale) / 2;
-
-      navigationStack.forEach(l => {
-        mmCtx.strokeStyle = '#888';
-        mmCtx.strokeRect(offsetX + (l.x - b.minX) * scale,
-          offsetY + (l.y - b.minY) * scale,
-          LOOP_W * l.scale * scale,
-          LOOP_H * l.scale * scale);
-      });
-
-      const viewLeft = (-cam.x) / cam.zoom;
-      const viewTop = (-cam.y) / cam.zoom;
-      const viewW = viewport.clientWidth / cam.zoom;
-      const viewH = viewport.clientHeight / cam.zoom;
-
-      mmCtx.strokeStyle = '#ff4d4d';
-      mmCtx.lineWidth = 2;
-      mmCtx.strokeRect(offsetX + (viewLeft - b.minX) * scale,
-        offsetY + (viewTop - b.minY) * scale,
-        viewW * scale, viewH * scale);
-    }
-
-    minimap.addEventListener('click', e => {
-      const rect = minimap.getBoundingClientRect();
-      const mx = e.clientX - rect.left;
-      const my = e.clientY - rect.top;
-      const b = getBounds();
-      if (!b) return;
-      const worldW = b.maxX - b.minX;
-      const worldH = b.maxY - b.minY;
-      const scale = Math.min(minimap.width / worldW, minimap.height / worldH) * 0.9;
-      const offsetX = (minimap.width - worldW * scale) / 2;
-      const offsetY = (minimap.height - worldH * scale) / 2;
-      const worldX = (mx - offsetX) / scale + b.minX;
-      const worldY = (my - offsetY) / scale + b.minY;
-      cam.x = viewport.clientWidth / 2 - worldX * cam.zoom;
-      cam.y = viewport.clientHeight / 2 - worldY * cam.zoom;
-      updateWorld();
-      drawMiniMap();
-    });
-
-    /* ---------- EXPORT / IMPORT ---------- */
-    function exportMarkdownDFS() {
-      function loopToMarkdownDFS(loop, level = 0) {
-        let md = `${'#'.repeat(level + 1)} ${loop.title}\n\n`;
-        for (let i = 0; i < stepNames.length; i++) {
-          if (loop.content[i]) md += `**${i + 1}. ${stepNames[i]}**\n\n${loop.content[i]}\n\n`;
-          if (loop.children[i]) md += loopToMarkdownDFS(loop.children[i], level + 1);
-        }
-        return md;
-      }
-      const blob = new Blob([loopToMarkdownDFS(stateTree)], { type: 'text/markdown' });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = 'loops.md';
-      a.click();
-      URL.revokeObjectURL(a.href);
-    }
-
-    function exportJSON() {
-      const json = JSON.stringify({ version: 1, exportTime: Date.now(), root: serializeLoop(stateTree) }, null, 2);
-      const blob = new Blob([json], { type: 'application/json' });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = 'loops.json';
-      a.click();
-      URL.revokeObjectURL(a.href);
-    }
-
-    function parseJSON(jsonText) {
-      try { data = JSON.parse(jsonText); } catch (e) { alert("Invalid JSON"); return; }
-      if (!data?.root) { alert("Invalid JSON structure"); return; }
-      stateTree = deserializeLoop(data.root);
-      stripRuntimeFields(stateTree);
-      navigationStack = [stateTree];
-      world.innerHTML = '';
-      renderAll(true);
-    }
-
-    document.getElementById("importInput").addEventListener("change", e => {
-      const file = e.target.files[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = ev => parseJSON(ev.target.result);
-      reader.readAsText(file);
-    });
-
-    /* ---------- UTILS ---------- */
-    function stripRuntimeFields(node) {
-      if (!node) return;
-      delete node.dom;
-      Object.values(node.children || {}).forEach(stripRuntimeFields);
-    }
-
-    function serializeLoop(loop) {
-      const steps = {};
-      const children = {};
-      for (let i = 0; i < stepNames.length; i++) {
-        if (loop.content[i]) steps[stepNames[i]] = loop.content[i];
-        if (loop.children[i]) children[stepNames[i]] = serializeLoop(loop.children[i]);
-      }
-      return { title: loop.title, x: loop.x, y: loop.y, scale: loop.scale, steps, children };
-    }
-
-    function deserializeLoop(data) {
-      const node = { id: Math.random(), title: data.title || "", content: ["", "", "", "", ""], children: {}, x: data.x ?? 0, y: data.y ?? 0, scale: data.scale ?? 1 };
-      if (data.steps) Object.entries(data.steps).forEach(([k, v]) => { const i = stepNames.indexOf(k); if (i >= 0) node.content[i] = v; });
-      if (data.children) Object.entries(data.children).forEach(([k, v]) => { const i = stepNames.indexOf(k); if (i >= 0) node.children[i] = deserializeLoop(v); });
-      return node;
-    }
-
-    /* ---------- KEYBOARD ---------- */
-    document.addEventListener('keydown', e => {
-      const tag = document.activeElement.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement.isContentEditable) return;
-      if (e.ctrlKey) {
-        switch (e.key) {
-          case 'ArrowLeft': e.preventDefault(); goBack(); break;
-          case '/': case '?': e.preventDefault(); resetView(); break;
-          case '+': case '=': e.preventDefault(); zoom(1.2); break;
-          case '-': e.preventDefault(); zoom(1 / 1.2); break;
-          case '0': e.preventDefault(); resetView(); break;
-        }
-      }
-    });
-
-    renderAll(true);
-  </script>
+        autoSave(false);
+    </script>
 </body>
 
 </html>
