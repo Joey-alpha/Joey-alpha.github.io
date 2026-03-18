@@ -1,0 +1,886 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Empty Box Demo</title>
+  <style>
+    :root {
+      --bg-1: #eef4ff;
+      --bg-2: #f7efe8;
+      --text: #1f2430;
+      --muted: #667085;
+      --line: rgba(21, 31, 56, 0.08);
+      --panel: rgba(255,255,255,0.62);
+      --accent: #5e77ff;
+      --shadow: 0 18px 40px rgba(31, 36, 48, 0.10);
+      --radius-xl: 28px;
+      --max: 960px;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Helvetica Neue", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(255,255,255,0.8), transparent 28%),
+        radial-gradient(circle at bottom right, rgba(255,255,255,0.35), transparent 30%),
+        linear-gradient(135deg, var(--bg-1), var(--bg-2));
+      transition: background 0.5s ease;
+    }
+
+    body.evening {
+      background:
+        radial-gradient(circle at top left, rgba(255,255,255,0.18), transparent 24%),
+        radial-gradient(circle at bottom right, rgba(255,255,255,0.08), transparent 28%),
+        linear-gradient(135deg, #f4e7d8, #d6dde8);
+    }
+
+    body.night {
+      color: #eef2ff;
+      background:
+        radial-gradient(circle at top left, rgba(255,255,255,0.08), transparent 22%),
+        radial-gradient(circle at bottom right, rgba(155,181,255,0.08), transparent 26%),
+        linear-gradient(135deg, #171c2a, #24314d);
+    }
+
+    body.night .shell,
+    body.night .ambient-hint,
+    body.night .overlay-card,
+    body.night .fab {
+      background: rgba(24, 30, 46, 0.70);
+      color: #eef2ff;
+      border-color: rgba(255,255,255,0.08);
+    }
+
+    body.night .search-input,
+    body.night .reflection-textarea,
+    body.night .candidate-item,
+    body.night .blindbox-task {
+      background: rgba(255,255,255,0.04);
+      color: #eef2ff;
+      border-color: rgba(255,255,255,0.08);
+    }
+
+    body.night .time-block p,
+    body.night .now-task h3.is-empty::before,
+    body.night .reflection-textarea::placeholder {
+      color: #c6d0e7;
+    }
+
+    .app {
+      min-height: 100vh;
+      padding: 24px;
+      display: flex;
+      justify-content: center;
+    }
+
+    .shell {
+      width: 100%;
+      max-width: var(--max);
+      background: rgba(255,255,255,0.22);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255,255,255,0.35);
+      border-radius: 36px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      min-height: calc(100vh - 48px);
+    }
+
+    .content {
+      min-height: calc(100vh - 48px);
+      padding: 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      padding: 4px 2px;
+    }
+
+    .time-block h2 {
+      margin: 0 0 6px;
+      font-size: 28px;
+      letter-spacing: -0.03em;
+    }
+
+    .time-block p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .ambient-hint {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 12px 14px;
+      font-size: 14px;
+      white-space: nowrap;
+    }
+
+    .now-card {
+      max-width: 720px;
+      margin: 40px auto;
+    }
+
+    .now-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .now-task h3 {
+      margin: 0;
+      flex: 1;
+      min-width: 0;
+      font-size: 28px;
+      letter-spacing: -0.03em;
+      word-break: break-word;
+      cursor: text;
+      padding: 6px 0;
+      border-bottom: 1px solid transparent;
+      transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+      outline: none;
+    }
+
+    .now-task h3.is-empty::before {
+      content: '点击输入任务';
+      color: var(--muted);
+    }
+
+    .now-task h3.is-editing {
+      border-bottom-color: rgba(94,119,255,0.42);
+      box-shadow: inset 0 -1px 0 rgba(94,119,255,0.24);
+      background: rgba(94,119,255,0.06);
+      border-radius: 8px;
+    }
+
+    .now-actions-inline {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+
+    .btn {
+      border: 0;
+      padding: 12px 16px;
+      border-radius: 14px;
+      cursor: pointer;
+      font: inherit;
+      transition: 0.2s ease;
+    }
+
+    .btn.primary {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .btn.secondary {
+      background: rgba(255,255,255,0.66);
+      border: 1px solid var(--line);
+      color: inherit;
+    }
+
+    .btn-small {
+      padding: 10px 14px;
+      border-radius: 12px;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .search-input,
+    .reflection-textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: rgba(255,255,255,0.58);
+      font: inherit;
+      color: inherit;
+      padding: 16px 18px;
+      outline: none;
+    }
+
+    .reflection-completed {
+      display: grid;
+      gap: 10px;
+      margin-bottom: 14px;
+      max-height: min(34vh, 280px);
+      overflow: auto;
+      padding-right: 4px;
+    }
+
+    .reflection-completed-item {
+      padding: 12px 14px;
+      border-radius: 16px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.48);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .reflection-empty {
+      color: var(--muted);
+      font-size: 14px;
+      padding: 8px 2px 2px;
+    }
+
+    .reflection-completed::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    .reflection-completed::-webkit-scrollbar-thumb {
+      background: rgba(31, 36, 48, 0.16);
+      border-radius: 999px;
+    }
+
+    .reflection-completed::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .reflection-textarea {
+      min-height: 160px;
+      resize: vertical;
+    }
+
+    .fab-group {
+      position: fixed;
+      right: 28px;
+      bottom: 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      z-index: 20;
+    }
+
+    .fab {
+      width: 56px;
+      height: 56px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.82);
+      box-shadow: 0 14px 30px rgba(24, 31, 56, 0.12);
+      cursor: pointer;
+      font: inherit;
+      font-size: 20px;
+      color: inherit;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .fab:disabled {
+      opacity: 0.38;
+      cursor: default;
+      box-shadow: none;
+    }
+
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(10, 14, 24, 0.14);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      z-index: 30;
+    }
+
+    .overlay.active { display: flex; }
+
+    .overlay-card {
+      width: min(560px, 100%);
+      max-height: min(80vh, 720px);
+      background: rgba(255,255,255,0.9);
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      padding: 20px;
+      box-shadow: 0 18px 40px rgba(24, 31, 56, 0.14);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .overlay-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+
+    .overlay-title {
+      margin: 0;
+      font-size: 18px;
+    }
+
+    .close-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: transparent;
+      cursor: pointer;
+      font-size: 18px;
+      color: inherit;
+    }
+
+    .candidate-list {
+      display: grid;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .candidate-item {
+      padding: 14px 16px;
+      border-radius: 18px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.65);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .blindbox-task {
+      padding: 24px;
+      border-radius: 24px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.68), rgba(255,255,255,0.44));
+      border: 1px solid var(--line);
+      min-height: 120px;
+      display: flex;
+      align-items: center;
+    }
+
+    .blindbox-task p {
+      margin: 0;
+      font-size: 28px;
+      line-height: 1.35;
+      letter-spacing: -0.03em;
+    }
+
+    @media (max-width: 640px) {
+      .app { padding: 12px; }
+      .shell { min-height: calc(100vh - 24px); border-radius: 24px; }
+      .content { padding: 16px; min-height: calc(100vh - 24px); }
+      .time-block h2 { font-size: 24px; }
+      .now-task h3,
+      .blindbox-task p { font-size: 24px; }
+      .fab-group { right: 18px; bottom: 18px; }
+    }
+  </style>
+</head>
+<body class="morning">
+  <div class="app">
+    <div class="shell">
+      <main class="content">
+        <header class="topbar">
+          <div class="time-block">
+            <h2 id="greeting">现在</h2>
+            <p id="timeText"></p>
+          </div>
+          <div class="ambient-hint" id="ambientHint">💧</div>
+        </header>
+
+        <section id="view-home">
+          <div class="now-card">
+            <div class="now-task">
+              <div class="now-row">
+                <h3 id="nowTaskText"></h3>
+                <div class="now-actions-inline">
+                  <button class="btn primary btn-small" id="completeNowBtn">完成</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div class="fab-group">
+          <button class="fab" id="addFab" title="添加">＋</button>
+          <button class="fab" id="searchFab" title="搜索">⌕</button>
+          <button class="fab" id="blindboxFab" title="盲盒">🎲</button>
+          <button class="fab" id="settingsFab" title="设置">⚙</button>
+          <button class="fab" id="reflectionFab" title="反思">✎</button>
+        </div>
+
+        <div class="overlay" id="searchOverlay">
+          <div class="overlay-card">
+            <div class="overlay-head">
+              <h3 class="overlay-title">搜索</h3>
+              <button class="close-btn" data-close="searchOverlay">×</button>
+            </div>
+            <input class="search-input" id="searchInput" placeholder="搜索任务…" />
+            <div class="candidate-list" id="searchResults"></div>
+          </div>
+        </div>
+
+        <div class="overlay" id="addOverlay">
+          <div class="overlay-card">
+            <div class="overlay-head">
+              <h3 class="overlay-title">添加</h3>
+              <button class="close-btn" data-close="addOverlay">×</button>
+            </div>
+            <input class="search-input" id="addInput" placeholder="输入任务…" />
+            <div class="actions">
+              <button class="btn primary" id="confirmAddBtn">放进 box</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="overlay" id="blindboxOverlay">
+          <div class="overlay-card">
+            <div class="overlay-head">
+              <h3 class="overlay-title">盲盒</h3>
+              <button class="close-btn" data-close="blindboxOverlay">×</button>
+            </div>
+            <div class="blindbox-task">
+              <p id="blindboxTaskText">没有任务</p>
+            </div>
+            <div class="actions" id="blindboxActions">
+              <button class="btn primary" id="acceptBlindboxBtn">选择</button>
+              <button class="btn secondary" id="rerollBlindboxBtn">换一个</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="overlay" id="reflectionOverlay">
+          <div class="overlay-card">
+            <div class="overlay-head">
+              <h3 class="overlay-title">反思</h3>
+              <button class="close-btn" data-close="reflectionOverlay">×</button>
+            </div>
+            <div class="reflection-empty" id="reflectionCountText"></div>
+            <div class="reflection-completed" id="reflectionCompletedList"></div>
+            <textarea class="reflection-textarea" id="reflectionTextarea" placeholder="一句记录…"></textarea>
+          </div>
+        </div>
+
+        <div class="overlay" id="settingsOverlay">
+          <div class="overlay-card">
+            <div class="overlay-head">
+              <h3 class="overlay-title">设置</h3>
+              <button class="close-btn" data-close="settingsOverlay">×</button>
+            </div>
+            <div class="actions" style="margin-top:0;">
+              <button class="btn primary" id="exportJsonBtn">导出 JSON</button>
+              <label class="btn secondary" for="importJsonInput" style="display:inline-flex;align-items:center;">导入 JSON</label>
+              <input id="importJsonInput" type="file" accept="application/json" style="display:none;" />
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script>
+    const STORAGE_KEY = 'activation-task-demo-state';
+
+    const body = document.body;
+    const hour = new Date().getHours();
+    const greeting = document.getElementById('greeting');
+    const timeText = document.getElementById('timeText');
+    const ambientHint = document.getElementById('ambientHint');
+
+    const nowTaskText = document.getElementById('nowTaskText');
+    const completeNowBtn = document.getElementById('completeNowBtn');
+    const reflectionTextarea = document.getElementById('reflectionTextarea');
+    const reflectionCompletedList = document.getElementById('reflectionCompletedList');
+    const reflectionCountText = document.getElementById('reflectionCountText');
+
+    const addFab = document.getElementById('addFab');
+    const searchFab = document.getElementById('searchFab');
+    const blindboxFab = document.getElementById('blindboxFab');
+    const settingsFab = document.getElementById('settingsFab');
+    const reflectionFab = document.getElementById('reflectionFab');
+
+    const searchOverlay = document.getElementById('searchOverlay');
+    const addOverlay = document.getElementById('addOverlay');
+    const blindboxOverlay = document.getElementById('blindboxOverlay');
+    const reflectionOverlay = document.getElementById('reflectionOverlay');
+    const settingsOverlay = document.getElementById('settingsOverlay');
+
+    const searchInput = document.getElementById('searchInput');
+    const searchResults = document.getElementById('searchResults');
+    const addInput = document.getElementById('addInput');
+    const confirmAddBtn = document.getElementById('confirmAddBtn');
+
+    const blindboxTaskText = document.getElementById('blindboxTaskText');
+    const blindboxActions = document.getElementById('blindboxActions');
+    const acceptBlindboxBtn = document.getElementById('acceptBlindboxBtn');
+    const rerollBlindboxBtn = document.getElementById('rerollBlindboxBtn');
+
+    const exportJsonBtn = document.getElementById('exportJsonBtn');
+    const importJsonInput = document.getElementById('importJsonInput');
+
+    let state = {
+      boxTasks: [],
+      completedTasks: [],
+      nowTask: '',
+      nowTaskStartedAt: 0,
+      reflectionNote: '',
+      blindboxRejectCount: 0,
+      blindboxCooldownUntil: 0
+    };
+
+    let blindboxTask = '没有任务';
+    let isEditing = false;
+
+    function saveState() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
+
+    function loadState() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        state = {
+          boxTasks: Array.isArray(parsed.boxTasks) ? parsed.boxTasks : [],
+          completedTasks: Array.isArray(parsed.completedTasks) ? parsed.completedTasks : [],
+          nowTask: typeof parsed.nowTask === 'string' ? parsed.nowTask : '',
+          nowTaskStartedAt: Number.isFinite(parsed.nowTaskStartedAt) ? parsed.nowTaskStartedAt : 0,
+          reflectionNote: typeof parsed.reflectionNote === 'string' ? parsed.reflectionNote : '',
+          blindboxRejectCount: Number.isFinite(parsed.blindboxRejectCount) ? parsed.blindboxRejectCount : 0,
+          blindboxCooldownUntil: Number.isFinite(parsed.blindboxCooldownUntil) ? parsed.blindboxCooldownUntil : 0
+        };
+      } catch {}
+    }
+
+    function hasBoxTasks() {
+      return state.boxTasks.length > 0;
+    }
+
+    function renderFabState() {
+      const hasTasks = hasBoxTasks();
+      const isCoolingDown = Date.now() < state.blindboxCooldownUntil;
+      searchFab.disabled = !hasTasks;
+      blindboxFab.disabled = !hasTasks || isCoolingDown;
+      blindboxFab.title = isCoolingDown ? '盲盒冷却中' : '盲盒';
+    }
+
+    function renderNow() {
+      nowTaskText.textContent = state.nowTask || '';
+      nowTaskText.classList.toggle('is-empty', !state.nowTask);
+      completeNowBtn.style.visibility = state.nowTask ? 'visible' : 'hidden';
+      renderFabState();
+      saveState();
+    }
+
+    function openOverlay(el) {
+      el.classList.add('active');
+    }
+
+    function closeOverlay(el) {
+      el.classList.remove('active');
+    }
+
+    function addToBox(value) {
+      const text = value.trim();
+      if (!text) return false;
+      if (!state.boxTasks.includes(text) && !state.completedTasks.includes(text) && text !== state.nowTask) {
+        state.boxTasks.unshift(text);
+        saveState();
+        renderFabState();
+        return true;
+      }
+      return false;
+    }
+
+    function renderSearchResults(keyword) {
+      searchResults.innerHTML = '';
+      const text = keyword.trim();
+      if (!text) return;
+      const matched = state.boxTasks.filter(task => task !== state.nowTask && task.includes(text));
+      matched.forEach(task => {
+        const row = document.createElement('div');
+        row.className = 'candidate-item';
+        row.innerHTML = `<span>${task}</span><button class="btn primary">选择</button>`;
+        row.querySelector('button').addEventListener('click', () => {
+          if (state.nowTask && !state.boxTasks.includes(state.nowTask)) {
+            state.boxTasks.unshift(state.nowTask);
+          }
+          state.boxTasks = state.boxTasks.filter(item => item !== task);
+          state.nowTask = task;
+          state.nowTaskStartedAt = Date.now();
+          searchInput.value = '';
+          searchResults.innerHTML = '';
+          closeOverlay(searchOverlay);
+          renderNow();
+        });
+        searchResults.appendChild(row);
+      });
+    }
+
+    function rerollBlindbox() {
+      const pool = state.boxTasks.filter(task => task !== state.nowTask && !state.completedTasks.includes(task));
+      blindboxTask = pool[Math.floor(Math.random() * pool.length)] || '没有任务';
+      blindboxTaskText.textContent = blindboxTask;
+
+      if (blindboxTask === '没有任务') {
+        blindboxActions.style.display = 'none';
+      } else {
+        blindboxActions.style.display = 'flex';
+        rerollBlindboxBtn.style.display = pool.length <= 1 ? 'none' : 'inline-flex';
+      }
+    }
+
+    function registerBlindboxReject() {
+      state.blindboxRejectCount += 1;
+      if (state.blindboxRejectCount >= 3) {
+        state.blindboxCooldownUntil = Date.now() + 60 * 60 * 1000;
+        state.blindboxRejectCount = 0;
+      }
+      saveState();
+      renderFabState();
+    }
+
+    function resetBlindboxRejects() {
+      state.blindboxRejectCount = 0;
+      state.blindboxCooldownUntil = 0;
+      saveState();
+      renderFabState();
+    }
+
+    function startInlineEdit() {
+      if (isEditing) return;
+      isEditing = true;
+      nowTaskText.classList.remove('is-empty');
+      nowTaskText.classList.add('is-editing');
+      nowTaskText.contentEditable = 'true';
+      nowTaskText.focus();
+
+      const range = document.createRange();
+      range.selectNodeContents(nowTaskText);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
+
+    function finishInlineEdit() {
+      if (!isEditing) return;
+      isEditing = false;
+      nowTaskText.contentEditable = 'false';
+      nowTaskText.classList.remove('is-editing');
+      const nextText = nowTaskText.textContent.trim();
+      const wasEmpty = !state.nowTask;
+      state.nowTask = nextText;
+      if (!state.nowTask) {
+        state.nowTaskStartedAt = 0;
+      } else if (wasEmpty) {
+        state.nowTaskStartedAt = Date.now();
+      }
+      renderNow();
+    }
+
+    function isReflectionTime() {
+      const now = new Date();
+      const h = now.getHours();
+      const m = now.getMinutes();
+      const time = h * 60 + m;
+      return (time >= 11 * 60 + 30 && time <= 12 * 60) ||
+             (time >= 15 * 60 && time <= 17 * 60 + 30) ||
+             (time >= 20 * 60 && time <= 20 * 60 + 30);
+    }
+
+    function renderReflectionFab() {
+      reflectionFab.style.display = isReflectionTime() ? 'inline-flex' : 'none';
+    }
+
+    completeNowBtn.addEventListener('click', () => {
+      if (!state.nowTask) return;
+      state.completedTasks.push(state.nowTask);
+      state.boxTasks = state.boxTasks.filter(item => item !== state.nowTask);
+      state.nowTask = '';
+      state.nowTaskStartedAt = 0;
+      renderNow();
+    });
+
+    addFab.addEventListener('click', () => {
+      openOverlay(addOverlay);
+      addInput.focus();
+    });
+
+    confirmAddBtn.addEventListener('click', () => {
+      const added = addToBox(addInput.value);
+      if (!added) return;
+      addInput.value = '';
+      closeOverlay(addOverlay);
+    });
+
+    addInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        confirmAddBtn.click();
+      }
+    });
+
+    searchFab.addEventListener('click', () => {
+      if (!hasBoxTasks()) return;
+      openOverlay(searchOverlay);
+      searchInput.focus();
+    });
+
+    searchInput.addEventListener('input', e => {
+      renderSearchResults(e.target.value);
+    });
+
+    blindboxFab.addEventListener('click', () => {
+      if (!hasBoxTasks()) return;
+      if (Date.now() < state.blindboxCooldownUntil) return;
+      rerollBlindbox();
+      openOverlay(blindboxOverlay);
+    });
+
+    acceptBlindboxBtn.addEventListener('click', () => {
+      if (!blindboxTask || blindboxTask === '没有任务') return;
+      if (state.nowTask && !state.boxTasks.includes(state.nowTask)) {
+        state.boxTasks.unshift(state.nowTask);
+      }
+      state.boxTasks = state.boxTasks.filter(item => item !== blindboxTask);
+      state.nowTask = blindboxTask;
+      state.nowTaskStartedAt = Date.now();
+      resetBlindboxRejects();
+      closeOverlay(blindboxOverlay);
+      renderNow();
+    });
+
+    rerollBlindboxBtn.addEventListener('click', () => {
+      registerBlindboxReject();
+      if (Date.now() < state.blindboxCooldownUntil) {
+        closeOverlay(blindboxOverlay);
+        return;
+      }
+      rerollBlindbox();
+    });
+
+    function renderReflectionCompleted() {
+      reflectionCompletedList.innerHTML = '';
+      const items = state.completedTasks;
+      reflectionCountText.textContent = items.length ? `今日完成 ${items.length} 项` : '';
+      if (!items.length) {
+        const empty = document.createElement('div');
+        empty.className = 'reflection-empty';
+        empty.textContent = '今天还没有完成的任务';
+        reflectionCompletedList.appendChild(empty);
+        return;
+      }
+      items.forEach((task, index) => {
+        const row = document.createElement('div');
+        row.className = 'reflection-completed-item';
+        row.textContent = `${index + 1}. ${task}`;
+        reflectionCompletedList.appendChild(row);
+      });
+      reflectionCompletedList.scrollTop = reflectionCompletedList.scrollHeight;
+    }
+
+    reflectionFab.addEventListener('click', () => {
+      reflectionTextarea.value = state.reflectionNote || '';
+      renderReflectionCompleted();
+      openOverlay(reflectionOverlay);
+    });
+
+    reflectionTextarea.addEventListener('input', () => {
+      state.reflectionNote = reflectionTextarea.value;
+      saveState();
+    });
+
+    settingsFab.addEventListener('click', () => {
+      openOverlay(settingsOverlay);
+    });
+
+    exportJsonBtn.addEventListener('click', () => {
+      const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'activation-task-demo.json';
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    importJsonInput.addEventListener('change', async e => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const parsed = JSON.parse(text);
+        state = {
+          boxTasks: Array.isArray(parsed.boxTasks) ? parsed.boxTasks : [],
+          completedTasks: Array.isArray(parsed.completedTasks) ? parsed.completedTasks : [],
+          nowTask: typeof parsed.nowTask === 'string' ? parsed.nowTask : '',
+          nowTaskStartedAt: Number.isFinite(parsed.nowTaskStartedAt) ? parsed.nowTaskStartedAt : 0,
+          reflectionNote: typeof parsed.reflectionNote === 'string' ? parsed.reflectionNote : '',
+          blindboxRejectCount: Number.isFinite(parsed.blindboxRejectCount) ? parsed.blindboxRejectCount : 0,
+          blindboxCooldownUntil: Number.isFinite(parsed.blindboxCooldownUntil) ? parsed.blindboxCooldownUntil : 0
+        };
+        renderNow();
+        renderReflectionFab();
+        closeOverlay(settingsOverlay);
+      } catch {}
+      importJsonInput.value = '';
+    });
+
+    nowTaskText.addEventListener('click', startInlineEdit);
+    nowTaskText.addEventListener('blur', finishInlineEdit);
+    nowTaskText.addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        nowTaskText.blur();
+      }
+    });
+
+    document.querySelectorAll('[data-close]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const target = document.getElementById(btn.dataset.close);
+        closeOverlay(target);
+      });
+    });
+
+    [searchOverlay, addOverlay, blindboxOverlay, reflectionOverlay, settingsOverlay].forEach(overlay => {
+      overlay.addEventListener('click', e => {
+        if (e.target === overlay) closeOverlay(overlay);
+      });
+    });
+
+    loadState();
+    renderReflectionFab();
+    setInterval(renderReflectionFab, 60000);
+    renderNow();
+
+    const weekday = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][new Date().getDay()];
+    const minute = String(new Date().getMinutes()).padStart(2, '0');
+    timeText.textContent = `${weekday} · ${String(hour).padStart(2, '0')}:${minute}`;
+
+    if (hour >= 18 && hour < 22) {
+      body.className = 'evening';
+      greeting.textContent = '夜晚';
+      ambientHint.textContent = '🌙';
+    } else if (hour >= 22 || hour < 6) {
+      body.className = 'night';
+      greeting.textContent = '夜深了';
+      ambientHint.textContent = '🌌';
+    } else if (hour >= 6 && hour < 11) {
+      body.className = 'morning';
+      greeting.textContent = '早上';
+      ambientHint.textContent = '💧';
+    } else {
+      body.className = 'day';
+      greeting.textContent = '下午';
+      ambientHint.textContent = '🌿';
+    }
+  </script>
+</body>
+</html>
