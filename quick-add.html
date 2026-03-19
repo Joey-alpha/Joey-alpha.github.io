@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quick Add</title>
+  <style>
+    :root {
+      --bg-1: #eef4ff;
+      --bg-2: #f7efe8;
+      --text: #1f2430;
+      --muted: #667085;
+      --line: rgba(21, 31, 56, 0.08);
+      --panel: rgba(255,255,255,0.72);
+      --accent: #5e77ff;
+      --shadow: 0 18px 40px rgba(31, 36, 48, 0.10);
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Helvetica Neue", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(255,255,255,0.8), transparent 28%),
+        radial-gradient(circle at bottom right, rgba(255,255,255,0.35), transparent 30%),
+        linear-gradient(135deg, var(--bg-1), var(--bg-2));
+      display: grid;
+      place-items: center;
+      padding: 20px;
+    }
+
+    .card {
+      width: min(560px, 100%);
+      background: var(--panel);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255,255,255,0.35);
+      border-radius: 28px;
+      box-shadow: var(--shadow);
+      padding: 22px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 24px;
+      letter-spacing: -0.03em;
+    }
+
+    p.desc {
+      margin: 0 0 16px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .input {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: rgba(255,255,255,0.82);
+      font: inherit;
+      color: inherit;
+      padding: 16px 18px;
+      outline: none;
+      font-size: 16px;
+    }
+
+    .actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 14px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      border: 0;
+      padding: 12px 16px;
+      border-radius: 14px;
+      cursor: pointer;
+      font: inherit;
+      transition: 0.2s ease;
+    }
+
+    .btn.primary {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .btn.secondary {
+      background: rgba(255,255,255,0.66);
+      border: 1px solid var(--line);
+      color: inherit;
+    }
+
+    .hint {
+      margin-top: 12px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .message {
+      margin-top: 14px;
+      min-height: 20px;
+      font-size: 14px;
+    }
+
+    .message.success { color: #2a7a2a; }
+    .message.error { color: #b42318; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Quick Add</h1>
+
+    <input
+      id="taskInput"
+      class="input"
+      type="text"
+      placeholder="输入任务…"
+      autocomplete="off"
+    />
+
+    <div class="actions">
+      <button id="addBtn" class="btn primary">放进 box</button>
+      <button id="closeBtn" class="btn secondary">关闭</button>
+    </div>
+
+    <div id="message" class="message"></div>
+  </div>
+
+  <script>
+    const STORAGE_KEY = 'activation-task-demo-state';
+    const UPDATE_PING_KEY = 'activation-task-demo-last-updated';
+
+    const taskInput = document.getElementById('taskInput');
+    const addBtn = document.getElementById('addBtn');
+    const closeBtn = document.getElementById('closeBtn');
+    const message = document.getElementById('message');
+
+    function loadState() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) {
+          return {
+            boxTasks: [],
+            completedTasks: [],
+            nowTask: '',
+            nowTaskStartedAt: 0,
+            reflectionNote: '',
+            blindboxRejectCount: 0,
+            blindboxCooldownUntil: 0
+          };
+        }
+
+        const parsed = JSON.parse(raw);
+
+        return {
+          boxTasks: Array.isArray(parsed.boxTasks) ? parsed.boxTasks : [],
+          completedTasks: Array.isArray(parsed.completedTasks) ? parsed.completedTasks : [],
+          nowTask: typeof parsed.nowTask === 'string' ? parsed.nowTask : '',
+          nowTaskStartedAt: Number.isFinite(parsed.nowTaskStartedAt) ? parsed.nowTaskStartedAt : 0,
+          reflectionNote: typeof parsed.reflectionNote === 'string' ? parsed.reflectionNote : '',
+          blindboxRejectCount: Number.isFinite(parsed.blindboxRejectCount) ? parsed.blindboxRejectCount : 0,
+          blindboxCooldownUntil: Number.isFinite(parsed.blindboxCooldownUntil) ? parsed.blindboxCooldownUntil : 0
+        };
+      } catch {
+        return {
+          boxTasks: [],
+          completedTasks: [],
+          nowTask: '',
+          nowTaskStartedAt: 0,
+          reflectionNote: '',
+          blindboxRejectCount: 0,
+          blindboxCooldownUntil: 0
+        };
+      }
+    }
+
+    function saveState(state) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      localStorage.setItem(UPDATE_PING_KEY, String(Date.now()));
+    }
+
+    function addToBoxQuick(value) {
+      const text = value.trim();
+      if (!text) {
+        return { ok: false, reason: 'empty' };
+      }
+
+      const state = loadState();
+
+      if (
+        state.boxTasks.includes(text) ||
+        state.completedTasks.includes(text) ||
+        text === state.nowTask
+      ) {
+        return { ok: false, reason: 'duplicate' };
+      }
+
+      state.boxTasks.unshift(text);
+      saveState(state);
+      return { ok: true };
+    }
+
+    function setMessage(text, type) {
+      message.textContent = text;
+      message.className = 'message' + (type ? ' ' + type : '');
+    }
+
+    function tryCloseWindow() {
+      window.close();
+
+      setTimeout(() => {
+        setMessage('已添加，可以直接关闭这个窗口。', 'success');
+      }, 200);
+    }
+
+    function submit() {
+      const result = addToBoxQuick(taskInput.value);
+
+      if (!result.ok) {
+        if (result.reason === 'empty') {
+          setMessage('任务不能为空。', 'error');
+        } else if (result.reason === 'duplicate') {
+          setMessage('任务已存在，不重复添加。', 'error');
+        } else {
+          setMessage('添加失败。', 'error');
+        }
+        return;
+      }
+
+      setMessage('已添加。', 'success');
+      taskInput.value = '';
+      tryCloseWindow();
+    }
+
+    function readPrefill() {
+      const params = new URLSearchParams(window.location.search);
+      return (params.get('text') || '').trim();
+    }
+
+    const prefill = readPrefill();
+    if (prefill) {
+      taskInput.value = prefill;
+    }
+
+    setTimeout(() => {
+      taskInput.focus();
+      taskInput.select();
+    }, 50);
+
+    addBtn.addEventListener('click', submit);
+    closeBtn.addEventListener('click', () => window.close());
+
+    taskInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        submit();
+      } else if (e.key === 'Escape') {
+        window.close();
+      }
+    });
+  </script>
+</body>
+</html>
