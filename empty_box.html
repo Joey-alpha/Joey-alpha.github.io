@@ -238,6 +238,12 @@
             background: rgba(255, 255, 255, 0.48);
             font-size: 14px;
             line-height: 1.5;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .reflection-completed-item:hover {
+            background: rgba(255, 255, 255, 0.7);
         }
 
         .reflection-empty {
@@ -812,6 +818,12 @@
                 const row = document.createElement('div');
                 row.className = 'reflection-completed-item';
                 row.textContent = `${index + 1}. ${task}`;
+                row.title = '双击删除';
+                row.addEventListener('dblclick', () => {
+                    state.completedTasks.splice(index, 1);
+                    saveState();
+                    renderReflectionCompleted();
+                });
                 reflectionCompletedList.appendChild(row);
             });
             reflectionCompletedList.scrollTop = reflectionCompletedList.scrollHeight;
