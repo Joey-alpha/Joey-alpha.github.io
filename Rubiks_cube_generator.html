@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Rubik's Blindfold Generator</title>
+    <style>
+        body { font-family: 'Consolas', monospace; background: #0f172a; color: #10b981; padding: 20px; }
+        .container { max-width: 850px; margin: 0 auto; background: #1e293b; padding: 25px; border-radius: 12px; border: 1px solid #334155; }
+        .box { background: #000; padding: 18px; border-radius: 8px; font-size: 24px; color: #fff; margin: 12px 0; border-left: 5px solid #10b981; word-spacing: 15px; min-height: 45px; }
+        .twist { text-decoration: underline; color: #fbbf24; font-weight: bold; }
+        .marker { color: #ef4444; font-weight: bold; padding: 0 10px; }
+        button { width: 100%; padding: 16px; background: #10b981; color: #0f172a; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 18px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Blindfold Logic: Piece-Consistent Trace</h2>
+    <button onclick="run()">Generate Sequence</button>
+
+    <span style="font-size:12px; color:#94a3b8;">EDGE SEQUENCE (Buffer: 12)</span>
+    <div id="edgeSeq" class="box"></div>
+
+    <span style="font-size:12px; color:#94a3b8;">CORNER SEQUENCE (Buffer: 11)</span>
+    <div id="cornerSeq" class="box"></div>
+</div>
+
+<script>
+// Using the provided 100% accurate mapping
+const EDGE_PIECES = [[12, 31], [11, 25], [13, 21], [14, 35], [17, 27], [16, 33], [15, 23], [18, 37], [22, 34], [24, 36], [28, 32], [26, 38]];
+const CORNER_PIECES = [[11, 35, 26], [12, 25, 32], [13, 31, 22], [14, 21, 36], [15, 37, 24], [16, 23, 34], [17, 33, 28], [18, 27, 38]];
+
+function run() {
+    // Generate the sequences for edges and corners
+    document.getElementById('edgeSeq').innerHTML = solveProcess(EDGE_PIECES, 12, 2);
+    document.getElementById('cornerSeq').innerHTML = solveProcess(CORNER_PIECES, 11, 3);
+}
+
+function solveProcess(pieceMap, bufferVal, sides) {
+    const n = pieceMap.length;
+    const bIdx = pieceMap.findIndex(p => p.includes(bufferVal));
+    
+    // --- 1. Shuffle Phase (Piece permutations) ---
+    let slots = [...Array(n).keys()].sort(() => Math.random() - 0.5); // Randomly shuffle pieces
+    let oris = Array.from({length: n}, () => Math.floor(Math.random() * sides)); // Random orientations
+    let sumOri = oris.reduce((a, b) => a + b, 0);
+    oris[n-1] = (oris[n-1] + (sides - (sumOri % sides))) % sides; // Ensure orientation conservation
+
+    // --- 2. Parsing Phase ---
+    let seq = [];
+    let twistRes = [];
+    let solved = new Array(n).fill(false);
+
+    // Pre-scan for already solved (misoriented) pieces
+    for (let i = 0; i < n; i++) {
+        if (slots[i] === i) {
+            if (oris[i] !== 0) {
+                // Misoriented piece but in the correct slot
+                twistRes.push(`<span class="twist">${pieceMap[i][oris[i]]}</span>`);
+            }
+            solved[i] = true; 
+        }
+    }
+
+    // Mark the buffer as solved (starting point)
+    solved[bIdx] = true;
+
+    let safety = 0;
+    while (solved.includes(false) && safety < 100) {
+        safety++;
+
+        let pInHand = slots[bIdx];
+        let oInHand = oris[bIdx];
+
+        if (pInHand === bIdx) {
+            // Buffer piece back in place, need to swap ring
+            let nextSlot = solved.findIndex((s, i) => !s);
+            if (nextSlot === -1) break;
+
+            seq.push('<span class="marker">|</span>'); // Separator for marker
+            seq.push(pieceMap[nextSlot][0]); // Swap the ring, usually the main color
+            [slots[bIdx], slots[nextSlot]] = [slots[nextSlot], slots[bIdx]];
+            [oris[bIdx], oris[nextSlot]] = [oris[nextSlot], oris[bIdx]];
+
+        } else {
+            // Normal piece swap
+            let targetSticker = pieceMap[pInHand][oInHand];
+            seq.push(targetSticker);
+
+            let targetSlot = pInHand;
+            [slots[bIdx], slots[targetSlot]] = [slots[targetSlot], slots[bIdx]];
+            [oris[bIdx], oris[targetSlot]] = [oris[targetSlot], oris[bIdx]];
+
+            solved[targetSlot] = true; // This piece is solved now
+        }
+    }
+
+    return (seq.join(" ") + " " + twistRes.join(" ")).trim() || "SOLVED";
+}
+</script>
+
+</body>
+</html>
