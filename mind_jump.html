@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <title>思维跃迁 Pro</title>
+    <style>
+        :root { --primary: #6366f1; --bg: #0b0f1a; --danger: #ef4444; --glass: rgba(255, 255, 255, 0.05); }
+        body { margin: 0; background: var(--bg); height: 100vh; overflow: hidden; color: white; font-family: sans-serif; }
+        
+        #viewport { width: 100vw; height: 100vh; cursor: grab; position: relative; background-image: radial-gradient(circle, rgba(255,255,255,0.05) 1px, transparent 1px); background-size: 30px 30px; }
+        #viewport:active { cursor: grabbing; }
+
+        #content { position: absolute; top: 0; left: 0; display: flex; align-items: flex-start; padding: 100px; gap: 120px; transform-origin: 0 0; pointer-events: none; }
+
+        .node-container { position: relative; flex-shrink: 0; pointer-events: auto; }
+        
+        .point {
+            width: 40px; height: 40px; background: var(--primary); border-radius: 12px;
+            cursor: ns-resize; position: relative; top: 0;
+            box-shadow: 0 0 20px rgba(99, 102, 241, 0.4);
+            display: flex; align-items: center; justify-content: center;
+        }
+        .point::after { content: ''; width: 8px; height: 8px; background: white; border-radius: 50%; }
+
+        .label {
+            position: absolute; top: 55px; left: 50%; transform: translateX(-50%);
+            white-space: nowrap; font-size: 14px; background: rgba(30, 41, 59, 0.9);
+            padding: 5px 12px; border-radius: 6px; border: 1px solid var(--glass);
+            cursor: text; outline: none; transition: background 0.2s;
+        }
+        .label:focus { background: white; color: black; box-shadow: 0 0 10px white; }
+
+        /* 操作按钮 */
+        .controls { position: fixed; bottom: 30px; right: 30px; display: flex; gap: 15px; z-index: 100; }
+        .btn { width: 55px; height: 55px; border-radius: 50%; border: none; color: white; font-size: 24px; cursor: pointer; box-shadow: 0 5px 15px rgba(0,0,0,0.3); transition: transform 0.2s; }
+        .btn-add { background: var(--primary); }
+        .btn-clear { background: var(--danger); font-size: 18px; }
+        .btn:hover { transform: scale(1.1); }
+
+        #overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 1000; place-items: center; }
+        .modal { background: #1e293b; padding: 25px; border-radius: 16px; width: 300px; }
+        input { width: 100%; padding: 12px; margin: 15px 0; background: #0b0f1a; border: 1px solid var(--glass); color: white; border-radius: 8px; box-sizing: border-box; }
+    </style>
+</head>
+<body>
+
+<div id="viewport">
+    <div id="content"></div>
+</div>
+
+<div class="controls">
+    <button class="btn btn-clear" onclick="clearAll()" title="清空所有">🗑️</button>
+    <button class="btn btn-add" onclick="showModal()" title="Ctrl + /">+</button>
+</div>
+
+<div id="overlay">
+    <div class="modal">
+        <h4 style="margin:0">新增思维点</h4>
+        <input type="text" id="node-input" placeholder="输入内容...">
+        <button onclick="confirmNode()" style="width:100%; padding:12px; background:var(--primary); color:white; border:none; border-radius:8px; cursor:pointer;">确认</button>
+    </div>
+</div>
+
+<script>
+    const viewport = document.getElementById('viewport');
+    const content = document.getElementById('content');
+    const overlay = document.getElementById('overlay');
+    const input = document.getElementById('node-input');
+
+    let panX = 0, panY = 0;
+    let isPanning = false;
+
+    // --- 1. 缓存加载逻辑 ---
+    window.onload = () => {
+        const savedData = JSON.parse(localStorage.getItem('mindMapNodes') || '[]');
+        savedData.forEach(data => createNode(data.text, data.top, false));
+        // 恢复画布位置
+        const savedPan = JSON.parse(localStorage.getItem('mindMapPan') || '{"x":0,"y":0}');
+        panX = savedPan.x; panY = savedPan.y;
+        content.style.transform = `translate(${panX}px, ${panY}px)`;
+    };
+
+    function saveData() {
+        const nodes = Array.from(document.querySelectorAll('.node-container')).map(container => {
+            const point = container.querySelector('.point');
+            const label = container.querySelector('.label');
+            return { text: label.textContent, top: point.style.top };
+        });
+        localStorage.setItem('mindMapNodes', JSON.stringify(nodes));
+        localStorage.setItem('mindMapPan', JSON.stringify({x: panX, y: panY}));
+    }
+
+    // --- 2. 画布平移 (Pan) ---
+    viewport.addEventListener('mousedown', e => {
+        if (e.target === viewport) {
+            isPanning = true;
+            viewport.dataset.startX = e.clientX - panX;
+            viewport.dataset.startY = e.clientY - panY;
+        }
+    });
+
+    window.addEventListener('mousemove', e => {
+        if (!isPanning) return;
+        panX = e.clientX - viewport.dataset.startX;
+        panY = e.clientY - viewport.dataset.startY;
+        content.style.transform = `translate(${panX}px, ${panY}px)`;
+    });
+
+    window.addEventListener('mouseup', () => { if(isPanning) { isPanning = false; saveData(); } });
+
+    // --- 3. 节点逻辑 ---
+    function showModal() { overlay.style.display = 'grid'; input.focus(); }
+    function closeModal() { overlay.style.display = 'none'; input.value = ''; }
+
+    function confirmNode() {
+        const text = input.value.trim();
+        if (text) { createNode(text); closeModal(); }
+    }
+
+    function createNode(text, savedTop = null, shouldSave = true) {
+        const container = document.createElement('div');
+        container.className = 'node-container';
+        
+        const lastPoint = content.querySelector('.node-container:last-child .point');
+        const initialTop = savedTop !== null ? savedTop : (lastPoint ? lastPoint.style.top : '0px');
+
+        const node = document.createElement('div');
+        node.className = 'point';
+        node.style.top = initialTop;
+        
+        // 支持文字修改
+        const label = document.createElement('div');
+        label.className = 'label';
+        label.textContent = text;
+        label.contentEditable = true; // 开启编辑
+        label.spellcheck = false;
+        
+        // 修改后自动保存
+        label.onblur = saveData;
+        label.onkeydown = (e) => { if(e.key === 'Enter') { e.preventDefault(); label.blur(); } };
+
+        node.appendChild(label);
+        container.appendChild(node);
+        content.appendChild(container);
+
+        makeDraggable(node);
+        if (shouldSave) saveData();
+    }
+
+    function makeDraggable(el) {
+        let isDragging = false;
+        let startY, startOffsetTop;
+
+        el.addEventListener('mousedown', e => {
+            isDragging = true;
+            startY = e.clientY;
+            startOffsetTop = parseInt(el.style.top) || 0;
+            e.stopPropagation();
+        });
+
+        window.addEventListener('mousemove', e => {
+            if (!isDragging) return;
+            const diffY = e.clientY - startY;
+            el.style.top = `${startOffsetTop + diffY}px`;
+        });
+
+        window.addEventListener('mouseup', () => { 
+            if(isDragging) { isDragging = false; saveData(); } 
+        });
+    }
+
+    // --- 4. 清理功能 ---
+    function clearAll() {
+        if(confirm('确定要清空所有灵感吗？此操作不可撤销。')) {
+            content.innerHTML = '';
+            panX = 0; panY = 0;
+            content.style.transform = `translate(0,0)`;
+            localStorage.removeItem('mindMapNodes');
+            localStorage.removeItem('mindMapPan');
+        }
+    }
+
+    window.addEventListener('keydown', e => {
+        if (e.ctrlKey && e.key === '/') showModal();
+        if (e.key === 'Enter' && overlay.style.display === 'grid') confirmNode();
+    });
+</script>
+</body>
+</html>
