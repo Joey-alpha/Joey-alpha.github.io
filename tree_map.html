@@ -1,0 +1,1345 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Learning Roadmap Tree</title>
+    <style>
+        :root {
+            --bg: #f6f7fb;
+            --panel: rgba(255, 255, 255, .92);
+            --node: #fff;
+            --text: #1d2433;
+            --muted: #6c7485;
+            --line: #cfd5e4;
+            --accent: #246bff;
+            --accent-2: #7aa2ff;
+            --danger: #d64b4b;
+            --shadow: 0 10px 30px rgba(0, 0, 0, .08);
+            --radius: 12px;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            margin: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            color: var(--text);
+            background: var(--bg);
+        }
+
+        #app {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            overflow: hidden;
+            touch-action: none;
+            background:
+                radial-gradient(circle at 1px 1px, rgba(60, 80, 120, .08) 1px, transparent 0) 0 0/22px 22px,
+                var(--bg);
+        }
+
+        .toolbar {
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            right: 12px;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+            z-index: 20;
+            pointer-events: none;
+        }
+
+        .toolbar .group {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            background: var(--panel);
+            border: 1px solid rgba(0, 0, 0, .06);
+            border-radius: 999px;
+            box-shadow: var(--shadow);
+            padding: 8px;
+            pointer-events: auto;
+            backdrop-filter: blur(10px);
+        }
+
+        button,
+        .file-label {
+            border: 0;
+            background: #fff;
+            color: var(--text);
+            padding: 8px 12px;
+            border-radius: 999px;
+            cursor: pointer;
+            font-size: 13px;
+            box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .06);
+        }
+
+        button:hover,
+        .file-label:hover {
+            background: #f0f4ff;
+        }
+
+        button:active {
+            transform: translateY(1px);
+        }
+
+        button.danger {
+            color: var(--danger);
+        }
+
+        button.primary {
+            background: var(--accent);
+            color: #fff;
+        }
+
+        .file-label input {
+            display: none;
+        }
+
+        .status {
+            padding: 0 6px;
+            font-size: 12px;
+            color: var(--muted);
+            user-select: none;
+            white-space: nowrap;
+        }
+
+        #viewport {
+            position: absolute;
+            inset: 0;
+            overflow: hidden;
+            cursor: grab;
+        }
+
+        #viewport.panning {
+            cursor: grabbing;
+        }
+
+        #scene {
+            position: absolute;
+            left: 0;
+            top: 0;
+            transform-origin: 0 0;
+            will-change: transform;
+        }
+
+        #edges {
+            position: absolute;
+            left: 0;
+            top: 0;
+            overflow: visible;
+            pointer-events: none;
+        }
+
+        #nodesLayer {
+            position: absolute;
+            left: 0;
+            top: 0;
+        }
+
+        .node {
+            position: absolute;
+            width: 180px;
+            min-height: 68px;
+            background: var(--node);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: 12px;
+            border: 2px solid transparent;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: none;
+            transition: box-shadow .12s ease, border-color .12s ease, transform .12s ease;
+        }
+
+        .node:hover {
+            transform: translateY(-1px);
+        }
+
+        .node.selected {
+            border-color: var(--accent);
+        }
+
+        .node.collapsed {
+            border-color: #28a745;
+        }
+
+        .node.dragging {
+            opacity: .9;
+            transform: scale(1.04);
+            box-shadow: 0 18px 38px rgba(36, 107, 255, .22);
+            cursor: grabbing;
+        }
+
+        .node.drop-target {
+            outline: 3px dashed var(--accent);
+            outline-offset: 5px;
+            box-shadow: 0 0 0 6px rgba(36, 107, 255, .08);
+        }
+
+        .node-title {
+            font-size: 14px;
+            line-height: 1.25;
+            font-weight: 600;
+            margin-bottom: 10px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            min-height: 34px;
+            word-break: break-word;
+        }
+
+        .progress {
+            height: 8px;
+            border-radius: 999px;
+            background: #ebeff7;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .progress-bar {
+            height: 100%;
+            width: 0%;
+            border-radius: inherit;
+            transition: width .2s ease, background .2s ease;
+        }
+
+        .hint {
+            position: absolute;
+            right: 12px;
+            bottom: 12px;
+            z-index: 20;
+            background: var(--panel);
+            border-radius: 14px;
+            box-shadow: var(--shadow);
+            padding: 10px 12px;
+            color: var(--muted);
+            font-size: 12px;
+            max-width: 260px;
+            line-height: 1.45;
+            backdrop-filter: blur(10px);
+        }
+
+        .modal-backdrop {
+            position: absolute;
+            inset: 0;
+            background: rgba(16, 22, 35, .3);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 40;
+            padding: 16px;
+        }
+
+        .modal-backdrop.open {
+            display: flex;
+        }
+
+        .modal {
+            width: min(420px, 100%);
+            background: #fff;
+            border-radius: 18px;
+            box-shadow: 0 30px 60px rgba(0, 0, 0, .18);
+            padding: 16px;
+        }
+
+        .modal h3 {
+            margin: 0 0 12px;
+            font-size: 18px;
+        }
+
+        .modal label {
+            display: block;
+            font-size: 12px;
+            color: var(--muted);
+            margin-bottom: 6px;
+        }
+
+        .modal input[type="text"] {
+            width: 100%;
+            border: 1px solid #d6dceb;
+            border-radius: 12px;
+            padding: 12px;
+            font-size: 14px;
+            outline: none;
+        }
+
+        .modal input[type="text"]:focus {
+            border-color: var(--accent);
+        }
+
+        .modal .row {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+            flex-wrap: wrap;
+        }
+
+        .modal .row>* {
+            flex: 1 1 auto;
+        }
+
+        .modal .stats {
+            margin-top: 10px;
+            font-size: 12px;
+            color: var(--muted);
+            line-height: 1.5;
+            background: #f7f9ff;
+            border-radius: 12px;
+            padding: 10px;
+        }
+
+        textarea#importExportArea {
+            width: 100%;
+            height: 120px;
+            border: 1px solid #d6dceb;
+            border-radius: 12px;
+            padding: 12px;
+            font-size: 12px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            resize: vertical;
+        }
+
+        @media (max-width: 720px) {
+            .toolbar {
+                right: auto;
+                max-width: calc(100% - 24px);
+            }
+
+            .hint {
+                display: none;
+            }
+
+            .node {
+                width: 168px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div id="app">
+        <div class="toolbar">
+            <div class="group">
+                <button id="addRootBtn">Add Root</button>
+                <button id="addChildBtn">Add Child</button>
+                <button id="addSiblingBtn">Add Sibling</button>
+                <button id="deleteBtn" class="danger">Delete</button>
+            </div>
+            <div class="group">
+                <button id="exportBtn">Export JSON</button>
+                <label class="file-label">Import JSON<input id="importInput" type="file"
+                        accept="application/json" /></label>
+                <button id="resetViewBtn">Reset View</button>
+            </div>
+            <div class="group">
+                <div class="status" id="statusText">No selection</div>
+            </div>
+        </div>
+
+        <div id="viewport">
+            <div id="scene">
+                <svg id="edges"></svg>
+                <div id="nodesLayer"></div>
+            </div>
+        </div>
+
+        <div class="hint">
+            Click to select. Double click or second tap to edit. Enter edit · Tab child · Delete remove · Space
+            collapse. Drag
+            nodes to re-parent or reorder. Wheel / pinch to zoom, drag background to pan.
+        </div>
+
+        <div class="modal-backdrop" id="editorBackdrop">
+            <div class="modal">
+                <h3>Edit Node</h3>
+                <label for="titleInput">Title</label>
+                <input id="titleInput" type="text" maxlength="120" />
+                <div class="row">
+                    <button id="plusCountBtn">+1 count</button>
+                    <button id="plusTimeBtn">+20 minutes</button>
+                </div>
+                <div class="stats" id="editorStats"></div>
+                <div class="row">
+                    <button id="saveNodeBtn" class="primary">Save</button>
+                    <button id="cancelNodeBtn">Close</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal-backdrop" id="exportBackdrop">
+            <div class="modal">
+                <h3>Export / Import JSON</h3>
+                <textarea id="importExportArea" spellcheck="false"></textarea>
+                <div class="row">
+                    <button id="copyJsonBtn" class="primary">Copy JSON</button>
+                    <button id="downloadJsonBtn" class="primary">Download JSON File</button>
+                    <button id="loadJsonBtn">Load JSON</button>
+                    <button id="closeExportBtn">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (function () {
+            const STORAGE_KEY = 'roadmap-tree-single-file-v1';
+            const TITLE_DEFAULT = 'New Topic';
+            const NODE_W = 180;
+            const NODE_H = 76;
+            const H_GAP = 48;
+            const V_GAP = 42;
+            const HALF_LIFE = {
+                count: 180,
+                minutes: 120,
+                countWeight: 150,
+                minuteWeight: 100,
+            };
+            const CAPS = { count: 360, minutes: 3840 };
+
+            const viewport = document.getElementById('viewport');
+            const scene = document.getElementById('scene');
+            const edges = document.getElementById('edges');
+            const nodesLayer = document.getElementById('nodesLayer');
+            const statusText = document.getElementById('statusText');
+
+            const editorBackdrop = document.getElementById('editorBackdrop');
+            const titleInput = document.getElementById('titleInput');
+            const editorStats = document.getElementById('editorStats');
+            const plusCountBtn = document.getElementById('plusCountBtn');
+            const plusTimeBtn = document.getElementById('plusTimeBtn');
+            const saveNodeBtn = document.getElementById('saveNodeBtn');
+            const cancelNodeBtn = document.getElementById('cancelNodeBtn');
+
+            const exportBackdrop = document.getElementById('exportBackdrop');
+            const importExportArea = document.getElementById('importExportArea');
+            const importInput = document.getElementById('importInput');
+
+            let state = loadState();
+            let selectedId = state.rootIds[0] || null;
+            let editingId = null;
+            let nodeEls = new Map();
+            let layoutMap = new Map();
+            let dragState = null;
+            let panState = null;
+            let tapInfo = { id: null, ts: 0 };
+            let pinchState = null;
+
+            function createSampleState() {
+                const rootId = uid();
+                return {
+                    rootIds: [rootId],
+                    nodes: {
+                        [rootId]: {
+                            id: rootId,
+                            title: 'Root Topic',
+                            activityLog: [],
+                            children: [],
+                            collapsed: false,
+                        },
+                    },
+                };
+            }
+
+            function flattenRoots(roots) {
+                const out = {};
+                (function walk(node) {
+                    out[node.id] = {
+                        id: node.id,
+                        title: node.title,
+                        activityLog: Array.isArray(node.activityLog) ? node.activityLog : [],
+                        children: Array.isArray(node.children) ? node.children.map(c => c.id) : [],
+                        collapsed: !!node.collapsed,
+                    };
+                    (node.children || []).forEach(walk);
+                })({ id: '__dummy__', title: '', activityLog: [], children: roots || [], collapsed: false });
+                delete out.__dummy__;
+                return out;
+            }
+
+            function uid() {
+                return 'n_' + Math.random().toString(36).slice(2, 10);
+            }
+
+            function loadState() {
+                try {
+                    const raw = localStorage.getItem(STORAGE_KEY);
+                    if (!raw) return createSampleState();
+                    const parsed = JSON.parse(raw);
+                    return normalizeState(parsed);
+                } catch (e) {
+                    return createSampleState();
+                }
+            }
+
+            function saveState() {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+            }
+
+            function normalizeState(input) {
+                if (!input || typeof input !== 'object') return createSampleState();
+                const nodes = {};
+                const sourceNodes = input.nodes || {};
+                Object.keys(sourceNodes).forEach(id => {
+                    const n = sourceNodes[id] || {};
+                    nodes[id] = {
+                        id,
+                        title: typeof n.title === 'string' && n.title.trim() ? n.title : TITLE_DEFAULT,
+                        activityLog: Array.isArray(n.activityLog)
+                            ? n.activityLog.map(a => ({
+                                ts: Number(a.ts) || Date.now(),
+                                count: Math.max(0, Number(a.count) || 0),
+                                minutes: Math.max(0, Number(a.minutes) || 0),
+                            }))
+                            : [],
+                        children: Array.isArray(n.children) ? n.children.filter(cid => typeof cid === 'string') : [],
+                        collapsed: !!n.collapsed,
+                    };
+                });
+                let rootIds = Array.isArray(input.rootIds) ? input.rootIds.filter(id => nodes[id]) : Object.keys(nodes);
+                if (!rootIds.length) return createSampleState();
+
+                const childSet = new Set();
+                Object.values(nodes).forEach(n => {
+                    n.children = n.children.filter(cid => nodes[cid] && cid !== n.id);
+                    n.children.forEach(cid => childSet.add(cid));
+                });
+                rootIds = rootIds.filter(id => !childSet.has(id));
+                if (!rootIds.length) {
+                    const first = Object.keys(nodes)[0];
+                    rootIds = first ? [first] : [];
+                }
+                return { rootIds, nodes };
+            }
+
+            function getNode(id) {
+                return state.nodes[id] || null;
+            }
+
+            function getChildren(id) {
+                const n = getNode(id);
+                return n ? n.children.map(getNode).filter(Boolean) : [];
+            }
+
+            function findParentId(targetId) {
+                for (const id of Object.keys(state.nodes)) {
+                    if ((state.nodes[id].children || []).includes(targetId)) return id;
+                }
+                return null;
+            }
+
+            function isDescendant(ancestorId, maybeDescId) {
+                if (ancestorId === maybeDescId) return true;
+                const node = getNode(ancestorId);
+                if (!node) return false;
+                for (const cid of node.children) {
+                    if (cid === maybeDescId || isDescendant(cid, maybeDescId)) return true;
+                }
+                return false;
+            }
+
+            function addNode(title) {
+                const id = uid();
+                state.nodes[id] = { id, title: title || TITLE_DEFAULT, activityLog: [], children: [], collapsed: false };
+                return id;
+            }
+
+            function addRoot() {
+                const id = addNode(TITLE_DEFAULT);
+                state.rootIds.push(id);
+                selectedId = id;
+                persistAndRender();
+                openEditor(id);
+            }
+
+            function addChild(parentId) {
+                if (!getNode(parentId)) return addRoot();
+                const id = addNode(TITLE_DEFAULT);
+                getNode(parentId).children.push(id);
+                getNode(parentId).collapsed = false;
+                selectedId = id;
+                persistAndRender();
+                openEditor(id);
+            }
+
+            function addSibling(nodeId) {
+                const parentId = findParentId(nodeId);
+                const id = addNode(TITLE_DEFAULT);
+                if (parentId) {
+                    const siblings = getNode(parentId).children;
+                    const idx = siblings.indexOf(nodeId);
+                    siblings.splice(idx + 1, 0, id);
+                } else {
+                    const idx = state.rootIds.indexOf(nodeId);
+                    state.rootIds.splice(Math.max(0, idx) + 1, 0, id);
+                }
+                selectedId = id;
+                persistAndRender();
+                openEditor(id);
+            }
+
+            function deleteNode(nodeId) {
+                if (!getNode(nodeId)) return;
+                const parentId = findParentId(nodeId);
+                if (parentId) {
+                    const p = getNode(parentId);
+                    p.children = p.children.filter(id => id !== nodeId);
+                } else {
+                    state.rootIds = state.rootIds.filter(id => id !== nodeId);
+                }
+                removeSubtree(nodeId);
+                if (!state.rootIds.length) {
+                    const id = addNode('Root Topic');
+                    state.rootIds = [id];
+                }
+                selectedId = state.rootIds[0] || Object.keys(state.nodes)[0] || null;
+                persistAndRender();
+            }
+
+            function removeSubtree(id) {
+                const node = getNode(id);
+                if (!node) return;
+                node.children.forEach(removeSubtree);
+                delete state.nodes[id];
+            }
+
+            function moveNode(dragId, targetId, mode) {
+                if (!dragId || !targetId || dragId === targetId) return;
+                if (isDescendant(dragId, targetId)) return;
+                const oldParent = findParentId(dragId);
+                if (oldParent) {
+                    getNode(oldParent).children = getNode(oldParent).children.filter(id => id !== dragId);
+                } else {
+                    state.rootIds = state.rootIds.filter(id => id !== dragId);
+                }
+
+                if (mode === 'child') {
+                    const target = getNode(targetId);
+                    if (!target) return;
+                    target.children.push(dragId);
+                    target.collapsed = false;
+                } else {
+                    const parentId = findParentId(targetId);
+                    if (parentId) {
+                        const arr = getNode(parentId).children;
+                        const idx = arr.indexOf(targetId);
+                        arr.splice(idx + (mode === 'after' ? 1 : 0), 0, dragId);
+                    } else {
+                        const idx = state.rootIds.indexOf(targetId);
+                        state.rootIds.splice(idx + (mode === 'after' ? 1 : 0), 0, dragId);
+                    }
+                }
+                selectedId = dragId;
+                persistAndRender();
+            }
+
+            function persistAndRender() {
+                saveState();
+                render();
+            }
+
+            function ageDays(ts) {
+                return Math.max(0, (Date.now() - ts) / 86400000);
+            }
+
+            function decay(days, halfLife) {
+                return Math.pow(0.5, days / halfLife);
+            }
+
+            function computeSelfMetrics(node) {
+                let rawCount = 0;
+                let rawMinutes = 0;
+                let decayedCount = 0;
+                let decayedMinutes = 0;
+                let weightedCount = 0;
+                let weightedMinutes = 0;
+
+                for (const entry of node.activityLog) {
+                    const days = ageDays(entry.ts);
+                    const count = Math.max(0, Number(entry.count) || 0);
+                    const minutes = Math.max(0, Number(entry.minutes) || 0);
+                    rawCount += count;
+                    rawMinutes += minutes;
+                    decayedCount += count * decay(days, HALF_LIFE.count);
+                    decayedMinutes += minutes * decay(days, HALF_LIFE.minutes);
+                    weightedCount += count * decay(days, HALF_LIFE.countWeight);
+                    weightedMinutes += minutes * decay(days, HALF_LIFE.minuteWeight);
+                }
+
+                const countScore = Math.min(1, decayedCount / CAPS.count);
+                const minuteScore = Math.min(1, decayedMinutes / CAPS.minutes);
+                const countFreshness = rawCount > 0 ? Math.min(1, weightedCount / rawCount) : 0;
+                const minuteFreshness = rawMinutes > 0 ? Math.min(1, weightedMinutes / rawMinutes) : 0;
+                const countWeight = 0.55 * (0.35 + 0.65 * countFreshness);
+                const minuteWeight = 0.45 * (0.35 + 0.65 * minuteFreshness);
+                const freshness = rawCount + rawMinutes > 0
+                    ? (countFreshness * 0.5 + minuteFreshness * 0.5)
+                    : 0;
+                const selfProgress = (countScore * countWeight + minuteScore * minuteWeight) * 100;
+                const activityMass = countScore + minuteScore + freshness * 0.5;
+
+                return {
+                    rawCount,
+                    rawMinutes,
+                    decayedCount,
+                    decayedMinutes,
+                    countScore,
+                    minuteScore,
+                    countFreshness,
+                    minuteFreshness,
+                    freshness,
+                    selfProgress,
+                    activityMass,
+                };
+            }
+
+            function computeTreeProgress(id, memo = new Map()) {
+                if (memo.has(id)) return memo.get(id);
+                const node = getNode(id);
+                if (!node) return null;
+                const self = computeSelfMetrics(node);
+                const childMetrics = node.children.map(cid => computeTreeProgress(cid, memo)).filter(Boolean);
+                let progress = self.selfProgress;
+                if (childMetrics.length) {
+                    const massSum = childMetrics.reduce((s, m) => s + Math.max(0.0001, m.activityMass), 0);
+                    const childAvg = massSum > 0
+                        ? childMetrics.reduce((s, m) => s + m.progress * Math.max(0.0001, m.activityMass), 0) / massSum
+                        : 0;
+                    const selfWeight = 0.18 + 0.32 * self.freshness;
+                    const childWeight = 1 - selfWeight;
+                    progress = self.selfProgress * selfWeight + childAvg * childWeight;
+                }
+                const result = { ...self, progress: Math.max(0, Math.min(100, progress)) };
+                memo.set(id, result);
+                return result;
+            }
+
+            function visibleRoots() {
+                return state.rootIds.map(getNode).filter(Boolean);
+            }
+
+            function measureSubtree(id) {
+                const node = getNode(id);
+                if (!node) return { width: NODE_W, height: NODE_H };
+                if (node.collapsed || !node.children.length) return { width: NODE_W, height: NODE_H };
+                const childSizes = node.children.map(measureSubtree);
+                const totalWidth = childSizes.reduce((s, c) => s + c.width, 0) + H_GAP * Math.max(0, childSizes.length - 1);
+                const height = NODE_H + V_GAP + Math.max(...childSizes.map(c => c.height));
+                return { width: Math.max(NODE_W, totalWidth), height };
+            }
+
+            function layoutTree(id, left, top) {
+                const node = getNode(id);
+                if (!node) return { width: NODE_W, height: NODE_H };
+                const size = measureSubtree(id);
+                const x = left + (size.width - NODE_W) / 2;
+                const y = top;
+                layoutMap.set(id, { x, y, width: NODE_W, height: NODE_H, subtreeWidth: size.width, subtreeHeight: size.height });
+
+                if (!node.collapsed && node.children.length) {
+                    const childSizes = node.children.map(measureSubtree);
+                    let cursor = left;
+                    node.children.forEach((cid, i) => {
+                        layoutTree(cid, cursor, top + NODE_H + V_GAP);
+                        cursor += childSizes[i].width + H_GAP;
+                    });
+                }
+                return size;
+            }
+
+            function layoutForest() {
+                layoutMap.clear();
+                const roots = visibleRoots();
+                const sizes = roots.map(r => measureSubtree(r.id));
+                let left = 40;
+                const top = 40;
+                roots.forEach((r, i) => {
+                    layoutTree(r.id, left, top);
+                    left += sizes[i].width + 80;
+                });
+                const bounds = Array.from(layoutMap.values()).reduce((acc, p) => {
+                    acc.maxX = Math.max(acc.maxX, p.x + p.width);
+                    acc.maxY = Math.max(acc.maxY, p.y + p.height);
+                    return acc;
+                }, { maxX: 0, maxY: 0 });
+                const width = Math.max(bounds.maxX + 80, viewport.clientWidth);
+                const height = Math.max(bounds.maxY + 100, viewport.clientHeight);
+                return { width, height };
+            }
+
+            const view = {
+                x: 80,
+                y: 24,
+                scale: 1,
+            };
+
+            function applyView() {
+                scene.style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.scale})`;
+            }
+
+            function resetView() {
+                view.scale = 1;
+                if (layoutMap.size === 0) {
+                    view.x = 80;
+                    view.y = 24;
+                    applyView();
+                    return;
+                }
+
+                const bounds = Array.from(layoutMap.values()).reduce((acc, p) => {
+                    acc.minX = Math.min(acc.minX, p.x);
+                    acc.minY = Math.min(acc.minY, p.y);
+                    acc.maxX = Math.max(acc.maxX, p.x + p.width);
+                    acc.maxY = Math.max(acc.maxY, p.y + p.height);
+                    return acc;
+                }, { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity });
+
+                const treeCenterX = (bounds.minX + bounds.maxX) / 2;
+                const treeCenterY = (bounds.minY + bounds.maxY) / 2;
+                const viewportRect = viewport.getBoundingClientRect();
+                const viewportCenterX = viewportRect.width / 2;
+                const viewportCenterY = viewportRect.height / 2;
+
+                view.x = Math.round(viewportCenterX - treeCenterX);
+                view.y = Math.round(viewportCenterY - treeCenterY);
+
+                // ensure there is a small margin when tree is smaller than viewport
+                const minX = Math.min(80, view.x);
+                const minY = Math.min(24, view.y);
+                view.x = view.x > minX ? view.x : minX;
+                view.y = view.y > minY ? view.y : minY;
+
+                applyView();
+            }
+
+            function worldPoint(clientX, clientY) {
+                const rect = viewport.getBoundingClientRect();
+                return {
+                    x: (clientX - rect.left - view.x) / view.scale,
+                    y: (clientY - rect.top - view.y) / view.scale,
+                };
+            }
+
+            function zoomAt(clientX, clientY, factor) {
+                const before = worldPoint(clientX, clientY);
+                view.scale = Math.max(0.35, Math.min(2.4, view.scale * factor));
+                const rect = viewport.getBoundingClientRect();
+                view.x = clientX - rect.left - before.x * view.scale;
+                view.y = clientY - rect.top - before.y * view.scale;
+                applyView();
+            }
+            function progressColor(progress) {
+                const p = Math.max(0, Math.min(100, progress));
+
+                // 蓝(220) → 黄(60)
+                const hue = 220 - (p / 100) * 160;
+
+                // 稍微增加亮度，让高进度更“活跃”
+                const lightness = 45 + (p / 100) * 12;
+
+                return `hsl(${hue}, 70%, ${lightness}%)`;
+            }
+            function render() {
+                const progressMemo = new Map();
+                const sceneSize = layoutForest();
+                scene.style.width = sceneSize.width + 'px';
+                scene.style.height = sceneSize.height + 'px';
+                edges.setAttribute('width', sceneSize.width);
+                edges.setAttribute('height', sceneSize.height);
+                nodesLayer.style.width = sceneSize.width + 'px';
+                nodesLayer.style.height = sceneSize.height + 'px';
+
+                edges.innerHTML = '';
+                nodesLayer.innerHTML = '';
+                nodeEls = new Map();
+
+                for (const id of layoutMap.keys()) {
+                    const node = getNode(id);
+                    const pos = layoutMap.get(id);
+                    const metrics = computeTreeProgress(id, progressMemo);
+                    const el = document.createElement('div');
+                    el.className = 'node' + (id === selectedId ? ' selected' : '') + (node.collapsed ? ' collapsed' : '');
+                    el.style.left = pos.x + 'px';
+                    el.style.top = pos.y + 'px';
+                    el.dataset.id = id;
+
+                    const progressValue = metrics.progress.toFixed(1);
+                    const color = progressColor(metrics.progress);
+
+                    el.innerHTML = `
+  <div class="node-title">${escapeHtml(node.title)}</div>
+  <div class="progress">
+    <div class="progress-bar"
+      style="
+        width:${progressValue}%;
+        background:${color};
+      ">
+    </div>
+  </div>
+`;
+                    nodesLayer.appendChild(el);
+                    nodeEls.set(id, el);
+                    attachNodeEvents(el, id);
+                }
+
+                for (const [id, pos] of layoutMap.entries()) {
+                    const node = getNode(id);
+                    if (!node || node.collapsed) continue;
+                    node.children.forEach(cid => {
+                        const childPos = layoutMap.get(cid);
+                        if (!childPos) return;
+                        const x1 = pos.x + NODE_W / 2;
+                        const y1 = pos.y + NODE_H;
+                        const x2 = childPos.x + NODE_W / 2;
+                        const y2 = childPos.y;
+                        const midY = y1 + (y2 - y1) * 0.45;
+                        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                        path.setAttribute('d', `M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`);
+                        path.setAttribute('fill', 'none');
+                        path.setAttribute('stroke', '#cfd5e4');
+                        path.setAttribute('stroke-width', '2');
+                        path.setAttribute('stroke-linecap', 'round');
+                        edges.appendChild(path);
+                    });
+                }
+
+                updateStatus();
+                applyView();
+            }
+
+            function updateStatus() {
+                const node = selectedId ? getNode(selectedId) : null;
+                if (!node) {
+                    statusText.textContent = 'No selection';
+                    return;
+                }
+                const metrics = computeTreeProgress(selectedId, new Map());
+                statusText.textContent = `${node.title} · ${metrics.progress.toFixed(0)}%`;
+            }
+
+            function attachNodeEvents(el, id) {
+                let longPressTimeout;
+                el.addEventListener('click', function (e) {
+                    if (el.dataset.longPressed === 'true') return;
+                    e.stopPropagation();
+                    selectNode(id);
+                    const now = Date.now();
+                    if (tapInfo.id === id && now - tapInfo.ts < 420) {
+                        openEditor(id);
+                        tapInfo = { id: null, ts: 0 };
+                    } else {
+                        tapInfo = { id, ts: now };
+                    }
+                });
+
+                el.addEventListener('dblclick', function (e) {
+                    e.stopPropagation();
+                    openEditor(id);
+                });
+
+                el.addEventListener('pointerdown', function (e) {
+                    if (e.button !== 0 && e.pointerType !== 'touch') return;
+                    e.stopPropagation();
+                    selectNode(id);
+                    el.setPointerCapture(e.pointerId);
+                    el.dataset.longPressed = 'false';
+                    longPressTimeout = setTimeout(() => {
+                        el.dataset.longPressed = 'true';
+                        const node = getNode(id);
+                        if (node && node.children.length > 0) {
+                            node.collapsed = !node.collapsed;
+                            persistAndRender();
+                        }
+                    }, 500);
+                    const start = worldPoint(e.clientX, e.clientY);
+                    const pos = layoutMap.get(id);
+
+                    dragState = {
+                        id,
+                        pointerId: e.pointerId,
+                        startClientX: e.clientX,
+                        startClientY: e.clientY,
+                        startWorldX: start.x,
+                        startWorldY: start.y,
+                        originLeft: pos.x,
+                        originTop: pos.y,
+                        dragging: false,
+                        dropTargetId: null,
+                        dropMode: 'child',
+                    };
+                });
+
+                el.addEventListener('pointermove', function (e) {
+                    if (!dragState || dragState.pointerId !== e.pointerId || dragState.id !== id) return;
+
+                    const dx = (e.clientX - dragState.startClientX) / view.scale;
+                    const dy = (e.clientY - dragState.startClientY) / view.scale;
+                    const moved = Math.hypot(e.clientX - dragState.startClientX, e.clientY - dragState.startClientY);
+
+                    if (!dragState.dragging && moved > 8) {
+                        dragState.dragging = true;
+                        el.classList.add('dragging');
+                    }
+
+                    if (!dragState.dragging) return;
+
+                    el.style.left = (dragState.originLeft + dx) + 'px';
+                    el.style.top = (dragState.originTop + dy) + 'px';
+                    el.style.zIndex = '50';
+
+                    const target = detectDropTarget(e.clientX, e.clientY, id);
+                    dragState.dropTargetId = target ? target.id : null;
+                    dragState.dropMode = target ? target.mode : 'child';
+                    paintDropTarget();
+                });
+
+                el.addEventListener('pointerup', function (e) {
+                    if (!dragState || dragState.pointerId !== e.pointerId || dragState.id !== id) return;
+                    clearTimeout(longPressTimeout);
+                    el.releasePointerCapture(e.pointerId);
+                    el.classList.remove('dragging');
+                    el.style.zIndex = '';
+
+                    if (dragState.dragging && dragState.dropTargetId) {
+                        moveNode(id, dragState.dropTargetId, dragState.dropMode);
+                    } else {
+                        el.style.left = dragState.originLeft + 'px';
+                        el.style.top = dragState.originTop + 'px';
+                    }
+
+                    clearDropTarget();
+                    dragState = null;
+                });
+
+                el.addEventListener('pointercancel', function () {
+                    clearTimeout(longPressTimeout);
+                    el.classList.remove('dragging');
+                    el.style.zIndex = '';
+                    if (dragState) {
+                        el.style.left = dragState.originLeft + 'px';
+                        el.style.top = dragState.originTop + 'px';
+                    }
+                    clearDropTarget();
+                    dragState = null;
+                });
+            }
+
+            function detectDropTarget(clientX, clientY, dragId) {
+                const wp = worldPoint(clientX, clientY);
+                for (const [id, pos] of layoutMap.entries()) {
+                    if (id === dragId || isDescendant(dragId, id)) continue;
+                    if (wp.x >= pos.x && wp.x <= pos.x + pos.width && wp.y >= pos.y && wp.y <= pos.y + pos.height) {
+                        const relY = (wp.y - pos.y) / pos.height;
+                        let mode = 'child';
+                        if (relY < 0.22) mode = 'before';
+                        else if (relY > 0.78) mode = 'after';
+                        return { id, mode };
+                    }
+                }
+                return null;
+            }
+
+            function paintDropTarget() {
+                clearDropTarget();
+                if (!dragState || !dragState.dropTargetId) return;
+                const el = nodeEls.get(dragState.dropTargetId);
+                if (el) el.classList.add('drop-target');
+            }
+
+            function clearDropTarget() {
+                nodeEls.forEach(el => el.classList.remove('drop-target'));
+            }
+
+            function selectNode(id) {
+                selectedId = id;
+                nodeEls.forEach((el, nid) => el.classList.toggle('selected', nid === id));
+                updateStatus();
+            }
+
+            function openEditor(id) {
+                const node = getNode(id);
+                if (!node) return;
+                editingId = id;
+                titleInput.value = node.title;
+                editorBackdrop.classList.add('open');
+                updateEditorStats();
+                setTimeout(() => {
+                    titleInput.focus();
+                    titleInput.select();
+                }, 0);
+            }
+
+            function closeEditor() {
+                editingId = null;
+                editorBackdrop.classList.remove('open');
+            }
+
+            function updateEditorStats() {
+                const node = editingId ? getNode(editingId) : null;
+                if (!node) return;
+                const m = computeTreeProgress(editingId, new Map());
+                editorStats.innerHTML = [
+                    `Progress: <strong>${m.progress.toFixed(1)}%</strong>`,
+                    `Raw count: ${m.rawCount.toFixed(0)} · Decayed: ${m.decayedCount.toFixed(1)}`,
+                    `Raw minutes: ${m.rawMinutes.toFixed(0)} · Decayed: ${m.decayedMinutes.toFixed(1)}`,
+                    `Freshness: ${(m.freshness * 100).toFixed(0)}%`,
+                ].join('<br>');
+            }
+
+            function saveEditor() {
+                const node = editingId ? getNode(editingId) : null;
+                if (!node) return;
+                node.title = titleInput.value.trim() || TITLE_DEFAULT;
+                persistAndRender();
+                closeEditor();
+            }
+
+            function pushActivity(id, count, minutes) {
+                const node = getNode(id);
+                if (!node) return;
+                node.activityLog.push({ ts: Date.now(), count, minutes });
+                updateEditorStats();
+                persistAndRender();
+            }
+
+            function exportJson() {
+                importExportArea.value = JSON.stringify(state, null, 2);
+                exportBackdrop.classList.add('open');
+                importExportArea.focus();
+                importExportArea.select();
+            }
+
+            function downloadJsonFile() {
+                const data = importExportArea.value || JSON.stringify(state, null, 2);
+                const blob = new Blob([data], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                const now = new Date();
+                const pad = n => String(n).padStart(2, '0');
+                const timestamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
+                a.download = `roadmap-tree_${timestamp}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }
+
+            function closeExport() {
+                exportBackdrop.classList.remove('open');
+            }
+
+            function loadJsonString(text) {
+                try {
+                    const parsed = JSON.parse(text);
+                    state = normalizeState(parsed);
+                    selectedId = state.rootIds[0] || null;
+                    persistAndRender();
+                    closeExport();
+                } catch (e) {
+                    alert('Invalid JSON');
+                }
+            }
+
+            function escapeHtml(str) {
+                return String(str)
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#39;');
+            }
+
+            viewport.addEventListener('pointerdown', function (e) {
+                if (e.target !== viewport && e.target !== scene && e.target !== nodesLayer && e.target !== edges) return;
+                viewport.setPointerCapture(e.pointerId);
+                panState = {
+                    pointerId: e.pointerId,
+                    startX: e.clientX,
+                    startY: e.clientY,
+                    viewX: view.x,
+                    viewY: view.y,
+                };
+                viewport.classList.add('panning');
+            });
+
+            viewport.addEventListener('pointermove', function (e) {
+                if (panState && panState.pointerId === e.pointerId) {
+                    view.x = panState.viewX + (e.clientX - panState.startX);
+                    view.y = panState.viewY + (e.clientY - panState.startY);
+                    applyView();
+                }
+            });
+
+            viewport.addEventListener('pointerup', function (e) {
+                if (panState && panState.pointerId === e.pointerId) {
+                    viewport.releasePointerCapture(e.pointerId);
+                    panState = null;
+                    viewport.classList.remove('panning');
+                }
+            });
+            viewport.addEventListener('pointercancel', function () {
+                panState = null;
+                viewport.classList.remove('panning');
+            });
+
+            viewport.addEventListener('wheel', function (e) {
+                e.preventDefault();
+                const factor = e.deltaY < 0 ? 1.08 : 0.92;
+                zoomAt(e.clientX, e.clientY, factor);
+            }, { passive: false });
+
+            viewport.addEventListener('touchstart', function (e) {
+                if (e.touches.length === 2) {
+                    pinchState = {
+                        dist: touchDistance(e.touches[0], e.touches[1]),
+                        center: touchCenter(e.touches[0], e.touches[1]),
+                        scale: view.scale,
+                    };
+                }
+            }, { passive: false });
+
+            viewport.addEventListener('touchmove', function (e) {
+                if (e.touches.length === 2 && pinchState) {
+                    e.preventDefault();
+                    const dist = touchDistance(e.touches[0], e.touches[1]);
+                    const center = touchCenter(e.touches[0], e.touches[1]);
+                    const factor = dist / Math.max(1, pinchState.dist);
+                    view.scale = Math.max(0.35, Math.min(2.4, pinchState.scale * factor));
+                    const rect = viewport.getBoundingClientRect();
+                    view.x = center.x - rect.left - ((center.x - rect.left - view.x) / Math.max(0.0001, factor));
+                    view.y = center.y - rect.top - ((center.y - rect.top - view.y) / Math.max(0.0001, factor));
+                    applyView();
+                }
+            }, { passive: false });
+
+            viewport.addEventListener('touchend', function (e) {
+                if (e.touches.length < 2) pinchState = null;
+            });
+
+            function touchDistance(a, b) {
+                return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+            }
+            function touchCenter(a, b) {
+                return { x: (a.clientX + b.clientX) / 2, y: (a.clientY + b.clientY) / 2 };
+            }
+
+            document.getElementById('addRootBtn').addEventListener('click', addRoot);
+            document.getElementById('addChildBtn').addEventListener('click', function () {
+                if (selectedId) addChild(selectedId); else addRoot();
+            });
+            document.getElementById('addSiblingBtn').addEventListener('click', function () {
+                if (selectedId) addSibling(selectedId); else addRoot();
+            });
+            document.getElementById('deleteBtn').addEventListener('click', function () {
+                if (selectedId) deleteNode(selectedId);
+            });
+            document.getElementById('exportBtn').addEventListener('click', exportJson);
+            document.getElementById('resetViewBtn').addEventListener('click', resetView);
+            document.getElementById('copyJsonBtn').addEventListener('click', async function () {
+                try {
+                    await navigator.clipboard.writeText(importExportArea.value);
+                } catch (e) {
+                    importExportArea.select();
+                    document.execCommand('copy');
+                }
+            });
+            document.getElementById('downloadJsonBtn').addEventListener('click', downloadJsonFile);
+            document.getElementById('loadJsonBtn').addEventListener('click', function () {
+                loadJsonString(importExportArea.value);
+            });
+            document.getElementById('closeExportBtn').addEventListener('click', closeExport);
+
+            importInput.addEventListener('change', function (e) {
+                const file = e.target.files && e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = function () {
+                    loadJsonString(String(reader.result || ''));
+                    importInput.value = '';
+                };
+                reader.readAsText(file);
+            });
+
+            plusCountBtn.addEventListener('click', function () {
+                if (editingId) pushActivity(editingId, 1, 0);
+            });
+            plusTimeBtn.addEventListener('click', function () {
+                if (editingId) pushActivity(editingId, 0, 20);
+            });
+            saveNodeBtn.addEventListener('click', saveEditor);
+            cancelNodeBtn.addEventListener('click', closeEditor);
+            editorBackdrop.addEventListener('click', function (e) {
+                if (e.target === editorBackdrop) closeEditor();
+            });
+            exportBackdrop.addEventListener('click', function (e) {
+                if (e.target === exportBackdrop) closeExport();
+            });
+
+            titleInput.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    saveEditor();
+                }
+            });
+
+            window.addEventListener('keydown', function (e) {
+                const tag = document.activeElement && document.activeElement.tagName;
+                const inInput = tag === 'INPUT' || tag === 'TEXTAREA';
+                if (editorBackdrop.classList.contains('open')) {
+                    if (e.key === 'Escape') closeEditor();
+                    return;
+                }
+                if (exportBackdrop.classList.contains('open')) {
+                    if (e.key === 'Escape') closeExport();
+                    return;
+                }
+                if (inInput) return;
+                if (!selectedId) return;
+
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    openEditor(selectedId);
+                } else if (e.key === 'Tab') {
+                    e.preventDefault();
+                    addChild(selectedId);
+                } else if (e.key === 'Delete' || e.key === 'Backspace') {
+                    e.preventDefault();
+                    deleteNode(selectedId);
+                } else if (e.key === ' ') {
+                    e.preventDefault();
+                    const node = getNode(selectedId);
+                    if (node) {
+                        node.collapsed = !node.collapsed;
+                        persistAndRender();
+                    }
+                }
+            });
+
+            viewport.addEventListener('click', function (e) {
+                if (e.target === viewport || e.target === scene || e.target === nodesLayer || e.target === edges) {
+                    selectedId = null;
+                    nodeEls.forEach(el => el.classList.remove('selected'));
+                    updateStatus();
+                }
+            });
+
+            render();
+            resetView();
+        })();
+    </script>
+</body>
+
+</html>
