@@ -216,6 +216,19 @@
             transition: width .2s ease, background .2s ease;
         }
 
+        .toggle-circle {
+            position: absolute;
+            top: 105%;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #add8ff;
+            border: 1px solid white;
+            cursor: pointer;
+        }
+
         .hint {
             position: absolute;
             right: 12px;
@@ -888,6 +901,7 @@
       ">
     </div>
   </div>
+  ${node.children && node.children.length > 0 ? '<div class="toggle-circle"></div>' : ''}
 `;
                     nodesLayer.appendChild(el);
                     nodeEls.set(id, el);
@@ -930,9 +944,7 @@
             }
 
             function attachNodeEvents(el, id) {
-                let longPressTimeout;
                 el.addEventListener('click', function (e) {
-                    if (el.dataset.longPressed === 'true') return;
                     e.stopPropagation();
                     selectNode(id);
                     const now = Date.now();
@@ -951,18 +963,10 @@
 
                 el.addEventListener('pointerdown', function (e) {
                     if (e.button !== 0 && e.pointerType !== 'touch') return;
+                    if (e.target.classList.contains('toggle-circle')) return;
                     e.stopPropagation();
                     selectNode(id);
                     el.setPointerCapture(e.pointerId);
-                    el.dataset.longPressed = 'false';
-                    longPressTimeout = setTimeout(() => {
-                        el.dataset.longPressed = 'true';
-                        const node = getNode(id);
-                        if (node && node.children.length > 0) {
-                            node.collapsed = !node.collapsed;
-                            persistAndRender();
-                        }
-                    }, 500);
                     const start = worldPoint(e.clientX, e.clientY);
                     const pos = layoutMap.get(id);
 
@@ -1007,7 +1011,6 @@
 
                 el.addEventListener('pointerup', function (e) {
                     if (!dragState || dragState.pointerId !== e.pointerId || dragState.id !== id) return;
-                    clearTimeout(longPressTimeout);
                     el.releasePointerCapture(e.pointerId);
                     el.classList.remove('dragging');
                     el.style.zIndex = '';
@@ -1024,7 +1027,6 @@
                 });
 
                 el.addEventListener('pointercancel', function () {
-                    clearTimeout(longPressTimeout);
                     el.classList.remove('dragging');
                     el.style.zIndex = '';
                     if (dragState) {
@@ -1034,6 +1036,19 @@
                     clearDropTarget();
                     dragState = null;
                 });
+
+                const toggleCircle = el.querySelector('.toggle-circle');
+                if (toggleCircle) {
+                    toggleCircle.addEventListener('click', function (e) {
+                        e.stopPropagation();
+                        const node = getNode(id);
+                        if (node && node.children.length > 0) {
+                            node.collapsed = !node.collapsed;
+                            persistAndRender();
+                            resetView();
+                        }
+                    });
+                }
             }
 
             function detectDropTarget(clientX, clientY, dragId) {
