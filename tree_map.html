@@ -1136,20 +1136,59 @@
                 importExportArea.select();
             }
 
-            function downloadJsonFile() {
-                const data = importExportArea.value || JSON.stringify(state, null, 2);
-                const blob = new Blob([data], { type: 'application/json' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
+            function makeDownloadFilename() {
                 const now = new Date();
                 const pad = n => String(n).padStart(2, '0');
                 const timestamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
-                a.download = `roadmap-tree_${timestamp}.json`;
+                return `roadmap-tree_${timestamp}.json`;
+            }
+
+            function isLikelyIOS() {
+                // iPadOS can report as Mac; this catches it.
+                return /iP(ad|hone|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+            }
+
+            async function downloadJsonFile() {
+                const data = importExportArea.value || JSON.stringify(state, null, 2);
+                const filename = makeDownloadFilename();
+
+                const blob = new Blob([data], { type: 'application/json;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+
+                if (isLikelyIOS()) {
+                    // iPhone/iPad Safari often ignores a[download] for blob URLs.
+                    // Web Share (Save to Files) is the most reliable path on iOS.
+                    try {
+                        const file = new File([blob], filename, { type: blob.type });
+                        if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+                            await navigator.share({ files: [file], title: filename });
+                            URL.revokeObjectURL(url);
+                            return;
+                        }
+                    } catch (e) {
+                        // Fall through to open-in-tab fallback.
+                    }
+
+                    // iOS fallback: open the blob URL so the user can Share -> Save to Files.
+                    try {
+                        window.open(url, '_blank', 'noopener');
+                    } catch (e) { }
+                    setTimeout(() => URL.revokeObjectURL(url), 2000);
+                    return;
+                }
+
+                // Non-iOS browsers (including macOS Safari): trigger a real download.
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                a.rel = 'noopener';
+                a.style.display = 'none';
                 document.body.appendChild(a);
                 a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
+                a.remove();
+
+                // Delay revoke so Safari has time to resolve the blob URL.
+                setTimeout(() => URL.revokeObjectURL(url), 2000);
             }
 
             function closeExport() {
