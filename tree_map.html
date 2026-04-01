@@ -349,6 +349,7 @@
                 <button id="addRootBtn">Add Root</button>
                 <button id="addChildBtn">Add Child</button>
                 <button id="addSiblingBtn">Add Sibling</button>
+                <button id="makeRootBtn">Make Root</button>
                 <button id="deleteBtn" class="danger">Delete</button>
             </div>
             <div class="group">
@@ -427,6 +428,7 @@
             const edges = document.getElementById('edges');
             const nodesLayer = document.getElementById('nodesLayer');
             const statusText = document.getElementById('statusText');
+            const makeRootBtn = document.getElementById('makeRootBtn');
 
             const editorBackdrop = document.getElementById('editorBackdrop');
             const titleInput = document.getElementById('titleInput');
@@ -601,6 +603,32 @@
                 selectedId = id;
                 persistAndRender();
                 openEditor(id);
+            }
+
+            function promoteToRoot(nodeId) {
+                if (!nodeId || !getNode(nodeId)) return;
+                if (state.rootIds.includes(nodeId)) return;
+
+                const parentId = findParentId(nodeId);
+                if (parentId) {
+                    const p = getNode(parentId);
+                    p.children = p.children.filter(id => id !== nodeId);
+                }
+
+                // Insert after the top-level root ancestor (keeps the layout more predictable).
+                let insertAt = state.rootIds.length;
+                let cur = nodeId;
+                let pid = parentId;
+                while (pid) {
+                    cur = pid;
+                    pid = findParentId(pid);
+                }
+                const rootIdx = state.rootIds.indexOf(cur);
+                if (rootIdx >= 0) insertAt = rootIdx + 1;
+
+                state.rootIds.splice(insertAt, 0, nodeId);
+                selectedId = nodeId;
+                persistAndRender();
             }
 
             function deleteNode(nodeId) {
@@ -1296,6 +1324,9 @@
             });
             document.getElementById('addSiblingBtn').addEventListener('click', function () {
                 if (selectedId) addSibling(selectedId); else addRoot();
+            });
+            makeRootBtn.addEventListener('click', function () {
+                if (selectedId) promoteToRoot(selectedId);
             });
             document.getElementById('deleteBtn').addEventListener('click', function () {
                 if (selectedId) deleteNode(selectedId);
