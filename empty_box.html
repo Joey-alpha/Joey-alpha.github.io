@@ -777,6 +777,8 @@
         blindboxFab.addEventListener('click', () => {
             if (!hasBoxTasks()) return;
             if (Date.now() < state.blindboxCooldownUntil) return;
+            registerBlindboxReject();
+            if (Date.now() < state.blindboxCooldownUntil) return;
             rerollBlindbox();
             openOverlay(blindboxOverlay);
         });
