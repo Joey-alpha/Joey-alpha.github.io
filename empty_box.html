@@ -449,6 +449,7 @@
                     <button class="fab" id="blindboxFab" title="盲盒">🎲</button>
                     <button class="fab" id="settingsFab" title="设置">⚙</button>
                     <button class="fab" id="reflectionFab" title="反思">✎</button>
+                    <button class="fab" id="undoFab" title="撤销">↶</button>
                 </div>
 
                 <div class="overlay" id="searchOverlay">
@@ -542,6 +543,7 @@
         const blindboxFab = document.getElementById('blindboxFab');
         const settingsFab = document.getElementById('settingsFab');
         const reflectionFab = document.getElementById('reflectionFab');
+        const undoFab = document.getElementById('undoFab');
 
         const searchOverlay = document.getElementById('searchOverlay');
         const addOverlay = document.getElementById('addOverlay');
@@ -574,6 +576,10 @@
 
         let blindboxTask = '没有任务';
         let isEditing = false;
+
+        let lastCompletedTask = null;
+        let shakeThreshold = 15;
+        let lastShake = 0;
 
         function saveState() {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -612,6 +618,7 @@
             nowTaskText.textContent = state.nowTask || '';
             nowTaskText.classList.toggle('is-empty', !state.nowTask);
             completeNowBtn.style.visibility = state.nowTask ? 'visible' : 'hidden';
+            undoFab.style.display = lastCompletedTask ? 'inline-flex' : 'none';
             renderFabState();
             saveState();
         }
@@ -738,12 +745,25 @@
 
         completeNowBtn.addEventListener('click', () => {
             if (!state.nowTask) return;
+            lastCompletedTask = state.nowTask;
             state.completedTasks.push(state.nowTask);
             state.boxTasks = state.boxTasks.filter(item => item !== state.nowTask);
             state.nowTask = '';
             state.nowTaskStartedAt = 0;
             renderNow();
         });
+
+        function undoLastComplete() {
+            if (!lastCompletedTask) return;
+            const index = state.completedTasks.lastIndexOf(lastCompletedTask);
+            if (index > -1) {
+                state.completedTasks.splice(index, 1);
+            }
+            state.nowTask = lastCompletedTask;
+            state.nowTaskStartedAt = Date.now();
+            lastCompletedTask = null;
+            renderNow();
+        }
 
         addFab.addEventListener('click', () => {
             openOverlay(addOverlay);
@@ -846,6 +866,8 @@
             openOverlay(settingsOverlay);
         });
 
+        undoFab.addEventListener('click', undoLastComplete);
+
         exportJsonBtn.addEventListener('click', () => {
             const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
@@ -914,6 +936,29 @@
         window.addEventListener('focus', () => {
             loadState();
             renderNow();
+        });
+
+        window.addEventListener('devicemotion', (event) => {
+            if (!lastCompletedTask) return;
+            const acceleration = event.accelerationIncludingGravity;
+            if (!acceleration) return;
+            const now = Date.now();
+            if (now - lastShake < 1000) return;
+            const x = acceleration.x || 0;
+            const y = acceleration.y || 0;
+            const z = acceleration.z || 0;
+            const total = Math.sqrt(x * x + y * y + z * z);
+            if (total > shakeThreshold) {
+                lastShake = now;
+                undoLastComplete();
+            }
+        });
+
+        window.addEventListener('keydown', (event) => {
+            if ((event.ctrlKey || event.metaKey) && event.key === 'z') {
+                event.preventDefault();
+                undoLastComplete();
+            }
         });
 
         const weekday = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][new Date().getDay()];
