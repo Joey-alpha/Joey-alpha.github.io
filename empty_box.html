@@ -270,6 +270,94 @@
             resize: vertical;
         }
 
+        .must-do-panel {
+            display: none;
+            gap: 12px;
+            padding-bottom: 100px;
+            width: 70vw;
+            margin: 0;
+        }
+
+        .must-do-panel.active {
+            display: grid;
+        }
+
+        .must-do-head {
+            display: flex;
+            justify-content: flex-start;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .must-do-head h3 {
+            margin: 0;
+            font-size: 18px;
+        }
+
+        .must-do-head p {
+            display: none;
+        }
+
+        .must-do-list {
+            display: grid;
+            gap: 10px;
+        }
+
+        .must-do-item {
+            width: 100%;
+            padding: 14px 16px;
+            border-radius: 18px;
+            border: 1px solid var(--line);
+            background: rgba(255, 255, 255, 0.65);
+            display: flex;
+            justify-content: flex-start;
+            align-items: center;
+            gap: 12px;
+            cursor: pointer;
+        }
+
+        .must-do-item span {
+            flex: 1;
+            min-width: 0;
+            font-size: 16px;
+            line-height: 1.4;
+        }
+
+        .must-do-item .must-do-order {
+            display: none;
+        }
+
+        .must-do-overlay .overlay-card {
+            max-height: min(80vh, 760px);
+        }
+
+        .must-do-selection {
+            display: grid;
+            gap: 10px;
+            margin-top: 10px;
+            max-height: 44vh;
+            overflow: auto;
+            padding-right: 4px;
+        }
+
+        .must-do-selection .candidate-item {
+            align-items: center;
+        }
+
+        .must-do-selection .candidate-item button {
+            min-width: 68px;
+        }
+
+        .must-do-summary {
+            margin-top: 12px;
+            color: var(--muted);
+            font-size: 14px;
+        }
+
+        .must-do-panel {
+            margin-top: 10px;
+        }
+
         .fab-group {
             position: fixed;
             right: 28px;
@@ -443,6 +531,13 @@
                     </div>
                 </section>
 
+                <section class="must-do-panel" id="mustDoPanel">
+                    <div class="must-do-head">
+                        <h3>必做榜</h3>
+                    </div>
+                    <div class="must-do-list" id="mustDoList"></div>
+                </section>
+
                 <div class="fab-group">
                     <button class="fab" id="addFab" title="添加">＋</button>
                     <button class="fab" id="searchFab" title="搜索">⌕</button>
@@ -472,6 +567,20 @@
                         <input class="search-input" id="addInput" placeholder="输入任务…" />
                         <div class="actions">
                             <button class="btn primary" id="confirmAddBtn">放进 box</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="overlay must-do-overlay" id="mustDoOverlay">
+                    <div class="overlay-card">
+                        <div class="overlay-head">
+                            <h3 class="overlay-title">今日必做</h3>
+                            <button class="close-btn" data-close="mustDoOverlay">×</button>
+                        </div>
+                        <div class="must-do-summary" id="mustDoSummary">请选择最多 3 项待办</div>
+                        <div class="must-do-selection" id="mustDoSelection"></div>
+                        <div class="actions">
+                            <button class="btn primary" id="confirmMustDoBtn">确定</button>
                         </div>
                     </div>
                 </div>
@@ -561,6 +670,13 @@
         const acceptBlindboxBtn = document.getElementById('acceptBlindboxBtn');
         const rerollBlindboxBtn = document.getElementById('rerollBlindboxBtn');
 
+        const mustDoOverlay = document.getElementById('mustDoOverlay');
+        const mustDoSelection = document.getElementById('mustDoSelection');
+        const mustDoSummary = document.getElementById('mustDoSummary');
+        const confirmMustDoBtn = document.getElementById('confirmMustDoBtn');
+        const mustDoPanel = document.getElementById('mustDoPanel');
+        const mustDoList = document.getElementById('mustDoList');
+
         const exportJsonBtn = document.getElementById('exportJsonBtn');
         const importJsonInput = document.getElementById('importJsonInput');
 
@@ -571,7 +687,8 @@
             nowTaskStartedAt: 0,
             reflectionNote: '',
             blindboxRejectCount: 0,
-            blindboxCooldownUntil: 0
+            blindboxCooldownUntil: 0,
+            mustDoTasks: []
         };
 
         let blindboxTask = '没有任务';
@@ -597,7 +714,8 @@
                     nowTaskStartedAt: Number.isFinite(parsed.nowTaskStartedAt) ? parsed.nowTaskStartedAt : 0,
                     reflectionNote: typeof parsed.reflectionNote === 'string' ? parsed.reflectionNote : '',
                     blindboxRejectCount: Number.isFinite(parsed.blindboxRejectCount) ? parsed.blindboxRejectCount : 0,
-                    blindboxCooldownUntil: Number.isFinite(parsed.blindboxCooldownUntil) ? parsed.blindboxCooldownUntil : 0
+                    blindboxCooldownUntil: Number.isFinite(parsed.blindboxCooldownUntil) ? parsed.blindboxCooldownUntil : 0,
+                    mustDoTasks: Array.isArray(parsed.mustDoTasks) ? parsed.mustDoTasks : []
                 };
             } catch { }
         }
@@ -620,6 +738,7 @@
             completeNowBtn.style.visibility = state.nowTask ? 'visible' : 'hidden';
             undoFab.style.display = lastCompletedTask ? 'inline-flex' : 'none';
             renderFabState();
+            renderMustDoList();
             saveState();
         }
 
@@ -629,6 +748,83 @@
 
         function closeOverlay(el) {
             el.classList.remove('active');
+        }
+
+        function renderMustDoList() {
+            mustDoList.innerHTML = '';
+            if (!state.mustDoTasks.length) {
+                mustDoPanel.classList.remove('active');
+                mustDoList.innerHTML = '<div class="reflection-empty">当前未设置必做任务</div>';
+                return;
+            }
+            mustDoPanel.classList.add('active');
+            state.mustDoTasks.forEach((task, index) => {
+                const item = document.createElement('div');
+                item.className = 'must-do-item';
+                item.innerHTML = `<span>${task}</span><span class="must-do-order">${index + 1}</span>`;
+                item.addEventListener('click', () => {
+                    if (state.nowTask && state.nowTask !== task && !state.boxTasks.includes(state.nowTask)) {
+                        state.boxTasks.unshift(state.nowTask);
+                    }
+                    state.boxTasks = state.boxTasks.filter(item => item !== task);
+                    state.nowTask = task;
+                    state.nowTaskStartedAt = Date.now();
+                    renderNow();
+                });
+                mustDoList.appendChild(item);
+            });
+        }
+
+        let mustDoRemovedTasks = [];
+
+        function buildMustDoCandidates() {
+            mustDoSelection.innerHTML = '';
+            const allTasks = [...new Set([...state.boxTasks, state.nowTask].filter(Boolean))];
+            const tasks = allTasks.filter(task => !mustDoRemovedTasks.includes(task));
+            tasks.forEach(task => {
+                const selected = state.mustDoTasks.includes(task);
+                const row = document.createElement('div');
+                row.className = 'candidate-item';
+                row.innerHTML = `<span>${task}</span><button class="btn ${selected ? 'primary' : 'secondary'}">${selected ? '✓' : '×'}</button>`;
+                const button = row.querySelector('button');
+
+                row.addEventListener('dblclick', () => {
+                    if (selected) return;
+                    if (state.mustDoTasks.length < 3) {
+                        state.mustDoTasks.push(task);
+                        buildMustDoCandidates();
+                        mustDoSummary.textContent = `已选 ${state.mustDoTasks.length} / 3 项`;
+                    }
+                });
+
+                button.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    if (selected) {
+                        // 取消选中
+                        state.mustDoTasks = state.mustDoTasks.filter(t => t !== task);
+                        buildMustDoCandidates();
+                        mustDoSummary.textContent = `已选 ${state.mustDoTasks.length} / 3 项`;
+                    } else {
+                        // 移除候选项
+                        mustDoRemovedTasks.push(task);
+                        buildMustDoCandidates();
+                    }
+                });
+
+                mustDoSelection.appendChild(row);
+            });
+        }
+
+        function openMustDoOverlay() {
+            mustDoRemovedTasks = [];
+            mustDoSummary.textContent = `已选 ${state.mustDoTasks.length} / 3 项`;
+            buildMustDoCandidates();
+            openOverlay(mustDoOverlay);
+        }
+
+        function updateMustDoState() {
+            renderMustDoList();
+            saveState();
         }
 
         function addToBox(value) {
@@ -745,12 +941,18 @@
 
         completeNowBtn.addEventListener('click', () => {
             if (!state.nowTask) return;
+            const isMustDo = state.mustDoTasks.includes(state.nowTask);
             lastCompletedTask = state.nowTask;
-            state.completedTasks.push(state.nowTask);
+            const completedTask = isMustDo ? `${state.nowTask}【必做】` : state.nowTask;
+            state.completedTasks.push(completedTask);
             state.boxTasks = state.boxTasks.filter(item => item !== state.nowTask);
+            if (isMustDo) {
+                state.mustDoTasks = state.mustDoTasks.filter(item => item !== state.nowTask);
+            }
             state.nowTask = '';
             state.nowTaskStartedAt = 0;
             renderNow();
+            renderMustDoList();
         });
 
         function undoLastComplete() {
@@ -792,6 +994,14 @@
 
         searchInput.addEventListener('input', e => {
             renderSearchResults(e.target.value);
+        });
+
+        ambientHint.addEventListener('dblclick', openMustDoOverlay);
+
+        confirmMustDoBtn.addEventListener('click', () => {
+            closeOverlay(mustDoOverlay);
+            renderMustDoList();
+            saveState();
         });
 
         blindboxFab.addEventListener('click', () => {
@@ -891,7 +1101,8 @@
                     nowTaskStartedAt: Number.isFinite(parsed.nowTaskStartedAt) ? parsed.nowTaskStartedAt : 0,
                     reflectionNote: typeof parsed.reflectionNote === 'string' ? parsed.reflectionNote : '',
                     blindboxRejectCount: Number.isFinite(parsed.blindboxRejectCount) ? parsed.blindboxRejectCount : 0,
-                    blindboxCooldownUntil: Number.isFinite(parsed.blindboxCooldownUntil) ? parsed.blindboxCooldownUntil : 0
+                    blindboxCooldownUntil: Number.isFinite(parsed.blindboxCooldownUntil) ? parsed.blindboxCooldownUntil : 0,
+                    mustDoTasks: Array.isArray(parsed.mustDoTasks) ? parsed.mustDoTasks : []
                 };
                 renderNow();
                 renderReflectionFab();
