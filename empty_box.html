@@ -645,9 +645,9 @@
 
         function renderSearchResults(keyword) {
             searchResults.innerHTML = '';
-            const text = keyword.trim();
+            const text = keyword.trim().toLowerCase();
             if (!text) return;
-            const matched = state.boxTasks.filter(task => task !== state.nowTask && task.includes(text));
+            const matched = state.boxTasks.filter(task => task !== state.nowTask && task.toLowerCase().includes(text));
             matched.forEach(task => {
                 const row = document.createElement('div');
                 row.className = 'candidate-item';
