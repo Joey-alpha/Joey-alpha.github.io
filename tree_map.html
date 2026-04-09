@@ -576,6 +576,7 @@
                 state.rootIds.push(id);
                 selectedId = id;
                 persistAndRender();
+                adjustViewAfterLayoutChange();
                 openEditor(id);
             }
 
@@ -586,6 +587,7 @@
                 getNode(parentId).collapsed = false;
                 selectedId = id;
                 persistAndRender();
+                adjustViewAfterLayoutChange();
                 openEditor(id);
             }
 
@@ -602,6 +604,7 @@
                 }
                 selectedId = id;
                 persistAndRender();
+                adjustViewAfterLayoutChange();
                 openEditor(id);
             }
 
@@ -629,6 +632,7 @@
                 state.rootIds.splice(insertAt, 0, nodeId);
                 selectedId = nodeId;
                 persistAndRender();
+                adjustViewAfterLayoutChange();
             }
 
             function deleteNode(nodeId) {
@@ -647,6 +651,7 @@
                 }
                 selectedId = state.rootIds[0] || Object.keys(state.nodes)[0] || null;
                 persistAndRender();
+                adjustViewAfterLayoutChange();
             }
 
             function removeSubtree(id) {
@@ -684,6 +689,7 @@
                 }
                 selectedId = dragId;
                 persistAndRender();
+                adjustViewAfterLayoutChange();
             }
 
             function persistAndRender() {
@@ -861,6 +867,36 @@
                 const minY = Math.min(24, view.y);
                 view.x = view.x > minX ? view.x : minX;
                 view.y = view.y > minY ? view.y : minY;
+
+                applyView();
+            }
+
+            function adjustViewAfterLayoutChange() {
+                // 保持当前的缩放级别，只调整位置以适应布局变化
+                if (layoutMap.size === 0) {
+                    view.x = 80;
+                    view.y = 24;
+                    applyView();
+                    return;
+                }
+
+                const bounds = Array.from(layoutMap.values()).reduce((acc, p) => {
+                    acc.minX = Math.min(acc.minX, p.x);
+                    acc.minY = Math.min(acc.minY, p.y);
+                    acc.maxX = Math.max(acc.maxX, p.x + p.width);
+                    acc.maxY = Math.max(acc.maxY, p.y + p.height);
+                    return acc;
+                }, { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity });
+
+                const treeCenterX = (bounds.minX + bounds.maxX) / 2;
+                const treeCenterY = (bounds.minY + bounds.maxY) / 2;
+                const viewportRect = viewport.getBoundingClientRect();
+                const viewportCenterX = viewportRect.width / 2;
+                const viewportCenterY = viewportRect.height / 2;
+
+                // 保持当前的缩放，重新居中
+                view.x = Math.round(viewportCenterX - treeCenterX * view.scale);
+                view.y = Math.round(viewportCenterY - treeCenterY * view.scale);
 
                 applyView();
             }
@@ -1073,7 +1109,7 @@
                         if (node && node.children.length > 0) {
                             node.collapsed = !node.collapsed;
                             persistAndRender();
-                            resetView();
+                            adjustViewAfterLayoutChange();
                         }
                     });
                 }
@@ -1409,6 +1445,7 @@
                     if (node) {
                         node.collapsed = !node.collapsed;
                         persistAndRender();
+                        adjustViewAfterLayoutChange();
                     }
                 }
             });
