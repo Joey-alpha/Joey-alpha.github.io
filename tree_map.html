@@ -576,7 +576,6 @@
                 state.rootIds.push(id);
                 selectedId = id;
                 persistAndRender();
-                adjustViewAfterLayoutChange();
                 openEditor(id);
             }
 
@@ -689,7 +688,6 @@
                 }
                 selectedId = dragId;
                 persistAndRender();
-                adjustViewAfterLayoutChange();
             }
 
             function persistAndRender() {
@@ -871,34 +869,65 @@
                 applyView();
             }
 
+            let lastTrackedNodeId = null;
+            let lastTrackedNodeScreenPos = null;
+
+            function trackNodePosition(nodeId) {
+                if (!nodeId || !layoutMap.has(nodeId)) return;
+                const pos = layoutMap.get(nodeId);
+                const screenX = pos.x * view.scale + view.x;
+                const screenY = pos.y * view.scale + view.y;
+                lastTrackedNodeId = nodeId;
+                lastTrackedNodeScreenPos = { x: screenX, y: screenY };
+            }
+
             function adjustViewAfterLayoutChange() {
-                // 保持当前的缩放级别，只调整位置以适应布局变化
-                if (layoutMap.size === 0) {
-                    view.x = 80;
-                    view.y = 24;
+                if (!lastTrackedNodeId || !lastTrackedNodeScreenPos || !layoutMap.has(lastTrackedNodeId)) {
+                    // 如果没有跟踪的节点，则使用原来的居中逻辑
+                    if (layoutMap.size === 0) {
+                        view.x = 80;
+                        view.y = 24;
+                        applyView();
+                        return;
+                    }
+
+                    const bounds = Array.from(layoutMap.values()).reduce((acc, p) => {
+                        acc.minX = Math.min(acc.minX, p.x);
+                        acc.minY = Math.min(acc.minY, p.y);
+                        acc.maxX = Math.max(acc.maxX, p.x + p.width);
+                        acc.maxY = Math.max(acc.maxY, p.y + p.height);
+                        return acc;
+                    }, { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity });
+
+                    const treeCenterX = (bounds.minX + bounds.maxX) / 2;
+                    const treeCenterY = (bounds.minY + bounds.maxY) / 2;
+                    const viewportRect = viewport.getBoundingClientRect();
+                    const viewportCenterX = viewportRect.width / 2;
+                    const viewportCenterY = viewportRect.height / 2;
+
+                    view.x = Math.round(viewportCenterX - treeCenterX * view.scale);
+                    view.y = Math.round(viewportCenterY - treeCenterY * view.scale);
+
                     applyView();
                     return;
                 }
 
-                const bounds = Array.from(layoutMap.values()).reduce((acc, p) => {
-                    acc.minX = Math.min(acc.minX, p.x);
-                    acc.minY = Math.min(acc.minY, p.y);
-                    acc.maxX = Math.max(acc.maxX, p.x + p.width);
-                    acc.maxY = Math.max(acc.maxY, p.y + p.height);
-                    return acc;
-                }, { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity });
+                // 保持跟踪节点的位置不变
+                const newPos = layoutMap.get(lastTrackedNodeId);
+                const newScreenX = newPos.x * view.scale + view.x;
+                const newScreenY = newPos.y * view.scale + view.y;
 
-                const treeCenterX = (bounds.minX + bounds.maxX) / 2;
-                const treeCenterY = (bounds.minY + bounds.maxY) / 2;
-                const viewportRect = viewport.getBoundingClientRect();
-                const viewportCenterX = viewportRect.width / 2;
-                const viewportCenterY = viewportRect.height / 2;
+                const deltaX = lastTrackedNodeScreenPos.x - newScreenX;
+                const deltaY = lastTrackedNodeScreenPos.y - newScreenY;
 
-                // 保持当前的缩放，重新居中
-                view.x = Math.round(viewportCenterX - treeCenterX * view.scale);
-                view.y = Math.round(viewportCenterY - treeCenterY * view.scale);
+                view.x += deltaX;
+                view.y += deltaY;
 
                 applyView();
+
+                // 重置跟踪状态
+                lastTrackedNodeId = null;
+                lastTrackedNodeScreenPos = null;
             }
 
             function worldPoint(clientX, clientY) {
@@ -1107,6 +1136,7 @@
                         e.stopPropagation();
                         const node = getNode(id);
                         if (node && node.children.length > 0) {
+                            trackNodePosition(id); // 跟踪母节点位置
                             node.collapsed = !node.collapsed;
                             persistAndRender();
                             adjustViewAfterLayoutChange();
@@ -1265,6 +1295,7 @@
                     state = normalizeState(parsed);
                     selectedId = state.rootIds[0] || null;
                     persistAndRender();
+                    adjustViewAfterLayoutChange();
                     closeExport();
                 } catch (e) {
                     alert('Invalid JSON');
@@ -1443,6 +1474,7 @@
                     e.preventDefault();
                     const node = getNode(selectedId);
                     if (node) {
+                        trackNodePosition(selectedId); // 跟踪母节点位置
                         node.collapsed = !node.collapsed;
                         persistAndRender();
                         adjustViewAfterLayoutChange();
