@@ -71,10 +71,16 @@
         body.night .search-input,
         body.night .reflection-textarea,
         body.night .candidate-item,
-        body.night .blindbox-task {
+        body.night .blindbox-task,
+        body.night .must-do-criterion {
             background: rgba(255, 255, 255, 0.04);
             color: #eef2ff;
             border-color: rgba(255, 255, 255, 0.08);
+        }
+
+        body.night .must-do-criterion.active {
+            background: var(--accent);
+            color: #fff;
         }
 
         body.night .time-block p,
@@ -338,6 +344,37 @@
             max-height: min(80vh, 760px);
         }
 
+        .must-do-criteria {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 2px;
+        }
+
+        .must-do-criterion {
+            border: 1px solid var(--line);
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.58);
+            color: inherit;
+            cursor: pointer;
+            font: inherit;
+            font-size: 14px;
+            line-height: 1;
+            padding: 9px 12px;
+            transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+        }
+
+        .must-do-criterion.active {
+            background: var(--accent);
+            border-color: transparent;
+            color: #fff;
+        }
+
+        .must-do-criterion.add {
+            width: 36px;
+            padding-inline: 0;
+        }
+
         .must-do-selection {
             display: grid;
             gap: 10px;
@@ -584,6 +621,7 @@
                             <h3 class="overlay-title">今日必做</h3>
                             <button class="close-btn" data-close="mustDoOverlay">×</button>
                         </div>
+                        <div class="must-do-criteria" id="mustDoCriteriaBar"></div>
                         <div class="must-do-summary" id="mustDoSummary">请选择最多 3 项待办</div>
                         <div class="must-do-selection" id="mustDoSelection"></div>
                         <div class="actions">
@@ -641,6 +679,10 @@
     <script>
         const STORAGE_KEY = 'activation-task-demo-state';
         const UPDATE_PING_KEY = 'activation-task-demo-last-updated';
+        const DEFAULT_MUST_DO_CRITERIA = [
+            { id: 'urgent', name: '紧急' },
+            { id: 'important', name: '重要' }
+        ];
 
         const body = document.body;
         const hour = new Date().getHours();
@@ -678,6 +720,7 @@
         const rerollBlindboxBtn = document.getElementById('rerollBlindboxBtn');
 
         const mustDoOverlay = document.getElementById('mustDoOverlay');
+        const mustDoCriteriaBar = document.getElementById('mustDoCriteriaBar');
         const mustDoSelection = document.getElementById('mustDoSelection');
         const mustDoSummary = document.getElementById('mustDoSummary');
         const confirmMustDoBtn = document.getElementById('confirmMustDoBtn');
@@ -687,6 +730,77 @@
         const exportJsonBtn = document.getElementById('exportJsonBtn');
         const importJsonInput = document.getElementById('importJsonInput');
 
+        function cloneDefaultMustDoCriteria() {
+            return DEFAULT_MUST_DO_CRITERIA.map(criterion => ({ ...criterion }));
+        }
+
+        function createMustDoCriterionId() {
+            return `criterion-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+        }
+
+        function normalizeTaskList(value, dedupe = true) {
+            const tasks = Array.isArray(value)
+                ? value.map(task => typeof task === 'string' ? task.trim() : '').filter(Boolean)
+                : [];
+            return dedupe ? [...new Set(tasks)] : tasks;
+        }
+
+        function normalizeMustDoCriteria(value) {
+            const source = Array.isArray(value) ? value : [];
+            const criteria = [];
+            source.forEach(item => {
+                const rawName = typeof item === 'string'
+                    ? item
+                    : item && typeof item === 'object' && typeof item.name === 'string'
+                        ? item.name
+                        : '';
+                const name = rawName.trim();
+                if (!name) return;
+                let id = (item && typeof item === 'object' && typeof item.id === 'string' ? item.id : '').trim();
+                if (!id || criteria.some(criterion => criterion.id === id)) {
+                    id = createMustDoCriterionId();
+                }
+                criteria.push({ id, name });
+            });
+            return criteria.length ? criteria : cloneDefaultMustDoCriteria();
+        }
+
+        function normalizeMustDoHiddenByDate(value) {
+            if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+            const hiddenByDate = {};
+            Object.entries(value).forEach(([dateKey, hiddenByCriterion]) => {
+                if (!hiddenByCriterion || typeof hiddenByCriterion !== 'object' || Array.isArray(hiddenByCriterion)) return;
+                hiddenByDate[dateKey] = {};
+                Object.entries(hiddenByCriterion).forEach(([criterionId, tasks]) => {
+                    hiddenByDate[dateKey][criterionId] = normalizeTaskList(tasks);
+                });
+            });
+            return hiddenByDate;
+        }
+
+        function normalizeState(parsed) {
+            const source = parsed && typeof parsed === 'object' ? parsed : {};
+            const mustDoCriteria = normalizeMustDoCriteria(source.mustDoCriteria);
+            const activeMustDoCriterionId = typeof source.activeMustDoCriterionId === 'string' &&
+                mustDoCriteria.some(criterion => criterion.id === source.activeMustDoCriterionId)
+                ? source.activeMustDoCriterionId
+                : mustDoCriteria[0].id;
+
+            return {
+                boxTasks: normalizeTaskList(source.boxTasks),
+                completedTasks: normalizeTaskList(source.completedTasks, false),
+                nowTask: typeof source.nowTask === 'string' ? source.nowTask : '',
+                nowTaskStartedAt: Number.isFinite(source.nowTaskStartedAt) ? source.nowTaskStartedAt : 0,
+                reflectionNote: typeof source.reflectionNote === 'string' ? source.reflectionNote : '',
+                blindboxRejectCount: Number.isFinite(source.blindboxRejectCount) ? source.blindboxRejectCount : 0,
+                blindboxCooldownUntil: Number.isFinite(source.blindboxCooldownUntil) ? source.blindboxCooldownUntil : 0,
+                mustDoTasks: normalizeTaskList(source.mustDoTasks),
+                mustDoCriteria,
+                activeMustDoCriterionId,
+                mustDoHiddenByDate: normalizeMustDoHiddenByDate(source.mustDoHiddenByDate)
+            };
+        }
+
         let state = {
             boxTasks: [],
             completedTasks: [],
@@ -695,7 +809,10 @@
             reflectionNote: '',
             blindboxRejectCount: 0,
             blindboxCooldownUntil: 0,
-            mustDoTasks: []
+            mustDoTasks: [],
+            mustDoCriteria: cloneDefaultMustDoCriteria(),
+            activeMustDoCriterionId: DEFAULT_MUST_DO_CRITERIA[0].id,
+            mustDoHiddenByDate: {}
         };
 
         let blindboxTask = '没有任务';
@@ -714,16 +831,7 @@
                 const raw = localStorage.getItem(STORAGE_KEY);
                 if (!raw) return;
                 const parsed = JSON.parse(raw);
-                state = {
-                    boxTasks: Array.isArray(parsed.boxTasks) ? parsed.boxTasks : [],
-                    completedTasks: Array.isArray(parsed.completedTasks) ? parsed.completedTasks : [],
-                    nowTask: typeof parsed.nowTask === 'string' ? parsed.nowTask : '',
-                    nowTaskStartedAt: Number.isFinite(parsed.nowTaskStartedAt) ? parsed.nowTaskStartedAt : 0,
-                    reflectionNote: typeof parsed.reflectionNote === 'string' ? parsed.reflectionNote : '',
-                    blindboxRejectCount: Number.isFinite(parsed.blindboxRejectCount) ? parsed.blindboxRejectCount : 0,
-                    blindboxCooldownUntil: Number.isFinite(parsed.blindboxCooldownUntil) ? parsed.blindboxCooldownUntil : 0,
-                    mustDoTasks: Array.isArray(parsed.mustDoTasks) ? parsed.mustDoTasks : []
-                };
+                state = normalizeState(parsed);
             } catch { }
         }
 
@@ -782,12 +890,106 @@
             });
         }
 
-        let mustDoRemovedTasks = [];
+        function getTodayKey() {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
+        function ensureMustDoCriteria() {
+            if (!Array.isArray(state.mustDoCriteria) || !state.mustDoCriteria.length) {
+                state.mustDoCriteria = cloneDefaultMustDoCriteria();
+            }
+            if (!state.mustDoCriteria.some(criterion => criterion.id === state.activeMustDoCriterionId)) {
+                state.activeMustDoCriterionId = state.mustDoCriteria[0].id;
+            }
+            if (!state.mustDoHiddenByDate || typeof state.mustDoHiddenByDate !== 'object' || Array.isArray(state.mustDoHiddenByDate)) {
+                state.mustDoHiddenByDate = {};
+            }
+        }
+
+        function getTodayHiddenTasks() {
+            ensureMustDoCriteria();
+            const todayKey = getTodayKey();
+            if (!state.mustDoHiddenByDate[todayKey]) {
+                state.mustDoHiddenByDate[todayKey] = {};
+            }
+            if (!Array.isArray(state.mustDoHiddenByDate[todayKey][state.activeMustDoCriterionId])) {
+                state.mustDoHiddenByDate[todayKey][state.activeMustDoCriterionId] = [];
+            }
+            return state.mustDoHiddenByDate[todayKey][state.activeMustDoCriterionId];
+        }
+
+        function updateMustDoSummary() {
+            mustDoSummary.textContent = `已选 ${state.mustDoTasks.length} / 3 项`;
+        }
+
+        function renderMustDoCriteria() {
+            ensureMustDoCriteria();
+            mustDoCriteriaBar.innerHTML = '';
+            state.mustDoCriteria.forEach(criterion => {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = `must-do-criterion${criterion.id === state.activeMustDoCriterionId ? ' active' : ''}`;
+                button.setAttribute('aria-pressed', criterion.id === state.activeMustDoCriterionId ? 'true' : 'false');
+                button.textContent = criterion.name;
+                button.addEventListener('click', () => {
+                    state.activeMustDoCriterionId = criterion.id;
+                    renderMustDoCriteria();
+                    updateMustDoSummary();
+                    buildMustDoCandidates();
+                    saveState();
+                });
+                mustDoCriteriaBar.appendChild(button);
+            });
+
+            const addButton = document.createElement('button');
+            addButton.type = 'button';
+            addButton.className = 'must-do-criterion add';
+            addButton.setAttribute('aria-label', '新增标准');
+            addButton.title = '新增标准';
+            addButton.textContent = '+';
+            addButton.addEventListener('click', addMustDoCriterion);
+            mustDoCriteriaBar.appendChild(addButton);
+        }
+
+        function addMustDoCriterion() {
+            const name = window.prompt('新的选择标准');
+            if (name === null) return;
+            const trimmedName = name.trim();
+            if (!trimmedName) return;
+
+            ensureMustDoCriteria();
+            const existing = state.mustDoCriteria.find(criterion => criterion.name === trimmedName);
+            if (existing) {
+                state.activeMustDoCriterionId = existing.id;
+            } else {
+                const criterion = { id: createMustDoCriterionId(), name: trimmedName };
+                state.mustDoCriteria.push(criterion);
+                state.activeMustDoCriterionId = criterion.id;
+            }
+            renderMustDoCriteria();
+            updateMustDoSummary();
+            buildMustDoCandidates();
+            saveState();
+        }
+
+        function hideMustDoCandidate(task) {
+            const hiddenTasks = getTodayHiddenTasks();
+            if (!hiddenTasks.includes(task)) {
+                hiddenTasks.push(task);
+            }
+            buildMustDoCandidates();
+            saveState();
+        }
 
         function buildMustDoCandidates() {
             mustDoSelection.innerHTML = '';
             const allTasks = [...new Set([...state.boxTasks, state.nowTask].filter(Boolean))];
-            const tasks = allTasks.filter(task => !mustDoRemovedTasks.includes(task));
+            const hiddenTasks = getTodayHiddenTasks();
+            const tasks = allTasks.filter(task => !hiddenTasks.includes(task));
             tasks.forEach(task => {
                 const selected = state.mustDoTasks.includes(task);
                 const row = document.createElement('div');
@@ -800,7 +1002,9 @@
                     if (state.mustDoTasks.length < 3) {
                         state.mustDoTasks.push(task);
                         buildMustDoCandidates();
-                        mustDoSummary.textContent = `已选 ${state.mustDoTasks.length} / 3 项`;
+                        updateMustDoSummary();
+                        renderMustDoList();
+                        saveState();
                     }
                 });
 
@@ -810,11 +1014,12 @@
                         // 取消选中
                         state.mustDoTasks = state.mustDoTasks.filter(t => t !== task);
                         buildMustDoCandidates();
-                        mustDoSummary.textContent = `已选 ${state.mustDoTasks.length} / 3 项`;
+                        updateMustDoSummary();
+                        renderMustDoList();
+                        saveState();
                     } else {
                         // 移除候选项
-                        mustDoRemovedTasks.push(task);
-                        buildMustDoCandidates();
+                        hideMustDoCandidate(task);
                     }
                 });
 
@@ -823,8 +1028,9 @@
         }
 
         function openMustDoOverlay() {
-            mustDoRemovedTasks = [];
-            mustDoSummary.textContent = `已选 ${state.mustDoTasks.length} / 3 项`;
+            ensureMustDoCriteria();
+            renderMustDoCriteria();
+            updateMustDoSummary();
             buildMustDoCandidates();
             openOverlay(mustDoOverlay);
         }
@@ -1110,16 +1316,7 @@
             try {
                 const text = await file.text();
                 const parsed = JSON.parse(text);
-                state = {
-                    boxTasks: Array.isArray(parsed.boxTasks) ? parsed.boxTasks : [],
-                    completedTasks: Array.isArray(parsed.completedTasks) ? parsed.completedTasks : [],
-                    nowTask: typeof parsed.nowTask === 'string' ? parsed.nowTask : '',
-                    nowTaskStartedAt: Number.isFinite(parsed.nowTaskStartedAt) ? parsed.nowTaskStartedAt : 0,
-                    reflectionNote: typeof parsed.reflectionNote === 'string' ? parsed.reflectionNote : '',
-                    blindboxRejectCount: Number.isFinite(parsed.blindboxRejectCount) ? parsed.blindboxRejectCount : 0,
-                    blindboxCooldownUntil: Number.isFinite(parsed.blindboxCooldownUntil) ? parsed.blindboxCooldownUntil : 0,
-                    mustDoTasks: Array.isArray(parsed.mustDoTasks) ? parsed.mustDoTasks : []
-                };
+                state = normalizeState(parsed);
                 renderNow();
                 renderReflectionFab();
                 closeOverlay(settingsOverlay);
