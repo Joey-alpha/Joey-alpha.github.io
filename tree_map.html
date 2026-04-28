@@ -192,6 +192,7 @@
             line-height: 1.25;
             font-weight: 600;
             margin-bottom: 8px;
+            padding-right: 24px;
             overflow: hidden;
             text-overflow: ellipsis;
             display: -webkit-box;
@@ -199,6 +200,31 @@
             -webkit-box-orient: vertical;
             min-height: 34px;
             word-break: break-word;
+        }
+
+        .impact-chip {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 22px;
+            height: 22px;
+            min-width: 0;
+            padding: 0;
+            border-radius: 999px;
+            font-size: 15px;
+            line-height: 1;
+            font-weight: 900;
+            box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .08);
+        }
+
+        .impact-chip.benefit {
+            background: #ecfdf3;
+            color: #047857;
+        }
+
+        .impact-chip.harm {
+            background: #fff1f2;
+            color: var(--danger);
         }
 
         .progress-label {
@@ -356,6 +382,26 @@
             flex: 1 1 auto;
         }
 
+        .impact-panel {
+            margin-top: 12px;
+        }
+
+        .impact-toggle {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px;
+        }
+
+        .impact-btn.active[data-impact="benefit"] {
+            background: #047857;
+            color: #fff;
+        }
+
+        .impact-btn.active[data-impact="harm"] {
+            background: var(--danger);
+            color: #fff;
+        }
+
         .modal .stats {
             margin-top: 10px;
             font-size: 12px;
@@ -433,6 +479,13 @@
                 <h3>Edit Node</h3>
                 <label for="titleInput">Title</label>
                 <input id="titleInput" type="text" maxlength="120" />
+                <div class="impact-panel" id="parentImpactPanel" hidden>
+                    <label>Parent impact</label>
+                    <div class="impact-toggle" role="group" aria-label="Parent impact">
+                        <button type="button" class="impact-btn" data-impact="benefit">助益</button>
+                        <button type="button" class="impact-btn" data-impact="harm">损害</button>
+                    </div>
+                </div>
                 <div class="row">
                     <button id="plusCountBtn">+1 count</button>
                     <button id="plusTimeBtn">+20 minutes</button>
@@ -476,6 +529,8 @@
             const MINUTES_HALF_LIFE_DAYS = 60;
             const CONSISTENCY_WINDOW_DAYS = 30;
             const MAX_CONSISTENCY_BONUS = 0.25;
+            const PARENT_IMPACT_BENEFIT = 'benefit';
+            const PARENT_IMPACT_HARM = 'harm';
             const LEVEL_THRESHOLDS = [
                 0,
                 2,
@@ -521,6 +576,8 @@
 
             const editorBackdrop = document.getElementById('editorBackdrop');
             const titleInput = document.getElementById('titleInput');
+            const parentImpactPanel = document.getElementById('parentImpactPanel');
+            const parentImpactButtons = Array.from(document.querySelectorAll('[data-impact]'));
             const editorStats = document.getElementById('editorStats');
             const plusCountBtn = document.getElementById('plusCountBtn');
             const plusTimeBtn = document.getElementById('plusTimeBtn');
@@ -551,6 +608,7 @@
                             title: 'Root Topic',
                             activityLog: [],
                             children: [],
+                            parentImpact: PARENT_IMPACT_BENEFIT,
                             collapsed: false,
                         },
                     },
@@ -565,6 +623,7 @@
                         title: node.title,
                         activityLog: Array.isArray(node.activityLog) ? node.activityLog : [],
                         children: Array.isArray(node.children) ? node.children.map(c => c.id) : [],
+                        parentImpact: normalizeParentImpact(node.parentImpact),
                         collapsed: !!node.collapsed,
                     };
                     (node.children || []).forEach(walk);
@@ -585,6 +644,31 @@
             function safeTimestamp(value) {
                 const number = Number(value);
                 return Number.isFinite(number) ? number : Date.now();
+            }
+
+            function normalizeParentImpact(value) {
+                if (
+                    value === PARENT_IMPACT_HARM ||
+                    value === 'damage' ||
+                    value === 'harmful' ||
+                    value === 'bad' ||
+                    value === 'negative'
+                ) {
+                    return PARENT_IMPACT_HARM;
+                }
+                return PARENT_IMPACT_BENEFIT;
+            }
+
+            function isHarmfulNode(node) {
+                return normalizeParentImpact(node && node.parentImpact) === PARENT_IMPACT_HARM;
+            }
+
+            function parentImpactSign(node) {
+                return isHarmfulNode(node) ? -1 : 1;
+            }
+
+            function parentImpactLabel(node) {
+                return isHarmfulNode(node) ? '损害' : '助益';
             }
 
             function loadState() {
@@ -619,6 +703,7 @@
                             }))
                             : [],
                         children: Array.isArray(n.children) ? n.children.filter(cid => typeof cid === 'string') : [],
+                        parentImpact: normalizeParentImpact(n.parentImpact),
                         collapsed: !!n.collapsed,
                     };
                 });
@@ -666,7 +751,14 @@
 
             function addNode(title) {
                 const id = uid();
-                state.nodes[id] = { id, title: title || TITLE_DEFAULT, activityLog: [], children: [], collapsed: false };
+                state.nodes[id] = {
+                    id,
+                    title: title || TITLE_DEFAULT,
+                    activityLog: [],
+                    children: [],
+                    parentImpact: PARENT_IMPACT_BENEFIT,
+                    collapsed: false,
+                };
                 return id;
             }
 
@@ -921,15 +1013,23 @@
                 const node = getNode(id);
                 if (!node) return null;
                 const self = computeSelfMetrics(node);
-                const childMetrics = node.children.map(cid => computeTreeProgress(cid, memo)).filter(Boolean);
+                const childEntries = node.children
+                    .map(cid => ({ node: getNode(cid), metrics: computeTreeProgress(cid, memo) }))
+                    .filter(entry => entry.node && entry.metrics);
                 let points = self.selfPoints;
-                if (childMetrics.length) {
-                    const massSum = childMetrics.reduce((s, m) => s + childMetricWeight(m), 0);
+                if (childEntries.length) {
+                    const massSum = childEntries.reduce((s, entry) => s + childMetricWeight(entry.metrics), 0);
                     const childPointAvg = massSum > 0
-                        ? childMetrics.reduce((s, m) => s + nonNegativeNumber(m.points) * childMetricWeight(m), 0) / massSum
+                        ? childEntries.reduce((s, entry) => {
+                            const signedPoints = nonNegativeNumber(entry.metrics.points) * parentImpactSign(entry.node);
+                            return s + signedPoints * childMetricWeight(entry.metrics);
+                        }, 0) / massSum
                         : 0;
-                    const totalChildren = childMetrics.length;
-                    const activeChildren = childMetrics.filter(m => nonNegativeNumber(m.points) > 0 || nonNegativeNumber(m.activityMass) > 0).length;
+                    const totalChildren = childEntries.length;
+                    const activeChildren = childEntries.filter(entry => {
+                        const metrics = entry.metrics;
+                        return nonNegativeNumber(metrics.points) > 0 || nonNegativeNumber(metrics.activityMass) > 0;
+                    }).length;
                     const coverageFactor = totalChildren > 0
                         ? Math.max(0.6, Math.min(1, 0.6 + 0.4 * (activeChildren / totalChildren)))
                         : 1;
@@ -1162,13 +1262,17 @@
                 return `${formatPoints(info.points)} / ${formatPoints(info.nextMin)} pts`;
             }
 
-            function formatLevelProgress(info) {
-                return `${Math.round(clamp(info.levelPercent, 0, 100))}%`;
-            }
-
             function renderProgressSegments(info) {
                 const fill = clamp(info.levelPercent, 0, 100);
                 return `<div class="progress-segment current" style="--fill:${fill.toFixed(1)}%"></div>`;
+            }
+
+            function renderParentImpactChip(id, node) {
+                if (!findParentId(id)) return '';
+                const harmful = isHarmfulNode(node);
+                const label = harmful ? '损害' : '助益';
+                const title = harmful ? '损害：以负数计入父节点' : '助益：正向计入父节点';
+                return `<button type="button" class="impact-chip ${harmful ? 'harm' : 'benefit'}" data-impact-chip="true" title="${title}" aria-label="${title}">${label === '损害' ? '-' : '+'}</button>`;
             }
             function render() {
                 const progressMemo = new Map();
@@ -1198,13 +1302,14 @@
                     const color = levelColor(levelInfo.level);
                     el.style.setProperty('--level-color', color);
                     const pointTarget = formatPointTarget(levelInfo);
-                    const levelProgress = formatLevelProgress(levelInfo);
+                    const impactChip = renderParentImpactChip(id, node);
 
                     el.innerHTML = `
+  ${impactChip}
   <div class="node-title">${escapeHtml(node.title)}</div>
   <div class="progress-label">
     <span class="level-badge">Lv ${levelInfo.level}</span>
-    <span class="progress-points">${levelProgress} · ${pointTarget}</span>
+    <span class="progress-points">${pointTarget}</span>
   </div>
   <div class="progress">
     ${renderProgressSegments(levelInfo)}
@@ -1220,8 +1325,10 @@
                     const node = getNode(id);
                     if (!node || node.collapsed) continue;
                     node.children.forEach(cid => {
+                        const childNode = getNode(cid);
                         const childPos = layoutMap.get(cid);
                         if (!childPos) return;
+                        const harmful = isHarmfulNode(childNode);
                         const x1 = pos.x + NODE_W / 2;
                         const y1 = pos.y + NODE_H;
                         const x2 = childPos.x + NODE_W / 2;
@@ -1230,8 +1337,9 @@
                         const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
                         path.setAttribute('d', `M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`);
                         path.setAttribute('fill', 'none');
-                        path.setAttribute('stroke', '#cfd5e4');
-                        path.setAttribute('stroke-width', '2');
+                        path.setAttribute('stroke', harmful ? '#d64b4b' : '#cfd5e4');
+                        path.setAttribute('stroke-width', harmful ? '2.5' : '2');
+                        if (harmful) path.setAttribute('stroke-dasharray', '5 5');
                         path.setAttribute('stroke-linecap', 'round');
                         edges.appendChild(path);
                     });
@@ -1274,6 +1382,7 @@
                 el.addEventListener('pointerdown', function (e) {
                     if (e.button !== 0 && e.pointerType !== 'touch') return;
                     if (e.target.classList.contains('toggle-circle')) return;
+                    if (e.target.closest('.impact-chip')) return;
                     e.stopPropagation();
                     selectNode(id);
                     el.setPointerCapture(e.pointerId);
@@ -1360,6 +1469,18 @@
                         }
                     });
                 }
+
+                const impactChip = el.querySelector('.impact-chip');
+                if (impactChip) {
+                    impactChip.addEventListener('click', function (e) {
+                        e.stopPropagation();
+                        selectNode(id);
+                    });
+                    impactChip.addEventListener('dblclick', function (e) {
+                        e.stopPropagation();
+                        toggleParentImpact(id);
+                    });
+                }
             }
 
             function detectDropTarget(clientX, clientY, dragId) {
@@ -1394,12 +1515,45 @@
                 updateStatus();
             }
 
+            function setParentImpact(id, impact) {
+                const node = getNode(id);
+                if (!node || !findParentId(id)) return;
+                node.parentImpact = normalizeParentImpact(impact);
+                persistAndRender();
+                updateParentImpactUI();
+                updateEditorStats();
+            }
+
+            function toggleParentImpact(id) {
+                const node = getNode(id);
+                if (!node || !findParentId(id)) return;
+                const nextImpact = isHarmfulNode(node) ? PARENT_IMPACT_BENEFIT : PARENT_IMPACT_HARM;
+                setParentImpact(id, nextImpact);
+            }
+
+            function updateParentImpactUI() {
+                const node = editingId ? getNode(editingId) : null;
+                const hasParent = !!(editingId && findParentId(editingId));
+                if (!node || !hasParent) {
+                    parentImpactPanel.hidden = true;
+                    return;
+                }
+                const impact = normalizeParentImpact(node.parentImpact);
+                parentImpactPanel.hidden = false;
+                parentImpactButtons.forEach(btn => {
+                    const active = btn.dataset.impact === impact;
+                    btn.classList.toggle('active', active);
+                    btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+                });
+            }
+
             function openEditor(id) {
                 const node = getNode(id);
                 if (!node) return;
                 editingId = id;
                 titleInput.value = node.title;
                 editorBackdrop.classList.add('open');
+                updateParentImpactUI();
                 updateEditorStats();
                 setTimeout(() => {
                     titleInput.focus();
@@ -1418,14 +1572,18 @@
                 const m = computeTreeProgress(editingId, new Map());
                 const levelInfo = getLevelInfo(m.points);
                 const masteryLabel = getMasteryLabel(m.points);
-                editorStats.innerHTML = [
+                const parentId = findParentId(editingId);
+                const stats = [
                     `Level: <strong>Lv ${levelInfo.level}${masteryLabel ? ` · ${masteryLabel}` : ''}</strong> · ${formatPointTarget(levelInfo)}`,
-                    `Level progress: ${m.progress.toFixed(1)}%`,
                     `Raw count: ${m.rawCount.toFixed(0)} · Decayed: ${m.decayedCount.toFixed(1)}`,
                     `Raw minutes: ${m.rawMinutes.toFixed(0)} · Decayed: ${m.decayedMinutes.toFixed(1)}`,
                     `Consistency: ${m.activeDaysLast30}/${CONSISTENCY_WINDOW_DAYS} days · +${(m.consistencyBonus * 100).toFixed(1)}%`,
                     `Freshness: ${(m.freshness * 100).toFixed(0)}%`,
-                ].join('<br>');
+                ];
+                if (parentId) {
+                    stats.splice(1, 0, `Parent impact: <strong>${parentImpactLabel(node)}</strong> · ${isHarmfulNode(node) ? '-' : '+'}${formatPoints(m.points)} pts to parent`);
+                }
+                editorStats.innerHTML = stats.join('<br>');
             }
 
             function saveEditor() {
@@ -1651,6 +1809,11 @@
             });
             plusTimeBtn.addEventListener('click', function () {
                 if (editingId) pushActivity(editingId, 0, 20);
+            });
+            parentImpactButtons.forEach(btn => {
+                btn.addEventListener('click', function () {
+                    if (editingId) setParentImpact(editingId, btn.dataset.impact);
+                });
             });
             saveNodeBtn.addEventListener('click', saveEditor);
             cancelNodeBtn.addEventListener('click', closeEditor);
