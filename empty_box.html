@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>Empty Box Demo</title>
     <style>
         :root {
@@ -211,6 +211,16 @@
             color: inherit;
         }
 
+        .btn.danger {
+            background: #ef4444;
+            border-color: transparent;
+            color: #fff;
+        }
+
+        .btn.danger:hover {
+            filter: brightness(1.05);
+        }
+
         .btn-small {
             padding: 10px 14px;
             border-radius: 12px;
@@ -350,6 +360,9 @@
             flex-wrap: wrap;
             gap: 8px;
             margin-top: 2px;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
         }
 
         .must-do-criterion {
@@ -365,6 +378,8 @@
             touch-action: manipulation;
             user-select: none;
             -webkit-user-select: none;
+            -webkit-touch-callout: none;
+            -webkit-tap-highlight-color: transparent;
             transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
         }
 
@@ -655,7 +670,7 @@
                         <div class="criterion-dialog-message" id="criterionDialogMessage"></div>
                         <div class="actions">
                             <button class="btn primary" id="criterionDialogSaveBtn">确定</button>
-                            <button class="btn secondary" id="criterionDialogDeleteBtn">删除</button>
+                            <button class="btn secondary danger" id="criterionDialogDeleteBtn">删除</button>
                             <button class="btn secondary" id="criterionDialogCancelBtn">取消</button>
                         </div>
                     </div>
@@ -715,6 +730,9 @@
             { id: 'important', name: '重要' }
         ];
         const MUST_DO_CRITERION_LONG_PRESS_MS = 700;
+        const MUST_DO_CRITERION_TOUCH_LONG_PRESS_MS = 520;
+        const MUST_DO_CRITERION_DOUBLE_TAP_MS = 360;
+        const MUST_DO_CRITERION_TAP_MOVE_PX = 12;
 
         const body = document.body;
         const hour = new Date().getHours();
@@ -1132,6 +1150,15 @@
         function bindMustDoCriterionInteractions(button, criterion) {
             let longPressTimer = 0;
             let didLongPress = false;
+            let pressPointerId = null;
+            let pressPointerType = '';
+            let pressStartX = 0;
+            let pressStartY = 0;
+            let touchMoved = false;
+            let lastTouchTap = { ts: 0, x: 0, y: 0 };
+            let ignoreSyntheticClickUntil = 0;
+
+            const isTouchPointer = event => event.pointerType === 'touch' || event.pointerType === 'pen';
 
             const clearLongPress = () => {
                 if (longPressTimer) {
@@ -1141,28 +1168,113 @@
                 button.classList.remove('is-pressing');
             };
 
+            const clearPressState = () => {
+                clearLongPress();
+                pressPointerId = null;
+                pressPointerType = '';
+                touchMoved = false;
+            };
+
+            const releasePointer = event => {
+                if (button.releasePointerCapture && button.hasPointerCapture && button.hasPointerCapture(event.pointerId)) {
+                    button.releasePointerCapture(event.pointerId);
+                }
+            };
+
+            const suppressNativeTouch = event => {
+                event.preventDefault();
+                event.stopPropagation();
+                ignoreSyntheticClickUntil = Date.now() + 700;
+            };
+
+            const removeSelection = () => {
+                const selection = window.getSelection && window.getSelection();
+                if (selection && selection.removeAllRanges) selection.removeAllRanges();
+            };
+
             button.addEventListener('pointerdown', (event) => {
                 if (event.pointerType === 'mouse' && event.button !== 0) return;
+                if (isTouchPointer(event)) suppressNativeTouch(event);
                 didLongPress = false;
+                pressPointerId = event.pointerId;
+                pressPointerType = event.pointerType;
+                pressStartX = event.clientX;
+                pressStartY = event.clientY;
+                touchMoved = false;
                 button.classList.add('is-pressing');
                 if (button.setPointerCapture) {
                     button.setPointerCapture(event.pointerId);
                 }
+                const longPressDelay = isTouchPointer(event)
+                    ? MUST_DO_CRITERION_TOUCH_LONG_PRESS_MS
+                    : MUST_DO_CRITERION_LONG_PRESS_MS;
                 longPressTimer = window.setTimeout(() => {
                     longPressTimer = 0;
                     didLongPress = true;
+                    ignoreSyntheticClickUntil = Date.now() + 700;
+                    removeSelection();
                     button.classList.remove('is-pressing');
                     deleteMustDoCriterion(criterion.id);
-                }, MUST_DO_CRITERION_LONG_PRESS_MS);
+                }, longPressDelay);
             });
 
-            button.addEventListener('pointerup', clearLongPress);
-            button.addEventListener('pointercancel', clearLongPress);
-            button.addEventListener('lostpointercapture', clearLongPress);
+            button.addEventListener('pointermove', (event) => {
+                if (pressPointerId !== event.pointerId) return;
+                const moved = Math.hypot(event.clientX - pressStartX, event.clientY - pressStartY);
+                if (moved > MUST_DO_CRITERION_TAP_MOVE_PX) {
+                    touchMoved = true;
+                    clearLongPress();
+                }
+            });
+
+            button.addEventListener('pointerup', (event) => {
+                if (pressPointerId !== event.pointerId) return;
+                const isTouch = isTouchPointer(event) || pressPointerType === 'touch' || pressPointerType === 'pen';
+                if (isTouch) suppressNativeTouch(event);
+                clearLongPress();
+
+                if (didLongPress) {
+                    didLongPress = false;
+                    releasePointer(event);
+                    clearPressState();
+                    return;
+                }
+
+                if (!isTouch) {
+                    releasePointer(event);
+                    clearPressState();
+                    return;
+                }
+
+                if (touchMoved) {
+                    releasePointer(event);
+                    clearPressState();
+                    return;
+                }
+
+                const now = Date.now();
+                const closeToLastTap = Math.hypot(event.clientX - lastTouchTap.x, event.clientY - lastTouchTap.y) <= MUST_DO_CRITERION_TAP_MOVE_PX;
+                if (lastTouchTap.ts && now - lastTouchTap.ts < MUST_DO_CRITERION_DOUBLE_TAP_MS && closeToLastTap) {
+                    lastTouchTap = { ts: 0, x: 0, y: 0 };
+                    renameMustDoCriterion(criterion.id);
+                } else {
+                    lastTouchTap = { ts: now, x: event.clientX, y: event.clientY };
+                    activateMustDoCriterion(criterion.id);
+                }
+                releasePointer(event);
+                clearPressState();
+            });
+
+            button.addEventListener('pointercancel', (event) => {
+                releasePointer(event);
+                clearPressState();
+            });
+            button.addEventListener('lostpointercapture', clearPressState);
             button.addEventListener('contextmenu', event => event.preventDefault());
+            button.addEventListener('selectstart', event => event.preventDefault());
 
             button.addEventListener('click', (event) => {
-                if (didLongPress) {
+                if (Date.now() < ignoreSyntheticClickUntil || didLongPress) {
                     event.preventDefault();
                     event.stopPropagation();
                     didLongPress = false;
@@ -1174,6 +1286,7 @@
             button.addEventListener('dblclick', (event) => {
                 event.preventDefault();
                 event.stopPropagation();
+                if (Date.now() < ignoreSyntheticClickUntil) return;
                 clearLongPress();
                 renameMustDoCriterion(criterion.id);
             });
