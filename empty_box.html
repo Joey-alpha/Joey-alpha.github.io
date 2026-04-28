@@ -85,6 +85,7 @@
 
         body.night .time-block p,
         body.night .now-task h3.is-empty::before,
+        body.night .criterion-dialog-message,
         body.night .reflection-textarea::placeholder {
             color: #c6d0e7;
         }
@@ -361,7 +362,14 @@
             font-size: 14px;
             line-height: 1;
             padding: 9px 12px;
-            transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+            touch-action: manipulation;
+            user-select: none;
+            -webkit-user-select: none;
+            transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+        }
+
+        .must-do-criterion.is-pressing {
+            transform: scale(0.98);
         }
 
         .must-do-criterion.active {
@@ -373,6 +381,13 @@
         .must-do-criterion.add {
             width: 36px;
             padding-inline: 0;
+        }
+
+        .criterion-dialog-message {
+            margin: 4px 2px 0;
+            color: var(--muted);
+            font-size: 14px;
+            line-height: 1.5;
         }
 
         .must-do-selection {
@@ -630,6 +645,22 @@
                     </div>
                 </div>
 
+                <div class="overlay" id="criterionOverlay">
+                    <div class="overlay-card">
+                        <div class="overlay-head">
+                            <h3 class="overlay-title" id="criterionDialogTitle">标准</h3>
+                            <button class="close-btn" data-close="criterionOverlay">×</button>
+                        </div>
+                        <input class="search-input" id="criterionDialogInput" placeholder="标准名…" />
+                        <div class="criterion-dialog-message" id="criterionDialogMessage"></div>
+                        <div class="actions">
+                            <button class="btn primary" id="criterionDialogSaveBtn">确定</button>
+                            <button class="btn secondary" id="criterionDialogDeleteBtn">删除</button>
+                            <button class="btn secondary" id="criterionDialogCancelBtn">取消</button>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="overlay" id="blindboxOverlay">
                     <div class="overlay-card">
                         <div class="overlay-head">
@@ -683,6 +714,7 @@
             { id: 'urgent', name: '紧急' },
             { id: 'important', name: '重要' }
         ];
+        const MUST_DO_CRITERION_LONG_PRESS_MS = 700;
 
         const body = document.body;
         const hour = new Date().getHours();
@@ -708,6 +740,7 @@
         const blindboxOverlay = document.getElementById('blindboxOverlay');
         const reflectionOverlay = document.getElementById('reflectionOverlay');
         const settingsOverlay = document.getElementById('settingsOverlay');
+        const criterionOverlay = document.getElementById('criterionOverlay');
 
         const searchInput = document.getElementById('searchInput');
         const searchResults = document.getElementById('searchResults');
@@ -726,6 +759,13 @@
         const confirmMustDoBtn = document.getElementById('confirmMustDoBtn');
         const mustDoPanel = document.getElementById('mustDoPanel');
         const mustDoList = document.getElementById('mustDoList');
+
+        const criterionDialogTitle = document.getElementById('criterionDialogTitle');
+        const criterionDialogInput = document.getElementById('criterionDialogInput');
+        const criterionDialogMessage = document.getElementById('criterionDialogMessage');
+        const criterionDialogSaveBtn = document.getElementById('criterionDialogSaveBtn');
+        const criterionDialogDeleteBtn = document.getElementById('criterionDialogDeleteBtn');
+        const criterionDialogCancelBtn = document.getElementById('criterionDialogCancelBtn');
 
         const exportJsonBtn = document.getElementById('exportJsonBtn');
         const importJsonInput = document.getElementById('importJsonInput');
@@ -821,6 +861,8 @@
         let lastCompletedTask = null;
         let shakeThreshold = 15;
         let lastShake = 0;
+        let criterionDialogMode = 'add';
+        let criterionDialogCriterionId = null;
 
         function saveState() {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -926,6 +968,217 @@
             mustDoSummary.textContent = `已选 ${state.mustDoTasks.length} / 3 项`;
         }
 
+        function syncMustDoCriterionActiveState() {
+            mustDoCriteriaBar.querySelectorAll('.must-do-criterion:not(.add)').forEach(button => {
+                const isActive = button.dataset.criterionId === state.activeMustDoCriterionId;
+                button.classList.toggle('active', isActive);
+                button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+            });
+        }
+
+        function refreshMustDoOverlayState() {
+            renderMustDoCriteria();
+            updateMustDoSummary();
+            buildMustDoCandidates();
+            saveState();
+        }
+
+        function activateMustDoCriterion(criterionId) {
+            state.activeMustDoCriterionId = criterionId;
+            syncMustDoCriterionActiveState();
+            updateMustDoSummary();
+            buildMustDoCandidates();
+            saveState();
+        }
+
+        function openCriterionNameDialog(mode, criterion = null) {
+            criterionDialogMode = mode;
+            criterionDialogCriterionId = criterion ? criterion.id : null;
+            criterionDialogTitle.textContent = mode === 'add' ? '新增标准' : '修改标准';
+            criterionDialogInput.style.display = 'block';
+            criterionDialogInput.value = criterion ? criterion.name : '';
+            criterionDialogMessage.textContent = '';
+            criterionDialogSaveBtn.style.display = 'inline-flex';
+            criterionDialogSaveBtn.textContent = mode === 'add' ? '新增' : '保存';
+            criterionDialogDeleteBtn.style.display = 'none';
+            criterionDialogCancelBtn.textContent = '取消';
+            openOverlay(criterionOverlay);
+            criterionDialogInput.focus();
+            criterionDialogInput.select();
+        }
+
+        function openCriterionMessageDialog(title, message) {
+            criterionDialogMode = 'message';
+            criterionDialogCriterionId = null;
+            criterionDialogTitle.textContent = title;
+            criterionDialogInput.style.display = 'none';
+            criterionDialogMessage.textContent = message;
+            criterionDialogSaveBtn.style.display = 'none';
+            criterionDialogDeleteBtn.style.display = 'none';
+            criterionDialogCancelBtn.textContent = '知道了';
+            openOverlay(criterionOverlay);
+        }
+
+        function openCriterionDeleteDialog(criterion) {
+            criterionDialogMode = 'delete';
+            criterionDialogCriterionId = criterion.id;
+            criterionDialogTitle.textContent = '删除标准';
+            criterionDialogInput.style.display = 'none';
+            criterionDialogMessage.textContent = `删除“${criterion.name}”？`;
+            criterionDialogSaveBtn.style.display = 'none';
+            criterionDialogDeleteBtn.style.display = 'inline-flex';
+            criterionDialogCancelBtn.textContent = '取消';
+            openOverlay(criterionOverlay);
+        }
+
+        function closeCriterionDialog() {
+            closeOverlay(criterionOverlay);
+            criterionDialogMessage.textContent = '';
+            criterionDialogCriterionId = null;
+        }
+
+        function showCriterionDialogMessage(message) {
+            criterionDialogMessage.textContent = message;
+        }
+
+        function saveCriterionNameDialog() {
+            const trimmedName = criterionDialogInput.value.trim();
+            if (!trimmedName) {
+                showCriterionDialogMessage('请输入标准名');
+                return;
+            }
+
+            ensureMustDoCriteria();
+
+            if (criterionDialogMode === 'add') {
+                const existing = state.mustDoCriteria.find(criterion => criterion.name === trimmedName);
+                if (existing) {
+                    state.activeMustDoCriterionId = existing.id;
+                } else {
+                    const criterion = { id: createMustDoCriterionId(), name: trimmedName };
+                    state.mustDoCriteria.push(criterion);
+                    state.activeMustDoCriterionId = criterion.id;
+                }
+                closeCriterionDialog();
+                refreshMustDoOverlayState();
+                return;
+            }
+
+            if (criterionDialogMode === 'rename') {
+                const criterion = state.mustDoCriteria.find(item => item.id === criterionDialogCriterionId);
+                if (!criterion) return;
+                if (trimmedName === criterion.name) {
+                    closeCriterionDialog();
+                    return;
+                }
+
+                const duplicate = state.mustDoCriteria.some(item => item.id !== criterion.id && item.name === trimmedName);
+                if (duplicate) {
+                    showCriterionDialogMessage('已经有这个标准');
+                    return;
+                }
+
+                criterion.name = trimmedName;
+                closeCriterionDialog();
+                refreshMustDoOverlayState();
+            }
+        }
+
+        function renameMustDoCriterion(criterionId) {
+            ensureMustDoCriteria();
+            const criterion = state.mustDoCriteria.find(item => item.id === criterionId);
+            if (!criterion) return;
+            openCriterionNameDialog('rename', criterion);
+        }
+
+        function deleteMustDoCriterion(criterionId) {
+            ensureMustDoCriteria();
+            if (state.mustDoCriteria.length <= 1) {
+                openCriterionMessageDialog('不能删除', '至少保留一个标准');
+                return;
+            }
+
+            const criterionIndex = state.mustDoCriteria.findIndex(item => item.id === criterionId);
+            if (criterionIndex === -1) return;
+
+            const criterion = state.mustDoCriteria[criterionIndex];
+            openCriterionDeleteDialog(criterion);
+        }
+
+        function confirmDeleteMustDoCriterion() {
+            ensureMustDoCriteria();
+            const criterionId = criterionDialogCriterionId;
+            const criterionIndex = state.mustDoCriteria.findIndex(item => item.id === criterionId);
+            if (criterionIndex === -1) {
+                closeCriterionDialog();
+                return;
+            }
+
+            state.mustDoCriteria.splice(criterionIndex, 1);
+            Object.values(state.mustDoHiddenByDate).forEach(hiddenByCriterion => {
+                if (hiddenByCriterion && typeof hiddenByCriterion === 'object') {
+                    delete hiddenByCriterion[criterionId];
+                }
+            });
+
+            if (state.activeMustDoCriterionId === criterionId) {
+                const nextCriterion = state.mustDoCriteria[Math.max(0, criterionIndex - 1)] || state.mustDoCriteria[0];
+                state.activeMustDoCriterionId = nextCriterion.id;
+            }
+            closeCriterionDialog();
+            refreshMustDoOverlayState();
+        }
+
+        function bindMustDoCriterionInteractions(button, criterion) {
+            let longPressTimer = 0;
+            let didLongPress = false;
+
+            const clearLongPress = () => {
+                if (longPressTimer) {
+                    window.clearTimeout(longPressTimer);
+                    longPressTimer = 0;
+                }
+                button.classList.remove('is-pressing');
+            };
+
+            button.addEventListener('pointerdown', (event) => {
+                if (event.pointerType === 'mouse' && event.button !== 0) return;
+                didLongPress = false;
+                button.classList.add('is-pressing');
+                if (button.setPointerCapture) {
+                    button.setPointerCapture(event.pointerId);
+                }
+                longPressTimer = window.setTimeout(() => {
+                    longPressTimer = 0;
+                    didLongPress = true;
+                    button.classList.remove('is-pressing');
+                    deleteMustDoCriterion(criterion.id);
+                }, MUST_DO_CRITERION_LONG_PRESS_MS);
+            });
+
+            button.addEventListener('pointerup', clearLongPress);
+            button.addEventListener('pointercancel', clearLongPress);
+            button.addEventListener('lostpointercapture', clearLongPress);
+            button.addEventListener('contextmenu', event => event.preventDefault());
+
+            button.addEventListener('click', (event) => {
+                if (didLongPress) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    didLongPress = false;
+                    return;
+                }
+                activateMustDoCriterion(criterion.id);
+            });
+
+            button.addEventListener('dblclick', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                clearLongPress();
+                renameMustDoCriterion(criterion.id);
+            });
+        }
+
         function renderMustDoCriteria() {
             ensureMustDoCriteria();
             mustDoCriteriaBar.innerHTML = '';
@@ -933,15 +1186,10 @@
                 const button = document.createElement('button');
                 button.type = 'button';
                 button.className = `must-do-criterion${criterion.id === state.activeMustDoCriterionId ? ' active' : ''}`;
+                button.dataset.criterionId = criterion.id;
                 button.setAttribute('aria-pressed', criterion.id === state.activeMustDoCriterionId ? 'true' : 'false');
                 button.textContent = criterion.name;
-                button.addEventListener('click', () => {
-                    state.activeMustDoCriterionId = criterion.id;
-                    renderMustDoCriteria();
-                    updateMustDoSummary();
-                    buildMustDoCandidates();
-                    saveState();
-                });
+                bindMustDoCriterionInteractions(button, criterion);
                 mustDoCriteriaBar.appendChild(button);
             });
 
@@ -956,24 +1204,7 @@
         }
 
         function addMustDoCriterion() {
-            const name = window.prompt('新的选择标准');
-            if (name === null) return;
-            const trimmedName = name.trim();
-            if (!trimmedName) return;
-
-            ensureMustDoCriteria();
-            const existing = state.mustDoCriteria.find(criterion => criterion.name === trimmedName);
-            if (existing) {
-                state.activeMustDoCriterionId = existing.id;
-            } else {
-                const criterion = { id: createMustDoCriterionId(), name: trimmedName };
-                state.mustDoCriteria.push(criterion);
-                state.activeMustDoCriterionId = criterion.id;
-            }
-            renderMustDoCriteria();
-            updateMustDoSummary();
-            buildMustDoCandidates();
-            saveState();
+            openCriterionNameDialog('add');
         }
 
         function hideMustDoCandidate(task) {
@@ -1300,6 +1531,25 @@
 
         undoFab.addEventListener('click', undoLastComplete);
 
+        criterionDialogSaveBtn.addEventListener('click', saveCriterionNameDialog);
+        criterionDialogDeleteBtn.addEventListener('click', confirmDeleteMustDoCriterion);
+        criterionDialogCancelBtn.addEventListener('click', closeCriterionDialog);
+
+        criterionDialogInput.addEventListener('input', () => {
+            criterionDialogMessage.textContent = '';
+        });
+
+        criterionDialogInput.addEventListener('keydown', event => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                saveCriterionNameDialog();
+            }
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                closeCriterionDialog();
+            }
+        });
+
         exportJsonBtn.addEventListener('click', () => {
             const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
@@ -1336,13 +1586,22 @@
         document.querySelectorAll('[data-close]').forEach(btn => {
             btn.addEventListener('click', () => {
                 const target = document.getElementById(btn.dataset.close);
-                closeOverlay(target);
+                if (target === criterionOverlay) {
+                    closeCriterionDialog();
+                } else {
+                    closeOverlay(target);
+                }
             });
         });
 
-        [searchOverlay, addOverlay, blindboxOverlay, reflectionOverlay, settingsOverlay].forEach(overlay => {
+        [searchOverlay, addOverlay, blindboxOverlay, reflectionOverlay, settingsOverlay, criterionOverlay].forEach(overlay => {
             overlay.addEventListener('click', e => {
-                if (e.target === overlay) closeOverlay(overlay);
+                if (e.target !== overlay) return;
+                if (overlay === criterionOverlay) {
+                    closeCriterionDialog();
+                } else {
+                    closeOverlay(overlay);
+                }
             });
         });
 
