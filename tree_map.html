@@ -238,32 +238,21 @@
         }
 
         .progress {
-            display: grid;
-            grid-template-columns: repeat(10, minmax(0, 1fr));
-            gap: 2px;
+            display: block;
             height: 10px;
-            overflow: visible;
+            overflow: hidden;
             position: relative;
+            background: #e4e9f2;
+            border-radius: 999px;
+            box-shadow: inset 0 0 0 1px rgba(32, 44, 68, .05);
         }
 
         .progress-segment {
             height: 100%;
+            width: 100%;
             min-width: 0;
             overflow: hidden;
             position: relative;
-            background: #e4e9f2;
-            border-radius: 2px;
-            box-shadow: inset 0 0 0 1px rgba(32, 44, 68, .05);
-        }
-
-        .progress-segment:first-child {
-            border-top-left-radius: 999px;
-            border-bottom-left-radius: 999px;
-        }
-
-        .progress-segment:last-child {
-            border-top-right-radius: 999px;
-            border-bottom-right-radius: 999px;
         }
 
         .progress-segment::before {
@@ -276,9 +265,7 @@
         }
 
         .progress-segment.current {
-            box-shadow:
-                inset 0 0 0 1px var(--level-color, var(--accent)),
-                0 0 0 1px rgba(255, 255, 255, .92);
+            box-shadow: inset 0 0 0 1px var(--level-color, var(--accent));
         }
 
         .toggle-circle {
@@ -480,18 +467,38 @@
             const NODE_H = 108;
             const H_GAP = 48;
             const V_GAP = 42;
-            const HALF_LIFE = {
-                count: 180,
-                minutes: 120,
-                countWeight: 150,
-                minuteWeight: 100,
-            };
-            const CAPS = { count: 360, minutes: 3840 };
-            const POINT_MINUTES = 20;
-            const LEVEL_COUNT = 10;
-            const LEVEL_EXPONENT = 2;
-            const MAX_LEVEL_POINTS = CAPS.count + CAPS.minutes / POINT_MINUTES;
-            const LEVEL_STARTS = buildLevelStarts();
+            const MAX_COUNT_REF = 360;
+            const MAX_MINUTES_REF = 12000;
+            const MINUTES_PER_POINT = 20;
+            const COUNT_VALUE = 1;
+            const MASTER_THRESHOLD = MAX_COUNT_REF + MAX_MINUTES_REF / MINUTES_PER_POINT;
+            const COUNT_HALF_LIFE_DAYS = 90;
+            const MINUTES_HALF_LIFE_DAYS = 60;
+            const CONSISTENCY_WINDOW_DAYS = 30;
+            const MAX_CONSISTENCY_BONUS = 0.25;
+            const LEVEL_THRESHOLDS = [
+                0,
+                2,
+                5,
+                10,
+                18,
+                30,
+                45,
+                65,
+                90,
+                120,
+                160,
+                210,
+                270,
+                340,
+                420,
+                520,
+                640,
+                780,
+                900,
+                960,
+            ];
+            const LEVEL_COUNT = LEVEL_THRESHOLDS.length;
             const LEVEL_COLORS = [
                 '#64748b',
                 '#2563eb',
@@ -570,6 +577,16 @@
                 return 'n_' + Math.random().toString(36).slice(2, 10);
             }
 
+            function nonNegativeNumber(value) {
+                const number = Number(value);
+                return Number.isFinite(number) && number > 0 ? number : 0;
+            }
+
+            function safeTimestamp(value) {
+                const number = Number(value);
+                return Number.isFinite(number) ? number : Date.now();
+            }
+
             function loadState() {
                 try {
                     const raw = localStorage.getItem(STORAGE_KEY);
@@ -596,9 +613,9 @@
                         title: typeof n.title === 'string' && n.title.trim() ? n.title : TITLE_DEFAULT,
                         activityLog: Array.isArray(n.activityLog)
                             ? n.activityLog.map(a => ({
-                                ts: Number(a.ts) || Date.now(),
-                                count: Math.max(0, Number(a.count) || 0),
-                                minutes: Math.max(0, Number(a.minutes) || 0),
+                                ts: safeTimestamp(a.ts),
+                                count: nonNegativeNumber(a.count),
+                                minutes: nonNegativeNumber(a.minutes),
                             }))
                             : [],
                         children: Array.isArray(n.children) ? n.children.filter(cid => typeof cid === 'string') : [],
@@ -778,11 +795,73 @@
             }
 
             function ageDays(ts) {
-                return Math.max(0, (Date.now() - ts) / 86400000);
+                const time = Number(ts);
+                if (!Number.isFinite(time)) return 0;
+                return Math.max(0, (Date.now() - time) / 86400000);
             }
 
             function decay(days, halfLife) {
-                return Math.pow(0.5, days / halfLife);
+                const safeDays = Math.max(0, Number(days) || 0);
+                const safeHalfLife = Math.max(1, Number(halfLife) || 1);
+                return Math.pow(0.5, safeDays / safeHalfLife);
+            }
+
+            function localDateKey(ts) {
+                const date = new Date(ts);
+                if (Number.isNaN(date.getTime())) return '';
+                const year = date.getFullYear();
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const day = String(date.getDate()).padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            }
+
+            function countActiveDays(entries, windowDays = CONSISTENCY_WINDOW_DAYS) {
+                const activeDays = new Set();
+                const safeEntries = Array.isArray(entries) ? entries : [];
+                safeEntries.forEach(entry => {
+                    const ts = Number(entry.ts);
+                    if (!Number.isFinite(ts) || ageDays(ts) > windowDays) return;
+                    const count = nonNegativeNumber(entry.count);
+                    const minutes = nonNegativeNumber(entry.minutes);
+                    if (count <= 0 && minutes <= 0) return;
+                    const key = localDateKey(ts);
+                    if (key) activeDays.add(key);
+                });
+                return activeDays.size;
+            }
+
+            function clamp(value, min, max) {
+                const number = Number(value);
+                if (!Number.isFinite(number)) return min;
+                return Math.max(min, Math.min(max, number));
+            }
+
+            function getLevelFromPoints(points) {
+                const value = nonNegativeNumber(points);
+                let level = 1;
+                while (level < LEVEL_COUNT && value >= LEVEL_THRESHOLDS[level]) {
+                    level++;
+                }
+                return level;
+            }
+
+            function getProgressRatioFromPoints(points) {
+                const value = nonNegativeNumber(points);
+                const level = getLevelFromPoints(value);
+                if (level >= LEVEL_COUNT) return 1;
+
+                const currentThreshold = LEVEL_THRESHOLDS[level - 1];
+                const nextThreshold = LEVEL_THRESHOLDS[level] || MASTER_THRESHOLD;
+                const span = Math.max(1, nextThreshold - currentThreshold);
+                return clamp((value - currentThreshold) / span, 0, 1);
+            }
+
+            function getProgressFromPoints(points) {
+                return getProgressRatioFromPoints(points) * 100;
+            }
+
+            function childMetricWeight(metric) {
+                return Math.max(0.0001, nonNegativeNumber(metric && metric.activityMass));
             }
 
             function computeSelfMetrics(node) {
@@ -790,32 +869,32 @@
                 let rawMinutes = 0;
                 let decayedCount = 0;
                 let decayedMinutes = 0;
-                let weightedCount = 0;
-                let weightedMinutes = 0;
 
                 for (const entry of node.activityLog) {
                     const days = ageDays(entry.ts);
-                    const count = Math.max(0, Number(entry.count) || 0);
-                    const minutes = Math.max(0, Number(entry.minutes) || 0);
+                    const count = nonNegativeNumber(entry.count);
+                    const minutes = nonNegativeNumber(entry.minutes);
                     rawCount += count;
                     rawMinutes += minutes;
-                    decayedCount += count * decay(days, HALF_LIFE.count);
-                    decayedMinutes += minutes * decay(days, HALF_LIFE.minutes);
-                    weightedCount += count * decay(days, HALF_LIFE.countWeight);
-                    weightedMinutes += minutes * decay(days, HALF_LIFE.minuteWeight);
+                    decayedCount += count * decay(days, COUNT_HALF_LIFE_DAYS);
+                    decayedMinutes += minutes * decay(days, MINUTES_HALF_LIFE_DAYS);
                 }
 
-                const countScore = Math.min(1, decayedCount / CAPS.count);
-                const minuteScore = Math.min(1, decayedMinutes / CAPS.minutes);
-                const countFreshness = rawCount > 0 ? Math.min(1, weightedCount / rawCount) : 0;
-                const minuteFreshness = rawMinutes > 0 ? Math.min(1, weightedMinutes / rawMinutes) : 0;
-                const countWeight = 0.55 * (0.35 + 0.65 * countFreshness);
-                const minuteWeight = 0.45 * (0.35 + 0.65 * minuteFreshness);
+                const countScore = Math.min(1, decayedCount / MAX_COUNT_REF);
+                const minuteScore = Math.min(1, decayedMinutes / MAX_MINUTES_REF);
+                const countFreshness = rawCount > 0 ? Math.min(1, decayedCount / rawCount) : 0;
+                const minuteFreshness = rawMinutes > 0 ? Math.min(1, decayedMinutes / rawMinutes) : 0;
                 const freshness = rawCount + rawMinutes > 0
                     ? (countFreshness * 0.5 + minuteFreshness * 0.5)
                     : 0;
-                const selfProgress = (countScore * countWeight + minuteScore * minuteWeight) * 100;
-                const selfPoints = decayedCount + decayedMinutes / POINT_MINUTES;
+                const basePoints = decayedCount * COUNT_VALUE + decayedMinutes / MINUTES_PER_POINT;
+                const activeDaysLast30 = countActiveDays(node.activityLog);
+                const consistencyBonus = Math.min(
+                    MAX_CONSISTENCY_BONUS,
+                    (activeDaysLast30 / CONSISTENCY_WINDOW_DAYS) * MAX_CONSISTENCY_BONUS
+                );
+                const selfPoints = basePoints * (1 + consistencyBonus);
+                const selfProgress = getProgressFromPoints(selfPoints);
                 const activityMass = countScore + minuteScore + freshness * 0.5;
 
                 return {
@@ -828,6 +907,9 @@
                     countFreshness,
                     minuteFreshness,
                     freshness,
+                    basePoints,
+                    activeDaysLast30,
+                    consistencyBonus,
                     selfProgress,
                     selfPoints,
                     activityMass,
@@ -840,25 +922,26 @@
                 if (!node) return null;
                 const self = computeSelfMetrics(node);
                 const childMetrics = node.children.map(cid => computeTreeProgress(cid, memo)).filter(Boolean);
-                let progress = self.selfProgress;
                 let points = self.selfPoints;
                 if (childMetrics.length) {
-                    const massSum = childMetrics.reduce((s, m) => s + Math.max(0.0001, m.activityMass), 0);
-                    const childAvg = massSum > 0
-                        ? childMetrics.reduce((s, m) => s + m.progress * Math.max(0.0001, m.activityMass), 0) / massSum
-                        : 0;
+                    const massSum = childMetrics.reduce((s, m) => s + childMetricWeight(m), 0);
                     const childPointAvg = massSum > 0
-                        ? childMetrics.reduce((s, m) => s + m.points * Math.max(0.0001, m.activityMass), 0) / massSum
+                        ? childMetrics.reduce((s, m) => s + nonNegativeNumber(m.points) * childMetricWeight(m), 0) / massSum
                         : 0;
-                    const selfWeight = 0.18 + 0.32 * self.freshness;
+                    const totalChildren = childMetrics.length;
+                    const activeChildren = childMetrics.filter(m => nonNegativeNumber(m.points) > 0 || nonNegativeNumber(m.activityMass) > 0).length;
+                    const coverageFactor = totalChildren > 0
+                        ? Math.max(0.6, Math.min(1, 0.6 + 0.4 * (activeChildren / totalChildren)))
+                        : 1;
+                    const selfWeight = 0.15 + 0.25 * self.freshness;
                     const childWeight = 1 - selfWeight;
-                    progress = self.selfProgress * selfWeight + childAvg * childWeight;
-                    points = self.selfPoints * selfWeight + childPointAvg * childWeight;
+                    points = self.selfPoints * selfWeight + childPointAvg * childWeight * coverageFactor;
                 }
+                const safePoints = nonNegativeNumber(points);
                 const result = {
                     ...self,
-                    progress: Math.max(0, Math.min(100, progress)),
-                    points: Math.max(0, points),
+                    progress: getProgressFromPoints(safePoints),
+                    points: safePoints,
                 };
                 memo.set(id, result);
                 return result;
@@ -1039,32 +1122,25 @@
                 view.y = clientY - rect.top - before.y * view.scale;
                 applyView();
             }
-            function buildLevelStarts() {
-                const starts = [0];
-                const denominator = Math.pow(LEVEL_EXPONENT, LEVEL_COUNT - 1) - 1;
-                for (let i = 1; i < LEVEL_COUNT; i++) {
-                    const ratio = (Math.pow(LEVEL_EXPONENT, i) - 1) / denominator;
-                    const scaled = Math.round(MAX_LEVEL_POINTS * ratio);
-                    starts.push(Math.max(starts[i - 1] + 1, scaled));
-                }
-                return starts;
+            function getLevelInfo(points) {
+                const value = nonNegativeNumber(points);
+                const level = getLevelFromPoints(value);
+
+                const currentMin = LEVEL_THRESHOLDS[level - 1];
+                const nextMin = level < LEVEL_COUNT ? LEVEL_THRESHOLDS[level] : MASTER_THRESHOLD;
+                const levelProgress = getProgressRatioFromPoints(value);
+                const levelPercent = levelProgress * 100;
+
+                return { points: value, level, currentMin, nextMin, levelProgress, levelPercent };
             }
 
-            function getLevelInfo(points) {
-                const value = Math.max(0, Number(points) || 0);
-                let level = 1;
-                while (level < LEVEL_COUNT && value >= LEVEL_STARTS[level]) {
-                    level++;
-                }
-
-                const currentMin = LEVEL_STARTS[level - 1];
-                const nextMin = level < LEVEL_COUNT ? LEVEL_STARTS[level] : MAX_LEVEL_POINTS;
-                const span = Math.max(1, nextMin - currentMin);
-                const levelPercent = level === LEVEL_COUNT
-                    ? Math.min(100, value >= currentMin ? 100 : 0)
-                    : Math.max(0, Math.min(100, ((value - currentMin) / span) * 100));
-
-                return { points: value, level, currentMin, nextMin, levelPercent };
+            function getMasteryLabel(points) {
+                const value = nonNegativeNumber(points);
+                if (value >= 4000) return '大师';
+                if (value >= 2500) return '精通 II';
+                if (value >= 1500) return '精通 I';
+                if (value >= MASTER_THRESHOLD) return '熟练';
+                return '';
             }
 
             function levelColor(level) {
@@ -1073,7 +1149,7 @@
             }
 
             function formatPoints(points) {
-                const value = Math.max(0, Number(points) || 0);
+                const value = nonNegativeNumber(points);
                 if (value >= 100) return String(Math.round(value));
                 if (value >= 10) return value.toFixed(1).replace(/\.0$/, '');
                 return value.toFixed(1).replace(/\.0$/, '');
@@ -1086,15 +1162,13 @@
                 return `${formatPoints(info.points)} / ${formatPoints(info.nextMin)} pts`;
             }
 
+            function formatLevelProgress(info) {
+                return `${Math.round(clamp(info.levelPercent, 0, 100))}%`;
+            }
+
             function renderProgressSegments(info) {
-                let html = '';
-                for (let i = 1; i <= LEVEL_COUNT; i++) {
-                    const fill = i < info.level ? 100 : (i === info.level ? info.levelPercent : 0);
-                    const classes = ['progress-segment'];
-                    if (i === info.level) classes.push('current');
-                    html += `<div class="${classes.join(' ')}" style="--fill:${fill.toFixed(1)}%"></div>`;
-                }
-                return html;
+                const fill = clamp(info.levelPercent, 0, 100);
+                return `<div class="progress-segment current" style="--fill:${fill.toFixed(1)}%"></div>`;
             }
             function render() {
                 const progressMemo = new Map();
@@ -1124,12 +1198,13 @@
                     const color = levelColor(levelInfo.level);
                     el.style.setProperty('--level-color', color);
                     const pointTarget = formatPointTarget(levelInfo);
+                    const levelProgress = formatLevelProgress(levelInfo);
 
                     el.innerHTML = `
   <div class="node-title">${escapeHtml(node.title)}</div>
   <div class="progress-label">
     <span class="level-badge">Lv ${levelInfo.level}</span>
-    <span class="progress-points">${pointTarget}</span>
+    <span class="progress-points">${levelProgress} · ${pointTarget}</span>
   </div>
   <div class="progress">
     ${renderProgressSegments(levelInfo)}
@@ -1174,7 +1249,8 @@
                 }
                 const metrics = computeTreeProgress(selectedId, new Map());
                 const levelInfo = getLevelInfo(metrics.points);
-                statusText.textContent = `${node.title} · Lv ${levelInfo.level} · ${formatPoints(metrics.points)} pts`;
+                const masteryLabel = getMasteryLabel(metrics.points);
+                statusText.textContent = `${node.title} · Lv ${levelInfo.level}${masteryLabel ? ` · ${masteryLabel}` : ''} · ${formatPoints(metrics.points)} pts`;
             }
 
             function attachNodeEvents(el, id) {
@@ -1341,11 +1417,13 @@
                 if (!node) return;
                 const m = computeTreeProgress(editingId, new Map());
                 const levelInfo = getLevelInfo(m.points);
+                const masteryLabel = getMasteryLabel(m.points);
                 editorStats.innerHTML = [
-                    `Level: <strong>Lv ${levelInfo.level}</strong> · ${formatPointTarget(levelInfo)}`,
-                    `Progress: ${m.progress.toFixed(1)}%`,
+                    `Level: <strong>Lv ${levelInfo.level}${masteryLabel ? ` · ${masteryLabel}` : ''}</strong> · ${formatPointTarget(levelInfo)}`,
+                    `Level progress: ${m.progress.toFixed(1)}%`,
                     `Raw count: ${m.rawCount.toFixed(0)} · Decayed: ${m.decayedCount.toFixed(1)}`,
                     `Raw minutes: ${m.rawMinutes.toFixed(0)} · Decayed: ${m.decayedMinutes.toFixed(1)}`,
+                    `Consistency: ${m.activeDaysLast30}/${CONSISTENCY_WINDOW_DAYS} days · +${(m.consistencyBonus * 100).toFixed(1)}%`,
                     `Freshness: ${(m.freshness * 100).toFixed(0)}%`,
                 ].join('<br>');
             }
