@@ -160,6 +160,7 @@
             -webkit-user-select: none;
             -webkit-touch-callout: none;
             touch-action: none;
+            cursor: pointer;
             transition: box-shadow .12s ease, border-color .12s ease, transform .12s ease;
         }
 
@@ -475,8 +476,8 @@
         </div>
 
         <div class="hint">
-            Click to select. Double click or second tap to edit. Enter edit · Tab child · Delete remove · Space
-            collapse. Drag
+            Click card to collapse / expand. Double click or second tap to edit. Enter edit · Tab child · Delete
+            remove · Space collapse. Drag
             nodes to re-parent or reorder. Wheel / pinch to zoom, drag background to pan.
         </div>
 
@@ -602,9 +603,15 @@
             let dragState = null;
             let panState = null;
             let tapInfo = { id: null, ts: 0 };
+            let nodeClickTimer = 0;
+            let pendingNodeClick = null;
+            let recentNodeSingleToggle = null;
+            let ignoreNodeClickUntil = 0;
             let pinchState = null;
             const CHIP_DOUBLE_TAP_MS = 360;
             const CHIP_TAP_MOVE_PX = 12;
+            const NODE_EDIT_TAP_MS = 420;
+            const NODE_SINGLE_CLICK_DELAY_MS = 260;
 
             function createSampleState() {
                 const rootId = uid();
@@ -892,6 +899,74 @@
             function persistAndRender() {
                 saveState();
                 render();
+            }
+
+            function clearPendingNodeClick() {
+                if (nodeClickTimer) {
+                    window.clearTimeout(nodeClickTimer);
+                    nodeClickTimer = 0;
+                }
+                pendingNodeClick = null;
+            }
+
+            function toggleNodeCollapse(id) {
+                const node = getNode(id);
+                if (!node || !node.children.length) return false;
+                trackNodePosition(id);
+                node.collapsed = !node.collapsed;
+                persistAndRender();
+                adjustViewAfterLayoutChange();
+                return true;
+            }
+
+            function scheduleNodeSingleClick(id, clickedAt) {
+                clearPendingNodeClick();
+                pendingNodeClick = { id, clickedAt };
+                nodeClickTimer = window.setTimeout(() => {
+                    const pending = pendingNodeClick;
+                    nodeClickTimer = 0;
+                    pendingNodeClick = null;
+                    if (!pending || pending.id !== id) return;
+
+                    const node = getNode(id);
+                    const previousCollapsed = !!(node && node.collapsed);
+                    const toggled = toggleNodeCollapse(id);
+                    recentNodeSingleToggle = toggled
+                        ? { id, clickedAt, previousCollapsed }
+                        : null;
+                }, NODE_SINGLE_CLICK_DELAY_MS);
+            }
+
+            function restoreRecentNodeSingleToggle(id, now) {
+                if (
+                    !recentNodeSingleToggle ||
+                    recentNodeSingleToggle.id !== id ||
+                    now - recentNodeSingleToggle.clickedAt > NODE_EDIT_TAP_MS
+                ) {
+                    recentNodeSingleToggle = null;
+                    return;
+                }
+
+                const node = getNode(id);
+                if (node && node.children.length) {
+                    trackNodePosition(id);
+                    node.collapsed = recentNodeSingleToggle.previousCollapsed;
+                    persistAndRender();
+                    adjustViewAfterLayoutChange();
+                }
+                recentNodeSingleToggle = null;
+            }
+
+            function openEditorFromNodeGesture(id) {
+                const now = Date.now();
+                clearPendingNodeClick();
+                restoreRecentNodeSingleToggle(id, now);
+                tapInfo = { id: null, ts: 0 };
+                openEditor(id);
+            }
+
+            function closestElement(target, selector) {
+                return target instanceof Element ? target.closest(selector) : null;
             }
 
             function ageDays(ts) {
@@ -1372,25 +1447,30 @@
             function attachNodeEvents(el, id) {
                 el.addEventListener('click', function (e) {
                     e.stopPropagation();
+                    if (Date.now() < ignoreNodeClickUntil) {
+                        e.preventDefault();
+                        return;
+                    }
+                    if (closestElement(e.target, '.impact-chip') || closestElement(e.target, '.toggle-circle')) return;
                     selectNode(id);
                     const now = Date.now();
-                    if (tapInfo.id === id && now - tapInfo.ts < 420) {
-                        openEditor(id);
-                        tapInfo = { id: null, ts: 0 };
-                    } else {
-                        tapInfo = { id, ts: now };
+                    if (e.detail > 1 || (tapInfo.id === id && now - tapInfo.ts < NODE_EDIT_TAP_MS)) {
+                        openEditorFromNodeGesture(id);
+                        return;
                     }
+                    tapInfo = { id, ts: now };
+                    scheduleNodeSingleClick(id, now);
                 });
 
                 el.addEventListener('dblclick', function (e) {
                     e.stopPropagation();
-                    openEditor(id);
+                    openEditorFromNodeGesture(id);
                 });
 
                 el.addEventListener('pointerdown', function (e) {
                     if (e.button !== 0 && e.pointerType !== 'touch') return;
-                    if (e.target.classList.contains('toggle-circle')) return;
-                    if (e.target.closest('.impact-chip')) return;
+                    if (closestElement(e.target, '.toggle-circle')) return;
+                    if (closestElement(e.target, '.impact-chip')) return;
                     e.stopPropagation();
                     selectNode(id);
                     el.setPointerCapture(e.pointerId);
@@ -1441,8 +1521,14 @@
                     el.releasePointerCapture(e.pointerId);
                     el.classList.remove('dragging');
                     el.style.zIndex = '';
+                    const wasDragging = dragState.dragging;
+                    if (wasDragging) {
+                        ignoreNodeClickUntil = Date.now() + 500;
+                        clearPendingNodeClick();
+                        tapInfo = { id: null, ts: 0 };
+                    }
 
-                    if (dragState.dragging && dragState.dropTargetId) {
+                    if (wasDragging && dragState.dropTargetId) {
                         moveNode(id, dragState.dropTargetId, dragState.dropMode);
                     } else {
                         el.style.left = dragState.originLeft + 'px';
@@ -1456,6 +1542,11 @@
                 el.addEventListener('pointercancel', function () {
                     el.classList.remove('dragging');
                     el.style.zIndex = '';
+                    if (dragState && dragState.dragging) {
+                        ignoreNodeClickUntil = Date.now() + 500;
+                        clearPendingNodeClick();
+                        tapInfo = { id: null, ts: 0 };
+                    }
                     if (dragState) {
                         el.style.left = dragState.originLeft + 'px';
                         el.style.top = dragState.originTop + 'px';
@@ -1468,13 +1559,7 @@
                 if (toggleCircle) {
                     toggleCircle.addEventListener('click', function (e) {
                         e.stopPropagation();
-                        const node = getNode(id);
-                        if (node && node.children.length > 0) {
-                            trackNodePosition(id); // 跟踪母节点位置
-                            node.collapsed = !node.collapsed;
-                            persistAndRender();
-                            adjustViewAfterLayoutChange();
-                        }
+                        toggleNodeCollapse(id);
                     });
                 }
 
@@ -1952,13 +2037,7 @@
                     deleteNode(selectedId);
                 } else if (e.key === ' ') {
                     e.preventDefault();
-                    const node = getNode(selectedId);
-                    if (node) {
-                        trackNodePosition(selectedId); // 跟踪母节点位置
-                        node.collapsed = !node.collapsed;
-                        persistAndRender();
-                        adjustViewAfterLayoutChange();
-                    }
+                    toggleNodeCollapse(selectedId);
                 }
             });
 
