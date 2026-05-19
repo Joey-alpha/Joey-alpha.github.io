@@ -145,7 +145,19 @@
                                     <button class="btn secondary" id="newLocalSpaceBtn">新建本地</button>
                                     <button class="btn secondary" id="newCloudSpaceBtn">新建云端</button>
                                     <button class="btn secondary" id="refreshCloudSpacesBtn">刷新云端</button>
+                                    <button class="btn secondary danger" id="deleteSpaceBtn">删除当前</button>
                                 </div>
+                            </div>
+                            <div class="settings-row">
+                                <div class="settings-label">迁移 Notes</div>
+                                <div class="space-transfer-grid">
+                                    <select class="settings-select" id="migrateSourceSpaceSelect"></select>
+                                    <select class="settings-select" id="migrateTargetSpaceSelect"></select>
+                                </div>
+                                <div class="settings-inline">
+                                    <button class="btn primary" id="transferSpaceNotesBtn">迁移到目标</button>
+                                </div>
+                                <div class="settings-status" id="spaceTransferStatus"></div>
                             </div>
                             <div class="settings-row">
                                 <div class="settings-label">备份</div>
@@ -190,6 +202,20 @@
                         <div class="actions">
                             <button class="btn primary" id="spaceNameConfirmBtn">创建</button>
                             <button class="btn secondary" id="spaceNameCancelBtn">取消</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="overlay" id="confirmOverlay">
+                    <div class="overlay-card confirm-card">
+                        <div class="overlay-head">
+                            <h3 class="overlay-title" id="confirmTitle">确认</h3>
+                            <button class="close-btn" data-close="confirmOverlay">×</button>
+                        </div>
+                        <div class="confirm-message" id="confirmMessage"></div>
+                        <div class="actions">
+                            <button class="btn primary" id="confirmAcceptBtn">确定</button>
+                            <button class="btn secondary" id="confirmCancelBtn">取消</button>
                         </div>
                     </div>
                 </div>

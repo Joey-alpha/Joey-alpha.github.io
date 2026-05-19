@@ -45,6 +45,7 @@
     const criterionOverlay = document.getElementById('criterionOverlay');
     const migrationOverlay = document.getElementById('migrationOverlay');
     const spaceNameOverlay = document.getElementById('spaceNameOverlay');
+    const confirmOverlay = document.getElementById('confirmOverlay');
 
     const searchInput = document.getElementById('searchInput');
     const searchResults = document.getElementById('searchResults');
@@ -77,6 +78,11 @@
     const newLocalSpaceBtn = document.getElementById('newLocalSpaceBtn');
     const newCloudSpaceBtn = document.getElementById('newCloudSpaceBtn');
     const refreshCloudSpacesBtn = document.getElementById('refreshCloudSpacesBtn');
+    const deleteSpaceBtn = document.getElementById('deleteSpaceBtn');
+    const migrateSourceSpaceSelect = document.getElementById('migrateSourceSpaceSelect');
+    const migrateTargetSpaceSelect = document.getElementById('migrateTargetSpaceSelect');
+    const transferSpaceNotesBtn = document.getElementById('transferSpaceNotesBtn');
+    const spaceTransferStatus = document.getElementById('spaceTransferStatus');
     const spaceStatus = document.getElementById('spaceStatus');
     const migrateLocalBtn = document.getElementById('migrateLocalBtn');
     const migrateCloudBtn = document.getElementById('migrateCloudBtn');
@@ -88,6 +94,10 @@
     const spaceNameMessage = document.getElementById('spaceNameMessage');
     const spaceNameConfirmBtn = document.getElementById('spaceNameConfirmBtn');
     const spaceNameCancelBtn = document.getElementById('spaceNameCancelBtn');
+    const confirmTitle = document.getElementById('confirmTitle');
+    const confirmMessage = document.getElementById('confirmMessage');
+    const confirmAcceptBtn = document.getElementById('confirmAcceptBtn');
+    const confirmCancelBtn = document.getElementById('confirmCancelBtn');
 
     function cloneDefaultMustDoCriteria() {
         return DEFAULT_MUST_DO_CRITERIA.map(criterion => ({ ...criterion }));
@@ -185,6 +195,7 @@
     let pendingSpaceMode = 'local_only';
     let isBooting = true;
     let activeLegacyMode = false;
+    let pendingConfirmResolve = null;
 
     function createId(prefix) {
         if (crypto && crypto.randomUUID) return crypto.randomUUID();
@@ -343,6 +354,41 @@
             return space;
         },
 
+        getSpaceById(spaceId) {
+            return this.getSpaces().find(item => item.id === spaceId) || null;
+        },
+
+        async getSpaceState(space) {
+            if (!space) return createEmptyState();
+            if (space.storage_mode === 'cloud_sync') {
+                return this.getCloudState(space);
+            }
+            return normalizeState(readJson(spaceStateKey(space.id), {}));
+        },
+
+        async saveStateToSpace(nextState, space) {
+            if (!space) return;
+            const normalized = normalizeState(nextState);
+            if (space.storage_mode === 'cloud_sync') {
+                await this.saveCloudState(normalized, space);
+            } else {
+                writeJson(spaceStateKey(space.id), normalized);
+            }
+            localStorage.setItem(UPDATE_PING_KEY, String(Date.now()));
+        },
+
+        async clearSpaceState(space) {
+            if (!space) return;
+            if (space.storage_mode === 'cloud_sync') {
+                await supabaseRequest(`notes?space_id=eq.${encodeURIComponent(space.id)}`, {
+                    method: 'DELETE'
+                });
+            } else {
+                localStorage.removeItem(spaceStateKey(space.id));
+            }
+            localStorage.setItem(UPDATE_PING_KEY, String(Date.now()));
+        },
+
         async getCurrentState() {
             const space = this.getCurrentSpace();
             if (!space) {
@@ -457,6 +503,68 @@
             return supabaseRequest(`notes?id=eq.${encodeURIComponent(noteId)}`, {
                 method: 'DELETE'
             });
+        },
+
+        async assertCloudSpaceDeleted(spaceId) {
+            const [remainingNotes, remainingSpaces] = await Promise.all([
+                supabaseRequest(`notes?space_id=eq.${encodeURIComponent(spaceId)}&select=id&limit=1`),
+                supabaseRequest(`spaces?id=eq.${encodeURIComponent(spaceId)}&select=id&limit=1`)
+            ]);
+            if ((Array.isArray(remainingNotes) && remainingNotes.length) ||
+                (Array.isArray(remainingSpaces) && remainingSpaces.length)) {
+                throw new Error('云端删除未生效：请检查 Supabase spaces/notes 表的 DELETE policy 或外键约束。');
+            }
+        },
+
+        async deleteSpace(spaceId) {
+            const space = this.getSpaceById(spaceId);
+            if (!space) return null;
+
+            if (space.storage_mode === 'cloud_sync') {
+                await supabaseRequest(`notes?space_id=eq.${encodeURIComponent(space.id)}`, {
+                    method: 'DELETE',
+                    headers: { Prefer: 'return=representation' }
+                });
+                await supabaseRequest(`spaces?id=eq.${encodeURIComponent(space.id)}`, {
+                    method: 'DELETE',
+                    headers: { Prefer: 'return=representation' }
+                });
+                await this.assertCloudSpaceDeleted(space.id);
+            } else {
+                localStorage.removeItem(spaceStateKey(space.id));
+            }
+
+            const nextSpaces = this.getSpaces().filter(item => item.id !== space.id);
+            this.saveSpaces(nextSpaces);
+
+            if (localStorage.getItem(CURRENT_SPACE_ID_KEY) === space.id) {
+                const fallback = nextSpaces.find(item => item.storage_mode === 'local_only') || nextSpaces[0] || null;
+                if (fallback) {
+                    await this.setCurrentSpace(fallback.id);
+                } else {
+                    localStorage.removeItem(CURRENT_SPACE_ID_KEY);
+                    localStorage.removeItem(CURRENT_STORAGE_MODE_KEY);
+                    activeLegacyMode = false;
+                }
+            }
+
+            localStorage.setItem(UPDATE_PING_KEY, String(Date.now()));
+            return space;
+        },
+
+        async transferSpaceNotes(sourceSpaceId, targetSpaceId) {
+            const source = this.getSpaceById(sourceSpaceId);
+            const target = this.getSpaceById(targetSpaceId);
+            if (!source || !target) throw new Error('请选择有效的源 Space 和目标 Space');
+            if (source.id === target.id) throw new Error('源 Space 和目标 Space 不能相同');
+
+            const sourceState = await this.getSpaceState(source);
+            const targetState = await this.getSpaceState(target);
+            const merged = mergeStates(targetState, sourceState);
+            await this.saveStateToSpace(merged, target);
+            await this.clearSpaceState(source);
+            await this.setCurrentSpace(target.id);
+            return { source, target, state: merged };
         },
 
         async migrateLegacyData(mode) {
@@ -587,6 +695,30 @@
 
     function closeOverlay(el) {
         el.classList.remove('active');
+    }
+
+    function closeConfirmDialog(result = false) {
+        closeOverlay(confirmOverlay);
+        if (pendingConfirmResolve) {
+            pendingConfirmResolve(result);
+            pendingConfirmResolve = null;
+        }
+    }
+
+    function openConfirmDialog({ title, message, confirmText = '确定', danger = false }) {
+        if (pendingConfirmResolve) {
+            pendingConfirmResolve(false);
+            pendingConfirmResolve = null;
+        }
+        confirmTitle.textContent = title;
+        confirmMessage.textContent = message;
+        confirmAcceptBtn.textContent = confirmText;
+        confirmAcceptBtn.classList.toggle('danger', danger);
+        openOverlay(confirmOverlay);
+        confirmAcceptBtn.focus();
+        return new Promise(resolve => {
+            pendingConfirmResolve = resolve;
+        });
     }
 
     function renderMustDoList() {
@@ -1210,6 +1342,8 @@
         const spaces = StorageService.getSpaces();
         const current = StorageService.getCurrentSpace();
         spaceSelect.innerHTML = '';
+        migrateSourceSpaceSelect.innerHTML = '';
+        migrateTargetSpaceSelect.innerHTML = '';
 
         if (!spaces.length) {
             const option = document.createElement('option');
@@ -1224,7 +1358,28 @@
             option.textContent = `${space.name} · ${space.storage_mode === 'cloud_sync' ? '云端同步' : '本地'}`;
             option.selected = current && current.id === space.id;
             spaceSelect.appendChild(option);
+
+            const sourceOption = option.cloneNode(true);
+            const targetOption = option.cloneNode(true);
+            sourceOption.textContent = `从：${option.textContent}`;
+            targetOption.textContent = `到：${option.textContent}`;
+            sourceOption.selected = current && current.id === space.id;
+            targetOption.selected = false;
+            migrateSourceSpaceSelect.appendChild(sourceOption);
+            migrateTargetSpaceSelect.appendChild(targetOption);
         });
+
+        if (spaces.length) {
+            const defaultTarget = spaces.find(space => !current || space.id !== current.id) || spaces[0];
+            migrateTargetSpaceSelect.value = defaultTarget.id;
+        } else {
+            const sourcePlaceholder = document.createElement('option');
+            sourcePlaceholder.value = '';
+            sourcePlaceholder.textContent = '没有可迁移的 Space';
+            migrateSourceSpaceSelect.appendChild(sourcePlaceholder);
+            const targetPlaceholder = sourcePlaceholder.cloneNode(true);
+            migrateTargetSpaceSelect.appendChild(targetPlaceholder);
+        }
 
         const mode = current ? current.storage_mode : 'legacy_local';
         const label = mode === 'cloud_sync' ? '云端同步' : mode === 'local_only' ? '仅本地' : '旧本地数据';
@@ -1232,6 +1387,13 @@
         const localCount = spaces.filter(space => space.storage_mode === 'local_only').length;
         const currentName = current ? current.name : '未选择';
         spaceStatus.textContent = `${currentName} · ${label} · 本地 ${localCount} / 云端 ${cloudCount}`;
+        deleteSpaceBtn.disabled = !current;
+        transferSpaceNotesBtn.disabled = spaces.length < 2;
+        if (!spaceTransferStatus.textContent && spaces.length < 2) {
+            spaceTransferStatus.textContent = '至少需要两个 Space 才能迁移。';
+        } else if (spaces.length >= 2 && spaceTransferStatus.textContent === '至少需要两个 Space 才能迁移。') {
+            spaceTransferStatus.textContent = '';
+        }
     }
 
     async function refreshCloudSpaces(showStatus = false) {
@@ -1296,6 +1458,81 @@
         } catch (error) {
             console.error(error);
             spaceNameMessage.textContent = `创建失败：${formatErrorMessage(error)}`;
+        }
+    }
+
+    async function transferSelectedSpaceNotes() {
+        const sourceId = migrateSourceSpaceSelect.value;
+        const targetId = migrateTargetSpaceSelect.value;
+        const source = StorageService.getSpaceById(sourceId);
+        const target = StorageService.getSpaceById(targetId);
+        if (!source || !target) {
+            spaceTransferStatus.textContent = '请选择源 Space 和目标 Space。';
+            return;
+        }
+        if (source.id === target.id) {
+            spaceTransferStatus.textContent = '源 Space 和目标 Space 不能相同。';
+            return;
+        }
+
+        const ok = await openConfirmDialog({
+            title: '迁移 Notes',
+            message: `把“${source.name}”的 Notes 迁移到“${target.name}”？迁移后源 Space 会被清空。`,
+            confirmText: '开始迁移'
+        });
+        if (!ok) return;
+
+        try {
+            transferSpaceNotesBtn.disabled = true;
+            spaceTransferStatus.textContent = '正在迁移...';
+            const result = await StorageService.transferSpaceNotes(source.id, target.id);
+            state = result.state;
+            renderSpaceSettings();
+            renderNow();
+            spaceTransferStatus.textContent = `已迁移到“${target.name}”，源 Space 已清空。`;
+        } catch (error) {
+            console.error(error);
+            spaceTransferStatus.textContent = `迁移失败：${formatErrorMessage(error)}`;
+            renderSpaceSettings();
+        }
+    }
+
+    async function deleteCurrentSpace() {
+        const current = StorageService.getCurrentSpace();
+        if (!current) {
+            spaceStatus.textContent = '当前没有可删除的 Space。';
+            return;
+        }
+
+        const ok = await openConfirmDialog({
+            title: '删除 Space',
+            message: `删除“${current.name}”？这个 Space 里的 Notes 也会一起删除。`,
+            confirmText: '删除',
+            danger: true
+        });
+        if (!ok) return;
+
+        try {
+            deleteSpaceBtn.disabled = true;
+            spaceStatus.textContent = '正在删除 Space...';
+            const deleted = await StorageService.deleteSpace(current.id);
+            const nextCurrent = StorageService.getCurrentSpace();
+            if (!nextCurrent) {
+                await StorageService.createSpace({
+                    name: '默认本地 Space',
+                    storage_mode: 'local_only',
+                    initialState: createEmptyState()
+                });
+            }
+            state = await StorageService.getCurrentState();
+            lastCompletedTask = null;
+            renderSpaceSettings();
+            renderNow();
+            spaceStatus.textContent = `已删除“${deleted.name}”。`;
+        } catch (error) {
+            console.error(error);
+            spaceStatus.textContent = `删除失败：${formatErrorMessage(error)}`;
+            renderSpaceSettings();
         }
     }
 
@@ -1462,6 +1699,18 @@
     newLocalSpaceBtn.addEventListener('click', () => openSpaceNameDialog('local_only'));
     newCloudSpaceBtn.addEventListener('click', () => openSpaceNameDialog('cloud_sync'));
     refreshCloudSpacesBtn.addEventListener('click', () => refreshCloudSpaces(true));
+    deleteSpaceBtn.addEventListener('click', deleteCurrentSpace);
+    transferSpaceNotesBtn.addEventListener('click', transferSelectedSpaceNotes);
+    migrateSourceSpaceSelect.addEventListener('change', () => {
+        spaceTransferStatus.textContent = '';
+        if (migrateSourceSpaceSelect.value === migrateTargetSpaceSelect.value) {
+            const target = StorageService.getSpaces().find(space => space.id !== migrateSourceSpaceSelect.value);
+            if (target) migrateTargetSpaceSelect.value = target.id;
+        }
+    });
+    migrateTargetSpaceSelect.addEventListener('change', () => {
+        spaceTransferStatus.textContent = '';
+    });
     spaceNameConfirmBtn.addEventListener('click', createNamedSpace);
     spaceNameCancelBtn.addEventListener('click', closeSpaceNameDialog);
     spaceNameInput.addEventListener('input', () => {
@@ -1490,6 +1739,8 @@
     criterionDialogSaveBtn.addEventListener('click', saveCriterionNameDialog);
     criterionDialogDeleteBtn.addEventListener('click', confirmDeleteMustDoCriterion);
     criterionDialogCancelBtn.addEventListener('click', closeCriterionDialog);
+    confirmAcceptBtn.addEventListener('click', () => closeConfirmDialog(true));
+    confirmCancelBtn.addEventListener('click', () => closeConfirmDialog(false));
 
     criterionDialogInput.addEventListener('input', () => {
         criterionDialogMessage.textContent = '';
@@ -1548,19 +1799,23 @@
                 closeCriterionDialog();
             } else if (target === spaceNameOverlay) {
                 closeSpaceNameDialog();
+            } else if (target === confirmOverlay) {
+                closeConfirmDialog(false);
             } else {
                 closeOverlay(target);
             }
         });
     });
 
-    [searchOverlay, addOverlay, blindboxOverlay, reflectionOverlay, settingsOverlay, criterionOverlay, migrationOverlay, spaceNameOverlay].forEach(overlay => {
+    [searchOverlay, addOverlay, blindboxOverlay, reflectionOverlay, settingsOverlay, criterionOverlay, migrationOverlay, spaceNameOverlay, confirmOverlay].forEach(overlay => {
         overlay.addEventListener('click', e => {
             if (e.target !== overlay) return;
             if (overlay === criterionOverlay) {
                 closeCriterionDialog();
             } else if (overlay === spaceNameOverlay) {
                 closeSpaceNameDialog();
+            } else if (overlay === confirmOverlay) {
+                closeConfirmDialog(false);
             } else {
                 closeOverlay(overlay);
             }

@@ -215,6 +215,11 @@
         filter: brightness(1.05);
     }
 
+    .btn:disabled {
+        opacity: 0.42;
+        cursor: default;
+    }
+
     .btn-small {
         padding: 10px 14px;
         border-radius: 12px;
@@ -261,6 +266,12 @@
         padding: 10px 12px;
         border-radius: 12px;
         font-size: 14px;
+    }
+
+    .space-transfer-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
     }
 
     .space-summary {
@@ -455,6 +466,17 @@
         line-height: 1.5;
     }
 
+    .confirm-card {
+        width: min(420px, 100%);
+    }
+
+    .confirm-message {
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.6;
+        word-break: break-word;
+    }
+
     .must-do-selection {
         display: grid;
         gap: 10px;
@@ -626,5 +648,9 @@
         .fab-group {
             right: 18px;
             bottom: 18px;
+        }
+
+        .space-transfer-grid {
+            grid-template-columns: 1fr;
         }
     }
