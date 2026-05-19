@@ -560,7 +560,7 @@
 
             const sourceState = await this.getSpaceState(source);
             const targetState = await this.getSpaceState(target);
-            const merged = mergeStates(targetState, sourceState);
+            const merged = mergeTransferStates(targetState, sourceState);
             await this.saveStateToSpace(merged, target);
             await this.clearSpaceState(source);
             await this.setCurrentSpace(target.id);
@@ -645,6 +645,25 @@
             mustDoCriteria: mergeCriteria(base.mustDoCriteria, incoming.mustDoCriteria),
             activeMustDoCriterionId: base.activeMustDoCriterionId || incoming.activeMustDoCriterionId,
             mustDoHiddenByDate: { ...incoming.mustDoHiddenByDate, ...base.mustDoHiddenByDate }
+        });
+    }
+
+    function mergeTransferStates(target, source) {
+        const base = normalizeState(target);
+        const incoming = normalizeState(source);
+        return normalizeState({
+            ...base,
+            boxTasks: mergeUnique(base.boxTasks, incoming.boxTasks),
+            completedTasks: mergeUnique(base.completedTasks, incoming.completedTasks),
+            nowTask: base.nowTask || incoming.nowTask,
+            nowTaskStartedAt: base.nowTaskStartedAt || incoming.nowTaskStartedAt,
+            reflectionNote: [base.reflectionNote, incoming.reflectionNote].filter(Boolean).join('\n\n'),
+            blindboxRejectCount: Math.max(base.blindboxRejectCount, incoming.blindboxRejectCount),
+            blindboxCooldownUntil: Math.max(base.blindboxCooldownUntil, incoming.blindboxCooldownUntil),
+            mustDoTasks: base.mustDoTasks,
+            mustDoCriteria: base.mustDoCriteria,
+            activeMustDoCriterionId: base.activeMustDoCriterionId,
+            mustDoHiddenByDate: base.mustDoHiddenByDate
         });
     }
 
