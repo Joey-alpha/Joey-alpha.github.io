@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quick Add</title>
+    <link rel="stylesheet" href="css/quick-add.css" />
+</head>
+<body>
+  <div class="card">
+    <h1>Quick Add</h1>
+
+    <input
+      id="taskInput"
+      class="input"
+      type="text"
+      placeholder="输入任务…"
+      autocomplete="off"
+    />
+
+    <div class="actions">
+      <button id="addBtn" class="btn primary">放进 box</button>
+      <button id="closeBtn" class="btn secondary">关闭</button>
+    </div>
+
+    <div id="message" class="message"></div>
+  </div>
+    <script src="js/quick-add.js"></script>
+</body>
+</html>

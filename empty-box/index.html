@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Empty Box Demo</title>
+    <link rel="stylesheet" href="css/empty-box.css" />
+</head>
+<body class="morning">
+    <div class="app">
+        <div class="shell">
+            <main class="content">
+                <header class="topbar">
+                    <div class="time-block">
+                        <h2 id="greeting">现在</h2>
+                        <p id="timeText"></p>
+                    </div>
+                    <div class="ambient-hint" id="ambientHint">💧</div>
+                </header>
+
+                <section id="view-home">
+                    <div class="now-card">
+                        <div class="now-task">
+                            <div class="now-row">
+                                <h3 id="nowTaskText"></h3>
+                                <div class="now-actions-inline">
+                                    <button class="btn primary btn-small" id="completeNowBtn">完成</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="must-do-panel" id="mustDoPanel">
+                    <div class="must-do-head">
+                        <h3>必做榜</h3>
+                    </div>
+                    <div class="must-do-list" id="mustDoList"></div>
+                </section>
+
+                <div class="fab-group">
+                    <button class="fab" id="addFab" title="添加">＋</button>
+                    <button class="fab" id="searchFab" title="搜索">⌕</button>
+                    <button class="fab" id="blindboxFab" title="盲盒">🎲</button>
+                    <button class="fab" id="settingsFab" title="设置">⚙</button>
+                    <button class="fab" id="reflectionFab" title="反思">✎</button>
+                    <button class="fab" id="undoFab" title="撤销">↶</button>
+                </div>
+
+                <div class="overlay" id="searchOverlay">
+                    <div class="overlay-card">
+                        <div class="overlay-head">
+                            <h3 class="overlay-title">搜索</h3>
+                            <button class="close-btn" data-close="searchOverlay">×</button>
+                        </div>
+                        <input class="search-input" id="searchInput" placeholder="搜索任务…" />
+                        <div class="candidate-list" id="searchResults"></div>
+                    </div>
+                </div>
+
+                <div class="overlay" id="addOverlay">
+                    <div class="overlay-card">
+                        <div class="overlay-head">
+                            <h3 class="overlay-title">添加</h3>
+                            <button class="close-btn" data-close="addOverlay">×</button>
+                        </div>
+                        <input class="search-input" id="addInput" placeholder="输入任务…" />
+                        <div class="actions">
+                            <button class="btn primary" id="confirmAddBtn">放进 box</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="overlay must-do-overlay" id="mustDoOverlay">
+                    <div class="overlay-card">
+                        <div class="overlay-head">
+                            <h3 class="overlay-title">今日必做</h3>
+                            <button class="close-btn" data-close="mustDoOverlay">×</button>
+                        </div>
+                        <div class="must-do-criteria" id="mustDoCriteriaBar"></div>
+                        <div class="must-do-summary" id="mustDoSummary">请选择最多 3 项待办</div>
+                        <div class="must-do-selection" id="mustDoSelection"></div>
+                        <div class="actions">
+                            <button class="btn primary" id="confirmMustDoBtn">确定</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="overlay" id="criterionOverlay">
+                    <div class="overlay-card">
+                        <div class="overlay-head">
+                            <h3 class="overlay-title" id="criterionDialogTitle">标准</h3>
+                            <button class="close-btn" data-close="criterionOverlay">×</button>
+                        </div>
+                        <input class="search-input" id="criterionDialogInput" placeholder="标准名…" />
+                        <div class="criterion-dialog-message" id="criterionDialogMessage"></div>
+                        <div class="actions">
+                            <button class="btn primary" id="criterionDialogSaveBtn">确定</button>
+                            <button class="btn secondary danger" id="criterionDialogDeleteBtn">删除</button>
+                            <button class="btn secondary" id="criterionDialogCancelBtn">取消</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="overlay" id="blindboxOverlay">
+                    <div class="overlay-card">
+                        <div class="overlay-head">
+                            <h3 class="overlay-title">盲盒</h3>
+                            <button class="close-btn" data-close="blindboxOverlay">×</button>
+                        </div>
+                        <div class="blindbox-task">
+                            <p id="blindboxTaskText">没有任务</p>
+                        </div>
+                        <div class="actions" id="blindboxActions">
+                            <button class="btn primary" id="acceptBlindboxBtn">选择</button>
+                            <button class="btn secondary" id="rerollBlindboxBtn">换一个</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="overlay" id="reflectionOverlay">
+                    <div class="overlay-card">
+                        <div class="overlay-head">
+                            <h3 class="overlay-title">反思</h3>
+                            <button class="close-btn" data-close="reflectionOverlay">×</button>
+                        </div>
+                        <div class="reflection-empty" id="reflectionCountText"></div>
+                        <div class="reflection-completed" id="reflectionCompletedList"></div>
+                        <textarea class="reflection-textarea" id="reflectionTextarea" placeholder="一句记录…"></textarea>
+                    </div>
+                </div>
+
+                <div class="overlay" id="settingsOverlay">
+                    <div class="overlay-card">
+                        <div class="overlay-head">
+                            <h3 class="overlay-title">设置</h3>
+                            <button class="close-btn" data-close="settingsOverlay">×</button>
+                        </div>
+                        <div class="settings-panel">
+                            <div class="settings-row">
+                                <div class="settings-label">分区</div>
+                                <select class="settings-select" id="spaceSelect"></select>
+                                <div class="settings-status space-summary" id="spaceStatus"></div>
+                                <div class="settings-inline">
+                                    <button class="btn secondary" id="newLocalSpaceBtn">新建本地</button>
+                                    <button class="btn secondary" id="newCloudSpaceBtn">新建云端</button>
+                                    <button class="btn secondary" id="refreshCloudSpacesBtn">刷新云端</button>
+                                </div>
+                            </div>
+                            <div class="settings-row">
+                                <div class="settings-label">备份</div>
+                                <div class="settings-inline">
+                                    <button class="btn primary" id="exportJsonBtn">导出 JSON</button>
+                                    <label class="btn secondary" for="importJsonInput"
+                                        style="display:inline-flex;align-items:center;">导入 JSON</label>
+                                    <input id="importJsonInput" type="file" accept="application/json" style="display:none;" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="overlay" id="migrationOverlay">
+                    <div class="overlay-card">
+                        <div class="overlay-head">
+                            <h3 class="overlay-title">发现旧数据</h3>
+                            <button class="close-btn" data-close="migrationOverlay">×</button>
+                        </div>
+                        <div class="settings-status">
+                            检测到旧版本地数据。你可以把它迁移到新的 Space，旧 localStorage 数据会作为备份保留。
+                        </div>
+                        <div class="actions">
+                            <button class="btn primary" id="migrateLocalBtn">创建本地 Space</button>
+                            <button class="btn secondary" id="migrateCloudBtn">创建云端 Space</button>
+                            <button class="btn secondary" id="migrateMergeBtn">合并到当前 Space</button>
+                            <button class="btn secondary" id="migrateLaterBtn">暂不迁移</button>
+                        </div>
+                        <div class="settings-status" id="migrationStatus"></div>
+                    </div>
+                </div>
+
+                <div class="overlay" id="spaceNameOverlay">
+                    <div class="overlay-card">
+                        <div class="overlay-head">
+                            <h3 class="overlay-title" id="spaceNameTitle">新建分区</h3>
+                            <button class="close-btn" data-close="spaceNameOverlay">×</button>
+                        </div>
+                        <input class="search-input" id="spaceNameInput" placeholder="分区名称…" />
+                        <div class="settings-status" id="spaceNameMessage"></div>
+                        <div class="actions">
+                            <button class="btn primary" id="spaceNameConfirmBtn">创建</button>
+                            <button class="btn secondary" id="spaceNameCancelBtn">取消</button>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+    <script src="js/empty-box.js"></script>
+</body>
+</html>
