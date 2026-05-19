@@ -70,6 +70,7 @@
 
         body.night .search-input,
         body.night .reflection-textarea,
+        body.night .settings-select,
         body.night .candidate-item,
         body.night .blindbox-task,
         body.night .must-do-criterion {
@@ -233,16 +234,72 @@
             margin-top: 14px;
         }
 
+        .settings-panel {
+            display: grid;
+            gap: 18px;
+            overflow: auto;
+            padding-right: 2px;
+        }
+
+        .settings-row {
+            display: grid;
+            gap: 10px;
+        }
+
+        .settings-label {
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        .settings-inline {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .settings-status {
+            color: var(--muted);
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .settings-inline .btn {
+            padding: 10px 12px;
+            border-radius: 12px;
+            font-size: 14px;
+        }
+
+        .space-summary {
+            min-height: 20px;
+        }
+
         .search-input,
-        .reflection-textarea {
+        .reflection-textarea,
+        .settings-select {
             width: 100%;
             border: 1px solid var(--line);
             border-radius: 18px;
-            background: rgba(255, 255, 255, 0.58);
+            background-color: rgba(255, 255, 255, 0.58);
             font: inherit;
             color: inherit;
             padding: 16px 18px;
             outline: none;
+        }
+
+        .settings-select {
+            appearance: none;
+            -webkit-appearance: none;
+            cursor: pointer;
+            padding-right: 48px;
+            background-image:
+                linear-gradient(45deg, transparent 50%, currentColor 50%),
+                linear-gradient(135deg, currentColor 50%, transparent 50%);
+            background-position:
+                calc(100% - 24px) 50%,
+                calc(100% - 18px) 50%;
+            background-size: 6px 6px, 6px 6px;
+            background-repeat: no-repeat;
         }
 
         .reflection-completed {
@@ -710,11 +767,60 @@
                             <h3 class="overlay-title">设置</h3>
                             <button class="close-btn" data-close="settingsOverlay">×</button>
                         </div>
-                        <div class="actions" style="margin-top:0;">
-                            <button class="btn primary" id="exportJsonBtn">导出 JSON</button>
-                            <label class="btn secondary" for="importJsonInput"
-                                style="display:inline-flex;align-items:center;">导入 JSON</label>
-                            <input id="importJsonInput" type="file" accept="application/json" style="display:none;" />
+                        <div class="settings-panel">
+                            <div class="settings-row">
+                                <div class="settings-label">分区</div>
+                                <select class="settings-select" id="spaceSelect"></select>
+                                <div class="settings-status space-summary" id="spaceStatus"></div>
+                                <div class="settings-inline">
+                                    <button class="btn secondary" id="newLocalSpaceBtn">新建本地</button>
+                                    <button class="btn secondary" id="newCloudSpaceBtn">新建云端</button>
+                                    <button class="btn secondary" id="refreshCloudSpacesBtn">刷新云端</button>
+                                </div>
+                            </div>
+                            <div class="settings-row">
+                                <div class="settings-label">备份</div>
+                                <div class="settings-inline">
+                                    <button class="btn primary" id="exportJsonBtn">导出 JSON</button>
+                                    <label class="btn secondary" for="importJsonInput"
+                                        style="display:inline-flex;align-items:center;">导入 JSON</label>
+                                    <input id="importJsonInput" type="file" accept="application/json" style="display:none;" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="overlay" id="migrationOverlay">
+                    <div class="overlay-card">
+                        <div class="overlay-head">
+                            <h3 class="overlay-title">发现旧数据</h3>
+                            <button class="close-btn" data-close="migrationOverlay">×</button>
+                        </div>
+                        <div class="settings-status">
+                            检测到旧版本地数据。你可以把它迁移到新的 Space，旧 localStorage 数据会作为备份保留。
+                        </div>
+                        <div class="actions">
+                            <button class="btn primary" id="migrateLocalBtn">创建本地 Space</button>
+                            <button class="btn secondary" id="migrateCloudBtn">创建云端 Space</button>
+                            <button class="btn secondary" id="migrateMergeBtn">合并到当前 Space</button>
+                            <button class="btn secondary" id="migrateLaterBtn">暂不迁移</button>
+                        </div>
+                        <div class="settings-status" id="migrationStatus"></div>
+                    </div>
+                </div>
+
+                <div class="overlay" id="spaceNameOverlay">
+                    <div class="overlay-card">
+                        <div class="overlay-head">
+                            <h3 class="overlay-title" id="spaceNameTitle">新建分区</h3>
+                            <button class="close-btn" data-close="spaceNameOverlay">×</button>
+                        </div>
+                        <input class="search-input" id="spaceNameInput" placeholder="分区名称…" />
+                        <div class="settings-status" id="spaceNameMessage"></div>
+                        <div class="actions">
+                            <button class="btn primary" id="spaceNameConfirmBtn">创建</button>
+                            <button class="btn secondary" id="spaceNameCancelBtn">取消</button>
                         </div>
                     </div>
                 </div>
@@ -725,6 +831,14 @@
     <script>
         const STORAGE_KEY = 'activation-task-demo-state';
         const UPDATE_PING_KEY = 'activation-task-demo-last-updated';
+        const SUPABASE_URL = 'https://ufwvkabshfrrodmtycjj.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVmd3ZrYWJzaGZycm9kbXR5Y2pqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkxNjg4NjMsImV4cCI6MjA5NDc0NDg2M30.kSQJBTLSjd5XhLX0cddqjUfSw0QXt-Ilr2UsGPMamIo';
+        const SPACE_LIST_KEY = 'empty-box-spaces-v1';
+        const CURRENT_SPACE_ID_KEY = 'current_space_id';
+        const CURRENT_STORAGE_MODE_KEY = 'current_storage_mode';
+        const MIGRATION_DONE_KEY = 'empty-box-migration-done';
+        const MIGRATION_DISMISSED_KEY = 'empty-box-migration-dismissed';
+        const CLOUD_STATE_SOURCE = 'empty_box_state';
         const DEFAULT_MUST_DO_CRITERIA = [
             { id: 'urgent', name: '紧急' },
             { id: 'important', name: '重要' }
@@ -760,6 +874,8 @@
         const reflectionOverlay = document.getElementById('reflectionOverlay');
         const settingsOverlay = document.getElementById('settingsOverlay');
         const criterionOverlay = document.getElementById('criterionOverlay');
+        const migrationOverlay = document.getElementById('migrationOverlay');
+        const spaceNameOverlay = document.getElementById('spaceNameOverlay');
 
         const searchInput = document.getElementById('searchInput');
         const searchResults = document.getElementById('searchResults');
@@ -788,6 +904,21 @@
 
         const exportJsonBtn = document.getElementById('exportJsonBtn');
         const importJsonInput = document.getElementById('importJsonInput');
+        const spaceSelect = document.getElementById('spaceSelect');
+        const newLocalSpaceBtn = document.getElementById('newLocalSpaceBtn');
+        const newCloudSpaceBtn = document.getElementById('newCloudSpaceBtn');
+        const refreshCloudSpacesBtn = document.getElementById('refreshCloudSpacesBtn');
+        const spaceStatus = document.getElementById('spaceStatus');
+        const migrateLocalBtn = document.getElementById('migrateLocalBtn');
+        const migrateCloudBtn = document.getElementById('migrateCloudBtn');
+        const migrateMergeBtn = document.getElementById('migrateMergeBtn');
+        const migrateLaterBtn = document.getElementById('migrateLaterBtn');
+        const migrationStatus = document.getElementById('migrationStatus');
+        const spaceNameTitle = document.getElementById('spaceNameTitle');
+        const spaceNameInput = document.getElementById('spaceNameInput');
+        const spaceNameMessage = document.getElementById('spaceNameMessage');
+        const spaceNameConfirmBtn = document.getElementById('spaceNameConfirmBtn');
+        const spaceNameCancelBtn = document.getElementById('spaceNameCancelBtn');
 
         function cloneDefaultMustDoCriteria() {
             return DEFAULT_MUST_DO_CRITERIA.map(criterion => ({ ...criterion }));
@@ -882,17 +1013,380 @@
         let lastShake = 0;
         let criterionDialogMode = 'add';
         let criterionDialogCriterionId = null;
+        let pendingSpaceMode = 'local_only';
+        let isBooting = true;
+        let activeLegacyMode = false;
 
-        function saveState() {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        function createId(prefix) {
+            if (crypto && crypto.randomUUID) return crypto.randomUUID();
+            return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
         }
 
-        function loadState() {
+        function createEmptyState() {
+            return normalizeState({});
+        }
+
+        function readJson(key, fallback = null) {
             try {
-                const raw = localStorage.getItem(STORAGE_KEY);
-                if (!raw) return;
-                const parsed = JSON.parse(raw);
-                state = normalizeState(parsed);
+                const raw = localStorage.getItem(key);
+                return raw ? JSON.parse(raw) : fallback;
+            } catch {
+                return fallback;
+            }
+        }
+
+        function writeJson(key, value) {
+            localStorage.setItem(key, JSON.stringify(value));
+        }
+
+        function spaceStateKey(spaceId) {
+            return `${STORAGE_KEY}::space::${spaceId}`;
+        }
+
+        function getSupabaseHeaders(extra = {}) {
+            return {
+                apikey: SUPABASE_ANON_KEY,
+                Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+                'Content-Type': 'application/json',
+                ...extra
+            };
+        }
+
+        async function supabaseRequest(path, options = {}) {
+            const response = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+                ...options,
+                headers: getSupabaseHeaders(options.headers || {})
+            });
+            if (!response.ok) {
+                const detail = await response.text().catch(() => '');
+                throw new Error(`Supabase ${response.status}: ${detail || response.statusText}`);
+            }
+            const text = await response.text();
+            return text ? JSON.parse(text) : null;
+        }
+
+        function formatErrorMessage(error) {
+            try {
+                const detail = JSON.parse(String(error.message).replace(/^Supabase \d+:\s*/, ''));
+                return detail.message || detail.details || error.message;
+            } catch {
+                return error && error.message ? error.message : String(error);
+            }
+        }
+
+        const StorageService = {
+            getSpaces() {
+                const spaces = readJson(SPACE_LIST_KEY, []);
+                return Array.isArray(spaces) ? spaces : [];
+            },
+
+            saveSpaces(spaces) {
+                writeJson(SPACE_LIST_KEY, spaces);
+            },
+
+            replaceCloudSpaces(nextSpaces) {
+                const byId = new Map();
+                this.getSpaces()
+                    .filter(space => space.storage_mode !== 'cloud_sync')
+                    .forEach(space => byId.set(space.id, space));
+                nextSpaces.forEach(space => {
+                    if (!space || !space.id) return;
+                    byId.set(space.id, {
+                        owner_id: null,
+                        created_at: new Date().toISOString(),
+                        ...space
+                    });
+                });
+                const merged = [...byId.values()].sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')));
+                this.saveSpaces(merged);
+                this.ensureValidCurrentSpace();
+                return merged;
+            },
+
+            async syncCloudSpaces() {
+                // Cloud spaces are shared through Supabase; local_only spaces remain browser-local.
+                const rows = await supabaseRequest('spaces?select=id,owner_id,name,storage_mode,created_at&order=created_at.asc');
+                const cloudSpaces = (Array.isArray(rows) ? rows : [])
+                    .filter(space => space && space.storage_mode === 'cloud_sync');
+                return this.replaceCloudSpaces(cloudSpaces);
+            },
+
+            ensureValidCurrentSpace() {
+                const currentId = localStorage.getItem(CURRENT_SPACE_ID_KEY);
+                if (!currentId) return null;
+                const spaces = this.getSpaces();
+                const current = spaces.find(space => space.id === currentId);
+                if (current) return current;
+                const fallback = spaces.find(space => space.storage_mode === 'local_only') || spaces[0] || null;
+                if (fallback) {
+                    localStorage.setItem(CURRENT_SPACE_ID_KEY, fallback.id);
+                    localStorage.setItem(CURRENT_STORAGE_MODE_KEY, fallback.storage_mode);
+                    return fallback;
+                }
+                localStorage.removeItem(CURRENT_SPACE_ID_KEY);
+                localStorage.removeItem(CURRENT_STORAGE_MODE_KEY);
+                activeLegacyMode = true;
+                return null;
+            },
+
+            getCurrentSpace() {
+                this.ensureValidCurrentSpace();
+                const currentId = localStorage.getItem(CURRENT_SPACE_ID_KEY);
+                return this.getSpaces().find(space => space.id === currentId) || null;
+            },
+
+            async createSpace({ name, storage_mode = 'local_only', initialState = createEmptyState() }) {
+                const now = new Date().toISOString();
+                const space = {
+                    id: createId('space'),
+                    owner_id: null,
+                    name: name || (storage_mode === 'cloud_sync' ? '云端 Space' : '本地 Space'),
+                    storage_mode,
+                    created_at: now
+                };
+
+                if (storage_mode === 'cloud_sync') {
+                    await supabaseRequest('spaces', {
+                        method: 'POST',
+                        body: JSON.stringify(space)
+                    });
+                }
+
+                const spaces = this.getSpaces().filter(item => item.id !== space.id);
+                spaces.push(space);
+                this.saveSpaces(spaces);
+                await this.setCurrentSpace(space.id);
+                if (space.storage_mode === 'cloud_sync') {
+                    await this.saveCloudState(normalizeState(initialState), space);
+                    localStorage.setItem(UPDATE_PING_KEY, String(Date.now()));
+                } else {
+                    await this.saveAppState(initialState, space);
+                }
+                return space;
+            },
+
+            async setCurrentSpace(spaceId) {
+                const space = this.getSpaces().find(item => item.id === spaceId);
+                if (!space) return null;
+                localStorage.setItem(CURRENT_SPACE_ID_KEY, space.id);
+                localStorage.setItem(CURRENT_STORAGE_MODE_KEY, space.storage_mode);
+                activeLegacyMode = false;
+                return space;
+            },
+
+            async getCurrentState() {
+                const space = this.getCurrentSpace();
+                if (!space) {
+                    activeLegacyMode = true;
+                    return normalizeState(readJson(STORAGE_KEY, {}));
+                }
+                activeLegacyMode = false;
+                if (space.storage_mode === 'cloud_sync') {
+                    return this.getCloudState(space);
+                }
+                return normalizeState(readJson(spaceStateKey(space.id), {}));
+            },
+
+            async saveAppState(nextState, forcedSpace = null) {
+                if (isBooting) return;
+                const normalized = normalizeState(nextState);
+                const space = forcedSpace || this.getCurrentSpace();
+
+                if (!space || activeLegacyMode) {
+                    writeJson(STORAGE_KEY, normalized);
+                    localStorage.setItem(UPDATE_PING_KEY, String(Date.now()));
+                    return;
+                }
+
+                if (space.storage_mode === 'cloud_sync') {
+                    this.saveCloudState(normalized, space).catch(error => {
+                        console.error('Cloud sync failed:', error);
+                        if (spaceStatus) spaceStatus.textContent = `云端同步失败：${formatErrorMessage(error)}`;
+                    });
+                } else {
+                    writeJson(spaceStateKey(space.id), normalized);
+                }
+                localStorage.setItem(UPDATE_PING_KEY, String(Date.now()));
+            },
+
+            async getCloudState(space) {
+                const rows = await this.getNotes(space.id, CLOUD_STATE_SOURCE);
+                const snapshot = rows[0];
+                if (!snapshot) return createEmptyState();
+                return normalizeState(JSON.parse(snapshot.content || '{}'));
+            },
+
+            async saveCloudState(nextState, space) {
+                const id = `state-${space.id}`;
+                const now = new Date().toISOString();
+                const note = {
+                    id,
+                    owner_id: null,
+                    space_id: space.id,
+                    content: JSON.stringify(nextState),
+                    source: CLOUD_STATE_SOURCE,
+                    old_local_id: space.id,
+                    created_at: now,
+                    updated_at: now
+                };
+                const existing = await supabaseRequest(`notes?id=eq.${encodeURIComponent(id)}&select=id`);
+                if (existing.length) {
+                    await supabaseRequest(`notes?id=eq.${encodeURIComponent(id)}`, {
+                        method: 'PATCH',
+                        body: JSON.stringify({
+                            content: note.content,
+                            source: note.source,
+                            old_local_id: note.old_local_id,
+                            updated_at: note.updated_at
+                        })
+                    });
+                    return;
+                }
+                await supabaseRequest('notes', {
+                    method: 'POST',
+                    body: JSON.stringify(note)
+                });
+            },
+
+            async addNote(note) {
+                const space = this.getCurrentSpace();
+                if (!space) return null;
+                const now = new Date().toISOString();
+                const nextNote = {
+                    id: note.id || createId('note'),
+                    owner_id: note.owner_id || null,
+                    space_id: note.space_id || space.id,
+                    content: note.content || '',
+                    source: note.source || 'manual',
+                    old_local_id: note.old_local_id || null,
+                    created_at: note.created_at || now,
+                    updated_at: now
+                };
+                if (space.storage_mode === 'cloud_sync') {
+                    await supabaseRequest('notes', {
+                        method: 'POST',
+                        body: JSON.stringify(nextNote)
+                    });
+                }
+                return nextNote;
+            },
+
+            async getNotes(spaceId, source = '') {
+                const sourceFilter = source ? `&source=eq.${encodeURIComponent(source)}` : '';
+                return supabaseRequest(`notes?space_id=eq.${encodeURIComponent(spaceId)}${sourceFilter}&order=updated_at.desc`);
+            },
+
+            async updateNote(noteId, patch) {
+                const now = new Date().toISOString();
+                return supabaseRequest(`notes?id=eq.${encodeURIComponent(noteId)}`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({ ...patch, updated_at: now })
+                });
+            },
+
+            async deleteNote(noteId) {
+                return supabaseRequest(`notes?id=eq.${encodeURIComponent(noteId)}`, {
+                    method: 'DELETE'
+                });
+            },
+
+            async migrateLegacyData(mode) {
+                const legacyState = normalizeState(readJson(STORAGE_KEY, {}));
+                const backupKey = `${STORAGE_KEY}::legacy-backup::${Date.now()}`;
+                writeJson(backupKey, legacyState);
+
+                if (mode === 'local_only' || mode === 'cloud_sync') {
+                    await this.createSpace({
+                        name: mode === 'cloud_sync' ? '旧数据云端 Space' : '旧数据本地 Space',
+                        storage_mode: mode,
+                        initialState: legacyState
+                    });
+                    localStorage.setItem(MIGRATION_DONE_KEY, 'true');
+                    localStorage.removeItem(MIGRATION_DISMISSED_KEY);
+                    return legacyState;
+                }
+
+                const existingSpace = this.getCurrentSpace();
+                if (!existingSpace) {
+                    await this.createSpace({
+                        name: '合并后的本地 Space',
+                        storage_mode: 'local_only',
+                        initialState: legacyState
+                    });
+                    localStorage.setItem(MIGRATION_DONE_KEY, 'true');
+                    localStorage.removeItem(MIGRATION_DISMISSED_KEY);
+                    return legacyState;
+                }
+
+                const current = await this.getCurrentState();
+                const merged = mergeStates(current, legacyState);
+                await this.saveAppState(merged);
+                localStorage.setItem(MIGRATION_DONE_KEY, 'true');
+                localStorage.removeItem(MIGRATION_DISMISSED_KEY);
+                return merged;
+            },
+
+            async exportData() {
+                const space = this.getCurrentSpace();
+                return {
+                    version: 2,
+                    exported_at: new Date().toISOString(),
+                    current_space_id: space ? space.id : null,
+                    current_storage_mode: space ? space.storage_mode : 'legacy_local',
+                    spaces: this.getSpaces(),
+                    state
+                };
+            },
+
+            async importData(payload) {
+                const importedState = payload && payload.version === 2 ? payload.state : payload;
+                state = normalizeState(importedState);
+                await this.saveAppState(state);
+                return state;
+            }
+        };
+
+        window.EmptyBoxStorage = StorageService;
+
+        function mergeUnique(a, b) {
+            return [...new Set([...(Array.isArray(a) ? a : []), ...(Array.isArray(b) ? b : [])].filter(Boolean))];
+        }
+
+        function mergeStates(target, source) {
+            const base = normalizeState(target);
+            const incoming = normalizeState(source);
+            return normalizeState({
+                ...base,
+                boxTasks: mergeUnique(base.boxTasks, incoming.boxTasks),
+                completedTasks: mergeUnique(base.completedTasks, incoming.completedTasks),
+                nowTask: base.nowTask || incoming.nowTask,
+                nowTaskStartedAt: base.nowTaskStartedAt || incoming.nowTaskStartedAt,
+                reflectionNote: [base.reflectionNote, incoming.reflectionNote].filter(Boolean).join('\n\n'),
+                blindboxRejectCount: Math.max(base.blindboxRejectCount, incoming.blindboxRejectCount),
+                blindboxCooldownUntil: Math.max(base.blindboxCooldownUntil, incoming.blindboxCooldownUntil),
+                mustDoTasks: mergeUnique(base.mustDoTasks, incoming.mustDoTasks).slice(0, 3),
+                mustDoCriteria: mergeCriteria(base.mustDoCriteria, incoming.mustDoCriteria),
+                activeMustDoCriterionId: base.activeMustDoCriterionId || incoming.activeMustDoCriterionId,
+                mustDoHiddenByDate: { ...incoming.mustDoHiddenByDate, ...base.mustDoHiddenByDate }
+            });
+        }
+
+        function mergeCriteria(a, b) {
+            const seen = new Set();
+            return [...(Array.isArray(a) ? a : []), ...(Array.isArray(b) ? b : [])].filter(item => {
+                if (!item || seen.has(item.name)) return false;
+                seen.add(item.name);
+                return true;
+            });
+        }
+
+        function saveState() {
+            StorageService.saveAppState(state);
+        }
+
+        async function loadState() {
+            try {
+                state = await StorageService.getCurrentState();
             } catch { }
         }
 
@@ -1543,6 +2037,112 @@
             reflectionFab.style.display = isReflectionTime() ? 'inline-flex' : 'none';
         }
 
+        function renderSpaceSettings() {
+            const spaces = StorageService.getSpaces();
+            const current = StorageService.getCurrentSpace();
+            spaceSelect.innerHTML = '';
+
+            if (!spaces.length) {
+                const option = document.createElement('option');
+                option.value = '';
+                option.textContent = activeLegacyMode ? '旧版本地数据' : '未选择 Space';
+                spaceSelect.appendChild(option);
+            }
+
+            spaces.forEach(space => {
+                const option = document.createElement('option');
+                option.value = space.id;
+                option.textContent = `${space.name} · ${space.storage_mode === 'cloud_sync' ? '云端同步' : '本地'}`;
+                option.selected = current && current.id === space.id;
+                spaceSelect.appendChild(option);
+            });
+
+            const mode = current ? current.storage_mode : 'legacy_local';
+            const label = mode === 'cloud_sync' ? '云端同步' : mode === 'local_only' ? '仅本地' : '旧本地数据';
+            const cloudCount = spaces.filter(space => space.storage_mode === 'cloud_sync').length;
+            const localCount = spaces.filter(space => space.storage_mode === 'local_only').length;
+            const currentName = current ? current.name : '未选择';
+            spaceStatus.textContent = `${currentName} · ${label} · 本地 ${localCount} / 云端 ${cloudCount}`;
+        }
+
+        async function refreshCloudSpaces(showStatus = false) {
+            try {
+                if (showStatus) spaceStatus.textContent = '正在刷新云端 Space...';
+                const spaces = await StorageService.syncCloudSpaces();
+                renderSpaceSettings();
+                if (showStatus) {
+                    const cloudCount = spaces.filter(space => space.storage_mode === 'cloud_sync').length;
+                    spaceStatus.textContent = `云端 Space 已刷新：${cloudCount} 个`;
+                }
+                return true;
+            } catch (error) {
+                console.error(error);
+                if (showStatus) spaceStatus.textContent = `刷新云端 Space 失败：${formatErrorMessage(error)}`;
+                return false;
+            }
+        }
+
+        function shouldShowMigrationPrompt() {
+            const hasLegacy = !!localStorage.getItem(STORAGE_KEY);
+            return hasLegacy &&
+                localStorage.getItem(MIGRATION_DONE_KEY) !== 'true' &&
+                localStorage.getItem(MIGRATION_DISMISSED_KEY) !== 'true';
+        }
+
+        function showMigrationPromptIfNeeded() {
+            if (shouldShowMigrationPrompt()) {
+                migrationStatus.textContent = '';
+                openOverlay(migrationOverlay);
+            }
+        }
+
+        function openSpaceNameDialog(storageMode) {
+            pendingSpaceMode = storageMode;
+            spaceNameTitle.textContent = storageMode === 'cloud_sync' ? '新建云端分区' : '新建本地分区';
+            spaceNameInput.value = '';
+            spaceNameMessage.textContent = '';
+            spaceNameConfirmBtn.textContent = '创建';
+            openOverlay(spaceNameOverlay);
+            setTimeout(() => spaceNameInput.focus(), 0);
+        }
+
+        function closeSpaceNameDialog() {
+            closeOverlay(spaceNameOverlay);
+            spaceNameMessage.textContent = '';
+        }
+
+        async function createNamedSpace() {
+            const storageMode = pendingSpaceMode;
+            const name = spaceNameInput.value.trim();
+            try {
+                await StorageService.createSpace({
+                    name: name || (storageMode === 'cloud_sync' ? '云端分区' : '本地分区'),
+                    storage_mode: storageMode,
+                    initialState: createEmptyState()
+                });
+                closeSpaceNameDialog();
+                state = await StorageService.getCurrentState();
+                renderSpaceSettings();
+                renderNow();
+            } catch (error) {
+                console.error(error);
+                spaceNameMessage.textContent = `创建失败：${formatErrorMessage(error)}`;
+            }
+        }
+
+        async function finishMigration(mode) {
+            try {
+                migrationStatus.textContent = '正在迁移...';
+                state = await StorageService.migrateLegacyData(mode);
+                closeOverlay(migrationOverlay);
+                renderSpaceSettings();
+                renderNow();
+            } catch (error) {
+                console.error(error);
+                migrationStatus.textContent = '迁移失败，请检查 Supabase 表、RLS 或网络。旧数据仍保留在本地。';
+            }
+        }
+
         completeNowBtn.addEventListener('click', () => {
             if (!state.nowTask) return;
             const isMustDo = state.mustDoTasks.includes(state.nowTask);
@@ -1676,8 +2276,44 @@
             saveState();
         });
 
-        settingsFab.addEventListener('click', () => {
+        settingsFab.addEventListener('click', async () => {
+            renderSpaceSettings();
             openOverlay(settingsOverlay);
+            await refreshCloudSpaces();
+        });
+
+        spaceSelect.addEventListener('change', async () => {
+            if (!spaceSelect.value) return;
+            await StorageService.setCurrentSpace(spaceSelect.value);
+            state = await StorageService.getCurrentState();
+            renderSpaceSettings();
+            renderNow();
+        });
+
+        newLocalSpaceBtn.addEventListener('click', () => openSpaceNameDialog('local_only'));
+        newCloudSpaceBtn.addEventListener('click', () => openSpaceNameDialog('cloud_sync'));
+        refreshCloudSpacesBtn.addEventListener('click', () => refreshCloudSpaces(true));
+        spaceNameConfirmBtn.addEventListener('click', createNamedSpace);
+        spaceNameCancelBtn.addEventListener('click', closeSpaceNameDialog);
+        spaceNameInput.addEventListener('input', () => {
+            spaceNameMessage.textContent = '';
+        });
+        spaceNameInput.addEventListener('keydown', event => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                createNamedSpace();
+            }
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                closeSpaceNameDialog();
+            }
+        });
+        migrateLocalBtn.addEventListener('click', () => finishMigration('local_only'));
+        migrateCloudBtn.addEventListener('click', () => finishMigration('cloud_sync'));
+        migrateMergeBtn.addEventListener('click', () => finishMigration('merge'));
+        migrateLaterBtn.addEventListener('click', () => {
+            localStorage.setItem(MIGRATION_DISMISSED_KEY, 'true');
+            closeOverlay(migrationOverlay);
         });
 
         undoFab.addEventListener('click', undoLastComplete);
@@ -1701,12 +2337,13 @@
             }
         });
 
-        exportJsonBtn.addEventListener('click', () => {
-            const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+        exportJsonBtn.addEventListener('click', async () => {
+            const data = await StorageService.exportData();
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = 'activation-task-demo.json';
+            a.download = 'empty-box-backup.json';
             a.click();
             URL.revokeObjectURL(url);
         });
@@ -1717,9 +2354,10 @@
             try {
                 const text = await file.text();
                 const parsed = JSON.parse(text);
-                state = normalizeState(parsed);
+                state = await StorageService.importData(parsed);
                 renderNow();
                 renderReflectionFab();
+                renderSpaceSettings();
                 closeOverlay(settingsOverlay);
             } catch { }
             importJsonInput.value = '';
@@ -1739,37 +2377,60 @@
                 const target = document.getElementById(btn.dataset.close);
                 if (target === criterionOverlay) {
                     closeCriterionDialog();
+                } else if (target === spaceNameOverlay) {
+                    closeSpaceNameDialog();
                 } else {
                     closeOverlay(target);
                 }
             });
         });
 
-        [searchOverlay, addOverlay, blindboxOverlay, reflectionOverlay, settingsOverlay, criterionOverlay].forEach(overlay => {
+        [searchOverlay, addOverlay, blindboxOverlay, reflectionOverlay, settingsOverlay, criterionOverlay, migrationOverlay, spaceNameOverlay].forEach(overlay => {
             overlay.addEventListener('click', e => {
                 if (e.target !== overlay) return;
                 if (overlay === criterionOverlay) {
                     closeCriterionDialog();
+                } else if (overlay === spaceNameOverlay) {
+                    closeSpaceNameDialog();
                 } else {
                     closeOverlay(overlay);
                 }
             });
         });
 
-        loadState();
-        renderReflectionFab();
-        setInterval(renderReflectionFab, 60000);
-        renderNow();
-        window.addEventListener('storage', e => {
+        async function initApp() {
+            await refreshCloudSpaces();
+            await loadState();
+            isBooting = false;
+            if (!StorageService.getCurrentSpace() && !localStorage.getItem(STORAGE_KEY)) {
+                await StorageService.createSpace({
+                    name: '默认本地 Space',
+                    storage_mode: 'local_only',
+                    initialState: state
+                });
+                state = await StorageService.getCurrentState();
+            }
+            renderReflectionFab();
+            setInterval(renderReflectionFab, 60000);
+            renderNow();
+            renderSpaceSettings();
+            showMigrationPromptIfNeeded();
+        }
+
+        initApp();
+
+        window.addEventListener('storage', async e => {
             if (e.key === STORAGE_KEY || e.key === UPDATE_PING_KEY) {
-                loadState();
+                await loadState();
                 renderNow();
+                renderSpaceSettings();
             }
         });
 
-        window.addEventListener('focus', () => {
-            loadState();
+        window.addEventListener('focus', async () => {
+            await loadState();
             renderNow();
+            renderSpaceSettings();
         });
 
         window.addEventListener('devicemotion', (event) => {
