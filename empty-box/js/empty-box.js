@@ -12,11 +12,12 @@ const DEFAULT_MUST_DO_CRITERIA = [
     { id: 'urgent', name: '紧急' },
     { id: 'important', name: '重要' }
 ];
+const MUST_DO_UNLISTED_CRITERION = { id: '__unlisted__', name: '未保留' };
 const MUST_DO_CRITERION_LONG_PRESS_MS = 700;
 const MUST_DO_CRITERION_TOUCH_LONG_PRESS_MS = 520;
 const MUST_DO_CRITERION_DOUBLE_TAP_MS = 360;
 const MUST_DO_CRITERION_TAP_MOVE_PX = 12;
-const MUST_DO_HIDDEN_RETENTION_DAYS = 3;
+const MUST_DO_HIDDEN_RETENTION_DAYS = 14;
 
 const body = document.body;
 const hour = new Date().getHours();
@@ -107,6 +108,10 @@ function createMustDoCriterionId() {
     return `criterion-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function isUnlistedMustDoCriterion(criterionId) {
+    return criterionId === MUST_DO_UNLISTED_CRITERION.id;
+}
+
 function normalizeTaskList(value, dedupe = true) {
     const tasks = Array.isArray(value)
         ? value.map(task => typeof task === 'string' ? task.trim() : '').filter(Boolean)
@@ -118,6 +123,7 @@ function normalizeMustDoCriteria(value) {
     const source = Array.isArray(value) ? value : [];
     const criteria = [];
     source.forEach(item => {
+        if (item && typeof item === 'object' && item.id === MUST_DO_UNLISTED_CRITERION.id) return;
         const rawName = typeof item === 'string'
             ? item
             : item && typeof item === 'object' && typeof item.name === 'string'
@@ -151,7 +157,8 @@ function normalizeState(parsed) {
     const source = parsed && typeof parsed === 'object' ? parsed : {};
     const mustDoCriteria = normalizeMustDoCriteria(source.mustDoCriteria);
     const activeMustDoCriterionId = typeof source.activeMustDoCriterionId === 'string' &&
-        mustDoCriteria.some(criterion => criterion.id === source.activeMustDoCriterionId)
+        (isUnlistedMustDoCriterion(source.activeMustDoCriterionId) ||
+            mustDoCriteria.some(criterion => criterion.id === source.activeMustDoCriterionId))
         ? source.activeMustDoCriterionId
         : mustDoCriteria[0].id;
 
@@ -800,7 +807,8 @@ function ensureMustDoCriteria() {
     if (!Array.isArray(state.mustDoCriteria) || !state.mustDoCriteria.length) {
         state.mustDoCriteria = cloneDefaultMustDoCriteria();
     }
-    if (!state.mustDoCriteria.some(criterion => criterion.id === state.activeMustDoCriterionId)) {
+    if (!isUnlistedMustDoCriterion(state.activeMustDoCriterionId) &&
+        !state.mustDoCriteria.some(criterion => criterion.id === state.activeMustDoCriterionId)) {
         state.activeMustDoCriterionId = state.mustDoCriteria[0].id;
     }
     if (!state.mustDoHiddenByDate || typeof state.mustDoHiddenByDate !== 'object' || Array.isArray(state.mustDoHiddenByDate)) {
@@ -811,6 +819,7 @@ function ensureMustDoCriteria() {
 
 function getTodayHiddenTasks() {
     ensureMustDoCriteria();
+    if (isUnlistedMustDoCriterion(state.activeMustDoCriterionId)) return [];
     const todayKey = getTodayKey();
     if (!state.mustDoHiddenByDate[todayKey]) {
         state.mustDoHiddenByDate[todayKey] = {};
@@ -821,17 +830,39 @@ function getTodayHiddenTasks() {
     return state.mustDoHiddenByDate[todayKey][state.activeMustDoCriterionId];
 }
 
-function getActiveHiddenTasks() {
-    ensureMustDoCriteria();
+function getHiddenTasksForCriterionId(criterionId) {
     const hiddenTasks = new Set();
     getMustDoHiddenRetentionKeys().forEach(dateKey => {
         const hiddenByCriterion = state.mustDoHiddenByDate[dateKey];
-        const tasks = hiddenByCriterion && hiddenByCriterion[state.activeMustDoCriterionId];
+        const tasks = hiddenByCriterion && hiddenByCriterion[criterionId];
         if (Array.isArray(tasks)) {
             tasks.forEach(task => hiddenTasks.add(task));
         }
     });
     return [...hiddenTasks];
+}
+
+function getActiveHiddenTasks() {
+    ensureMustDoCriteria();
+    if (isUnlistedMustDoCriterion(state.activeMustDoCriterionId)) return [];
+    return getHiddenTasksForCriterionId(state.activeMustDoCriterionId);
+}
+
+function getMustDoCandidatePool() {
+    return [...new Set([...state.boxTasks, state.nowTask].filter(Boolean))];
+}
+
+function getUnlistedMustDoCandidates() {
+    ensureMustDoCriteria();
+    const criteria = state.mustDoCriteria;
+    if (!criteria.length) return [];
+    const hiddenByCriterion = new Map(criteria.map(criterion => [
+        criterion.id,
+        new Set(getHiddenTasksForCriterionId(criterion.id))
+    ]));
+    return getMustDoCandidatePool().filter(task =>
+        criteria.every(criterion => hiddenByCriterion.get(criterion.id).has(task))
+    );
 }
 
 function updateMustDoSummary() {
@@ -963,6 +994,10 @@ function renameMustDoCriterion(criterionId) {
 
 function deleteMustDoCriterion(criterionId) {
     ensureMustDoCriteria();
+    if (isUnlistedMustDoCriterion(criterionId)) {
+        openCriterionMessageDialog('不能删除', '未保留是默认列表');
+        return;
+    }
     if (state.mustDoCriteria.length <= 1) {
         openCriterionMessageDialog('不能删除', '至少保留一个标准');
         return;
@@ -978,6 +1013,10 @@ function deleteMustDoCriterion(criterionId) {
 function confirmDeleteMustDoCriterion() {
     ensureMustDoCriteria();
     const criterionId = criterionDialogCriterionId;
+    if (isUnlistedMustDoCriterion(criterionId)) {
+        closeCriterionDialog();
+        return;
+    }
     const criterionIndex = state.mustDoCriteria.findIndex(item => item.id === criterionId);
     if (criterionIndex === -1) {
         closeCriterionDialog();
@@ -1000,6 +1039,11 @@ function confirmDeleteMustDoCriterion() {
 }
 
 function bindMustDoCriterionInteractions(button, criterion) {
+    if (isUnlistedMustDoCriterion(criterion.id)) {
+        button.addEventListener('click', () => activateMustDoCriterion(criterion.id));
+        return;
+    }
+
     let longPressTimer = 0;
     let didLongPress = false;
     let pressPointerId = null;
@@ -1158,6 +1202,16 @@ function renderMustDoCriteria() {
         mustDoCriteriaBar.appendChild(button);
     });
 
+    const unlistedButton = document.createElement('button');
+    unlistedButton.type = 'button';
+    unlistedButton.className = `must-do-criterion fixed${isUnlistedMustDoCriterion(state.activeMustDoCriterionId) ? ' active' : ''}`;
+    unlistedButton.dataset.criterionId = MUST_DO_UNLISTED_CRITERION.id;
+    unlistedButton.setAttribute('aria-pressed', isUnlistedMustDoCriterion(state.activeMustDoCriterionId) ? 'true' : 'false');
+    unlistedButton.title = '所有列表都未保留的任务';
+    unlistedButton.textContent = MUST_DO_UNLISTED_CRITERION.name;
+    bindMustDoCriterionInteractions(unlistedButton, MUST_DO_UNLISTED_CRITERION);
+    mustDoCriteriaBar.appendChild(unlistedButton);
+
     const addButton = document.createElement('button');
     addButton.type = 'button';
     addButton.className = 'must-do-criterion add';
@@ -1173,6 +1227,7 @@ function addMustDoCriterion() {
 }
 
 function hideMustDoCandidate(task) {
+    if (isUnlistedMustDoCriterion(state.activeMustDoCriterionId)) return;
     const hiddenTasks = getTodayHiddenTasks();
     if (!hiddenTasks.includes(task)) {
         hiddenTasks.push(task);
@@ -1183,15 +1238,26 @@ function hideMustDoCandidate(task) {
 
 function buildMustDoCandidates() {
     mustDoSelection.innerHTML = '';
-    const allTasks = [...new Set([...state.boxTasks, state.nowTask].filter(Boolean))];
-    const hiddenTasks = getActiveHiddenTasks();
-    const tasks = allTasks.filter(task => !hiddenTasks.includes(task));
+    const isUnlisted = isUnlistedMustDoCriterion(state.activeMustDoCriterionId);
+    const tasks = isUnlistedMustDoCriterion(state.activeMustDoCriterionId)
+        ? getUnlistedMustDoCandidates()
+        : getMustDoCandidatePool().filter(task => !getActiveHiddenTasks().includes(task));
+    if (!tasks.length) {
+        const empty = document.createElement('div');
+        empty.className = 'reflection-empty';
+        empty.textContent = isUnlisted ? '没有未保留任务' : '没有候选任务';
+        mustDoSelection.appendChild(empty);
+        return;
+    }
     tasks.forEach(task => {
         const selected = state.mustDoTasks.includes(task);
         const row = document.createElement('div');
         row.className = 'candidate-item';
-        row.innerHTML = `<span>${task}</span><button class="btn ${selected ? 'primary' : 'secondary'}">${selected ? '✓' : '×'}</button>`;
+        row.innerHTML = `<span>${task}</span><button class="btn ${selected ? 'primary' : 'secondary'}">${selected ? '✓' : isUnlisted ? '·' : '×'}</button>`;
         const button = row.querySelector('button');
+        if (isUnlisted && !selected) {
+            button.disabled = true;
+        }
 
         row.addEventListener('dblclick', () => {
             if (selected) return;
@@ -1213,7 +1279,7 @@ function buildMustDoCandidates() {
                 updateMustDoSummary();
                 renderMustDoList();
                 saveState();
-            } else {
+            } else if (!isUnlisted) {
                 // 移除候选项
                 hideMustDoCandidate(task);
             }

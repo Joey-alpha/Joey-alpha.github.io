@@ -459,6 +459,10 @@
         padding-inline: 0;
     }
 
+    .must-do-criterion.fixed {
+        border-style: dashed;
+    }
+
     .criterion-dialog-message {
         margin: 4px 2px 0;
         color: var(--muted);
