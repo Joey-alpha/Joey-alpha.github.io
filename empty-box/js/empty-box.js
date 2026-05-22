@@ -18,12 +18,76 @@ const MUST_DO_CRITERION_TOUCH_LONG_PRESS_MS = 520;
 const MUST_DO_CRITERION_DOUBLE_TAP_MS = 360;
 const MUST_DO_CRITERION_TAP_MOVE_PX = 12;
 const MUST_DO_HIDDEN_RETENTION_DAYS = 14;
+const QUOTE_ROTATION_MS = 2 * 60 * 60 * 1000;
+const QUOTES = [
+    { theme: '斯多葛', text: '控制可控，接受不可控。' },
+    { theme: '斯多葛', text: '外界不可测，心境可调。' },
+    { theme: '斯多葛', text: '今天的选择，胜过昨日的悔恨。' },
+    { theme: '斯多葛', text: '不因他人而动摇，不因境遇而忧虑。' },
+    { theme: '斯多葛', text: '简单生活，自在心灵。' },
+    { theme: '斯多葛', text: '痛苦是成长的契机。' },
+    { theme: '斯多葛', text: '情绪源于判断，非事件本身。' },
+    { theme: '斯多葛', text: '忍耐即力量。' },
+    { theme: '斯多葛', text: '面对命运，坦然无惧。' },
+    { theme: '斯多葛', text: '拥抱理性，而非激情。' },
+    { theme: '斯多葛', text: '每一次挑战都是自我试炼。' },
+    { theme: '斯多葛', text: '内心宁静，比外界财富更珍贵。' },
+    { theme: '斯多葛', text: '少欲知足，心无挂碍。' },
+    { theme: '斯多葛', text: '善待自己，善待他人。' },
+    { theme: '斯多葛', text: '以德为导，而非名利。' },
+    { theme: '斯多葛', text: '冷静观察，明智行动。' },
+    { theme: '斯多葛', text: '一切皆暂时，唯品行永存。' },
+    { theme: '斯多葛', text: '接受批评，修正自我。' },
+    { theme: '斯多葛', text: '不抱怨，不责怪，不逃避。' },
+    { theme: '斯多葛', text: '今日之所做，决定明日之自由。' },
+    { theme: '塔勒布', text: '小心黑天鹅，尊重未知。' },
+    { theme: '塔勒布', text: '抵御脆弱，拥抱反脆弱。' },
+    { theme: '塔勒布', text: '运气不可控，但抗压可练。' },
+    { theme: '塔勒布', text: '不要依赖线性预测。' },
+    { theme: '塔勒布', text: '经验有限，谨慎 extrapolate。' },
+    { theme: '塔勒布', text: '风险意识，高于过度自信。' },
+    { theme: '塔勒布', text: '随机性是真实的朋友。' },
+    { theme: '塔勒布', text: '少即是多，冗余即安全。' },
+    { theme: '塔勒布', text: '不确定性才是常态。' },
+    { theme: '塔勒布', text: '用失败学习，用波动成长。' },
+    { theme: '塔勒布', text: '不要被过往成功迷惑。' },
+    { theme: '塔勒布', text: '审慎而非盲目。' },
+    { theme: '塔勒布', text: '可承受的错误，才是智慧投资。' },
+    { theme: '塔勒布', text: '不预测未来，准备应对未来。' },
+    { theme: '塔勒布', text: '小机会，大影响。' },
+    { theme: '塔勒布', text: '拥抱波动，而非恐惧波动。' },
+    { theme: '塔勒布', text: '不要把人生赌在概率之外。' },
+    { theme: '塔勒布', text: '简单策略，胜过复杂模型。' },
+    { theme: '塔勒布', text: '经验教训，胜过理论臆测。' },
+    { theme: '塔勒布', text: '反脆弱者，笑对混沌。' },
+    { theme: '时间管理', text: '今日事，今日毕。' },
+    { theme: '时间管理', text: '时间是最稀缺的资源。' },
+    { theme: '时间管理', text: '划定界限，专注高效。' },
+    { theme: '时间管理', text: '每一分钟都值得投资。' },
+    { theme: '时间管理', text: '先做重要事，再做紧急事。' },
+    { theme: '时间管理', text: '计划不等于行动，行动才有效。' },
+    { theme: '时间管理', text: '拒绝拖延，从第一步开始。' },
+    { theme: '时间管理', text: '小步快跑，累积大成。' },
+    { theme: '时间管理', text: '断舍离时间浪费。' },
+    { theme: '时间管理', text: '日清日结，清爽心境。' },
+    { theme: '时间管理', text: '时间管理，是自我尊重。' },
+    { theme: '时间管理', text: '一次只做一件事。' },
+    { theme: '时间管理', text: '用好番茄钟，战胜分心。' },
+    { theme: '时间管理', text: '优先级高于数量。' },
+    { theme: '时间管理', text: '预留缓冲，避免仓促。' },
+    { theme: '时间管理', text: '每天总结，提升效率。' },
+    { theme: '时间管理', text: '不被紧急牵制，掌控主动权。' },
+    { theme: '时间管理', text: '目标明确，行动有的放矢。' },
+    { theme: '时间管理', text: '时间不等人，安排不拖延。' },
+    { theme: '时间管理', text: '好的开始，是时间管理的一半。' }
+];
 
 const body = document.body;
 const hour = new Date().getHours();
 const greeting = document.getElementById('greeting');
 const timeText = document.getElementById('timeText');
 const ambientHint = document.getElementById('ambientHint');
+const quoteStrip = document.getElementById('quoteStrip');
 
 const nowTaskText = document.getElementById('nowTaskText');
 const completeNowBtn = document.getElementById('completeNowBtn');
@@ -1423,6 +1487,16 @@ function renderReflectionFab() {
     reflectionFab.style.display = isReflectionTime() ? 'inline-flex' : 'none';
 }
 
+function getQuoteSlot(date = new Date()) {
+    return Math.floor(date.getTime() / QUOTE_ROTATION_MS);
+}
+
+function renderQuote() {
+    if (!quoteStrip || !QUOTES.length) return;
+    const quote = QUOTES[getQuoteSlot() % QUOTES.length];
+    quoteStrip.textContent = `${quote.theme} · ${quote.text}`;
+}
+
 function renderSpaceSettings() {
     const spaces = StorageService.getSpaces();
     const current = StorageService.getCurrentSpace();
@@ -1920,7 +1994,9 @@ async function initApp() {
         state = await StorageService.getCurrentState();
     }
     renderReflectionFab();
+    renderQuote();
     setInterval(renderReflectionFab, 60000);
+    setInterval(renderQuote, 60000);
     renderNow();
     renderSpaceSettings();
     showMigrationPromptIfNeeded();
