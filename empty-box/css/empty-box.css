@@ -461,6 +461,11 @@
         transform: scale(0.98);
     }
 
+    .must-do-criterion.is-drop-target {
+        border-color: rgba(94, 119, 255, 0.55);
+        box-shadow: 0 0 0 3px rgba(94, 119, 255, 0.14);
+    }
+
     .must-do-criterion.active {
         background: var(--accent);
         border-color: transparent;
@@ -506,6 +511,19 @@
     .must-do-selection .candidate-item {
         align-items: center;
         touch-action: pan-y;
+    }
+
+    .must-do-selection .candidate-item[draggable="true"] {
+        cursor: grab;
+    }
+
+    .must-do-selection .candidate-item.is-dragging {
+        opacity: 0.55;
+    }
+
+    .must-do-selection .candidate-item.is-drag-over {
+        border-color: rgba(94, 119, 255, 0.48);
+        box-shadow: inset 0 0 0 1px rgba(94, 119, 255, 0.20);
     }
 
     .must-do-selection .candidate-item button {

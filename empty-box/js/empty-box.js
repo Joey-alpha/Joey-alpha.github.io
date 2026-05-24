@@ -18,7 +18,6 @@ const MUST_DO_CRITERION_TOUCH_LONG_PRESS_MS = 520;
 const MUST_DO_CRITERION_DOUBLE_TAP_MS = 360;
 const MUST_DO_CRITERION_TAP_MOVE_PX = 12;
 const MUST_DO_HIDDEN_RETENTION_DAYS = 14;
-const MUST_DO_ITEM_LONG_PRESS_MS = 560;
 const MUST_DO_ITEM_SWIPE_PX = 58;
 const QUOTE_ROTATION_MS = 2 * 60 * 60 * 1000;
 const QUOTES = [
@@ -267,10 +266,37 @@ function deriveMustDoTaskGroups(source, criteria, hiddenByDate) {
     return taskGroups;
 }
 
+function normalizeMustDoTaskOrder(value, taskGroups, taskPool) {
+    const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+    const taskSet = new Set(taskPool);
+    const validGroupIds = new Set([MUST_DO_INBOX_CRITERION.id, ...Object.values(taskGroups)]);
+    const order = {};
+
+    Object.entries(source).forEach(([groupId, tasks]) => {
+        if (!validGroupIds.has(groupId)) return;
+        const normalizedTasks = normalizeTaskList(tasks).filter(task => taskSet.has(task));
+        if (normalizedTasks.length) {
+            order[groupId] = normalizedTasks;
+        }
+    });
+
+    taskPool.forEach(task => {
+        const groupId = taskGroups[task] || MUST_DO_INBOX_CRITERION.id;
+        if (!order[groupId]) order[groupId] = [];
+        if (!order[groupId].includes(task)) {
+            order[groupId].push(task);
+        }
+    });
+
+    return order;
+}
+
 function normalizeState(parsed) {
     const source = parsed && typeof parsed === 'object' ? parsed : {};
     const mustDoCriteria = normalizeMustDoCriteria(source.mustDoCriteria);
     const mustDoHiddenByDate = normalizeMustDoHiddenByDate(source.mustDoHiddenByDate);
+    const mustDoTaskGroups = deriveMustDoTaskGroups(source, mustDoCriteria, mustDoHiddenByDate);
+    const taskPool = getStateTaskPool(source);
     const activeMustDoCriterionId = typeof source.activeMustDoCriterionId === 'string' &&
         (isInboxMustDoCriterion(source.activeMustDoCriterionId) ||
             mustDoCriteria.some(criterion => criterion.id === source.activeMustDoCriterionId))
@@ -289,7 +315,8 @@ function normalizeState(parsed) {
         mustDoCriteria,
         activeMustDoCriterionId,
         mustDoHiddenByDate,
-        mustDoTaskGroups: deriveMustDoTaskGroups(source, mustDoCriteria, mustDoHiddenByDate)
+        mustDoTaskGroups,
+        mustDoTaskOrder: normalizeMustDoTaskOrder(source.mustDoTaskOrder, mustDoTaskGroups, taskPool)
     };
 }
 
@@ -305,7 +332,8 @@ let state = {
     mustDoCriteria: cloneDefaultMustDoCriteria(),
     activeMustDoCriterionId: MUST_DO_INBOX_CRITERION.id,
     mustDoHiddenByDate: {},
-    mustDoTaskGroups: {}
+    mustDoTaskGroups: {},
+    mustDoTaskOrder: {}
 };
 
 let blindboxTask = '没有任务';
@@ -770,7 +798,8 @@ function mergeStates(target, source) {
         mustDoCriteria: mergeCriteria(base.mustDoCriteria, incoming.mustDoCriteria),
         activeMustDoCriterionId: base.activeMustDoCriterionId || incoming.activeMustDoCriterionId,
         mustDoHiddenByDate: { ...incoming.mustDoHiddenByDate, ...base.mustDoHiddenByDate },
-        mustDoTaskGroups: { ...incoming.mustDoTaskGroups, ...base.mustDoTaskGroups }
+        mustDoTaskGroups: { ...incoming.mustDoTaskGroups, ...base.mustDoTaskGroups },
+        mustDoTaskOrder: { ...incoming.mustDoTaskOrder, ...base.mustDoTaskOrder }
     });
 }
 
@@ -790,7 +819,8 @@ function mergeTransferStates(target, source) {
         mustDoCriteria: base.mustDoCriteria,
         activeMustDoCriterionId: base.activeMustDoCriterionId,
         mustDoHiddenByDate: base.mustDoHiddenByDate,
-        mustDoTaskGroups: base.mustDoTaskGroups
+        mustDoTaskGroups: base.mustDoTaskGroups,
+        mustDoTaskOrder: base.mustDoTaskOrder
     });
 }
 
@@ -937,11 +967,25 @@ function ensureMustDoCriteria() {
     if (!state.mustDoTaskGroups || typeof state.mustDoTaskGroups !== 'object' || Array.isArray(state.mustDoTaskGroups)) {
         state.mustDoTaskGroups = {};
     }
+    if (!state.mustDoTaskOrder || typeof state.mustDoTaskOrder !== 'object' || Array.isArray(state.mustDoTaskOrder)) {
+        state.mustDoTaskOrder = {};
+    }
     const validCriterionIds = new Set(state.mustDoCriteria.map(criterion => criterion.id));
+    const validGroupIds = new Set([MUST_DO_INBOX_CRITERION.id, ...validCriterionIds]);
+    const taskPool = getMustDoCandidatePool();
     Object.keys(state.mustDoTaskGroups).forEach(task => {
-        if (!validCriterionIds.has(state.mustDoTaskGroups[task]) || !getMustDoCandidatePool().includes(task)) {
+        if (!validCriterionIds.has(state.mustDoTaskGroups[task]) || !taskPool.includes(task)) {
             delete state.mustDoTaskGroups[task];
         }
+    });
+    Object.keys(state.mustDoTaskOrder).forEach(groupId => {
+        if (!validGroupIds.has(groupId)) {
+            delete state.mustDoTaskOrder[groupId];
+            return;
+        }
+        state.mustDoTaskOrder[groupId] = normalizeTaskList(state.mustDoTaskOrder[groupId]).filter(task =>
+            taskPool.includes(task) && getTaskGroupIdRaw(task) === groupId
+        );
     });
     pruneMustDoHiddenByDate();
 }
@@ -950,30 +994,69 @@ function getMustDoCandidatePool() {
     return [...new Set([...state.boxTasks, state.nowTask].filter(Boolean))];
 }
 
+function getTaskGroupIdRaw(task) {
+    return state.mustDoTaskGroups[task] || MUST_DO_INBOX_CRITERION.id;
+}
+
 function getTaskGroupId(task) {
     ensureMustDoCriteria();
-    return state.mustDoTaskGroups[task] || MUST_DO_INBOX_CRITERION.id;
+    return getTaskGroupIdRaw(task);
 }
 
 function setTaskGroup(task, criterionId) {
     ensureMustDoCriteria();
     if (!task) return;
+    const previousGroupId = getTaskGroupId(task);
+    if (state.mustDoTaskOrder[previousGroupId]) {
+        state.mustDoTaskOrder[previousGroupId] = state.mustDoTaskOrder[previousGroupId].filter(item => item !== task);
+    }
     if (isInboxMustDoCriterion(criterionId)) {
         delete state.mustDoTaskGroups[task];
+        if (!state.mustDoTaskOrder[MUST_DO_INBOX_CRITERION.id]) state.mustDoTaskOrder[MUST_DO_INBOX_CRITERION.id] = [];
+        state.mustDoTaskOrder[MUST_DO_INBOX_CRITERION.id] = state.mustDoTaskOrder[MUST_DO_INBOX_CRITERION.id].filter(item => item !== task);
+        state.mustDoTaskOrder[MUST_DO_INBOX_CRITERION.id].push(task);
         return;
     }
     if (state.mustDoCriteria.some(criterion => criterion.id === criterionId)) {
         state.mustDoTaskGroups[task] = criterionId;
+        if (!state.mustDoTaskOrder[criterionId]) state.mustDoTaskOrder[criterionId] = [];
+        state.mustDoTaskOrder[criterionId] = state.mustDoTaskOrder[criterionId].filter(item => item !== task);
+        state.mustDoTaskOrder[criterionId].push(task);
     }
 }
 
 function getGroupedMustDoCandidates() {
     ensureMustDoCriteria();
     const activeId = state.activeMustDoCriterionId;
-    return getMustDoCandidatePool().filter(task => {
+    const tasks = getMustDoCandidatePool().filter(task => {
         const groupId = getTaskGroupId(task);
         return isInboxMustDoCriterion(activeId) ? isInboxMustDoCriterion(groupId) : groupId === activeId;
     });
+    const order = state.mustDoTaskOrder[activeId] || [];
+    return [
+        ...order.filter(task => tasks.includes(task)),
+        ...tasks.filter(task => !order.includes(task))
+    ];
+}
+
+function setActiveGroupTaskOrder(tasks) {
+    ensureMustDoCriteria();
+    const activeId = state.activeMustDoCriterionId;
+    const activeTasks = getGroupedMustDoCandidates();
+    state.mustDoTaskOrder[activeId] = normalizeTaskList(tasks).filter(task => activeTasks.includes(task));
+}
+
+function moveTaskToGroup(task, groupId, switchToGroup = false) {
+    const previousGroupId = getTaskGroupId(task);
+    setTaskGroup(task, groupId);
+    if (switchToGroup) {
+        state.activeMustDoCriterionId = groupId;
+        renderMustDoCriteria();
+    } else if (previousGroupId === state.activeMustDoCriterionId || groupId === state.activeMustDoCriterionId) {
+        syncMustDoCriterionActiveState();
+    }
+    buildMustDoCandidates();
+    saveState();
 }
 
 function updateMustDoSummary() {
@@ -1140,6 +1223,7 @@ function confirmDeleteMustDoCriterion() {
             delete state.mustDoTaskGroups[task];
         }
     });
+    delete state.mustDoTaskOrder[criterionId];
     Object.values(state.mustDoHiddenByDate).forEach(hiddenByCriterion => {
         if (hiddenByCriterion && typeof hiddenByCriterion === 'object') {
             delete hiddenByCriterion[criterionId];
@@ -1154,6 +1238,24 @@ function confirmDeleteMustDoCriterion() {
 }
 
 function bindMustDoCriterionInteractions(button, criterion) {
+    button.addEventListener('dragover', event => {
+        event.preventDefault();
+        event.stopPropagation();
+        button.classList.add('is-drop-target');
+        if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+    });
+    button.addEventListener('dragleave', () => {
+        button.classList.remove('is-drop-target');
+    });
+    button.addEventListener('drop', event => {
+        event.preventDefault();
+        event.stopPropagation();
+        button.classList.remove('is-drop-target');
+        const task = event.dataTransfer.getData('application/x-empty-box-task') || event.dataTransfer.getData('text/plain');
+        if (!task) return;
+        moveTaskToGroup(task, criterion.id);
+    });
+
     if (isInboxMustDoCriterion(criterion.id)) {
         button.addEventListener('click', () => activateMustDoCriterion(criterion.id));
         return;
@@ -1363,10 +1465,8 @@ function openMoveTaskDialog(task) {
         button.textContent = group.name;
         button.disabled = group.id === currentGroupId;
         button.addEventListener('click', () => {
-            setTaskGroup(task, group.id);
+            moveTaskToGroup(task, group.id);
             closeMoveTaskDialog();
-            buildMustDoCandidates();
-            saveState();
         });
         moveTaskList.appendChild(button);
     });
@@ -1374,48 +1474,22 @@ function openMoveTaskDialog(task) {
 }
 
 function bindMustDoItemMoveInteractions(row, task) {
-    let longPressTimer = 0;
     let pointerId = null;
     let startX = 0;
     let startY = 0;
-    let didOpenMove = false;
-
-    const clearLongPress = () => {
-        if (longPressTimer) {
-            window.clearTimeout(longPressTimer);
-            longPressTimer = 0;
-        }
-    };
 
     row.addEventListener('pointerdown', event => {
         if (event.pointerType === 'mouse' && event.button !== 0) return;
         pointerId = event.pointerId;
         startX = event.clientX;
         startY = event.clientY;
-        didOpenMove = false;
-        longPressTimer = window.setTimeout(() => {
-            didOpenMove = true;
-            openMoveTaskDialog(task);
-            clearLongPress();
-        }, MUST_DO_ITEM_LONG_PRESS_MS);
-    });
-
-    row.addEventListener('pointermove', event => {
-        if (pointerId !== event.pointerId) return;
-        const deltaX = event.clientX - startX;
-        const deltaY = event.clientY - startY;
-        if (Math.abs(deltaY) > MUST_DO_CRITERION_TAP_MOVE_PX || Math.abs(deltaX) > MUST_DO_CRITERION_TAP_MOVE_PX) {
-            clearLongPress();
-        }
     });
 
     row.addEventListener('pointerup', event => {
         if (pointerId !== event.pointerId) return;
-        clearLongPress();
         const deltaX = event.clientX - startX;
         const deltaY = event.clientY - startY;
         pointerId = null;
-        if (didOpenMove) return;
         if (event.pointerType !== 'mouse' && deltaX <= -MUST_DO_ITEM_SWIPE_PX && Math.abs(deltaY) < MUST_DO_ITEM_SWIPE_PX) {
             openMoveTaskDialog(task);
         }
@@ -1423,9 +1497,50 @@ function bindMustDoItemMoveInteractions(row, task) {
 
     row.addEventListener('pointercancel', () => {
         pointerId = null;
-        clearLongPress();
     });
-    row.addEventListener('contextmenu', event => event.preventDefault());
+}
+
+function bindMustDoItemDragInteractions(row, task) {
+    row.draggable = true;
+    row.dataset.task = task;
+
+    row.addEventListener('dragstart', event => {
+        row.classList.add('is-dragging');
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('application/x-empty-box-task', task);
+        event.dataTransfer.setData('text/plain', task);
+    });
+
+    row.addEventListener('dragend', () => {
+        row.classList.remove('is-dragging');
+    });
+
+    row.addEventListener('dragover', event => {
+        event.preventDefault();
+        const draggingTask = event.dataTransfer.getData('text/plain');
+        if (!draggingTask || draggingTask === task) return;
+        row.classList.add('is-drag-over');
+    });
+
+    row.addEventListener('dragleave', () => {
+        row.classList.remove('is-drag-over');
+    });
+
+    row.addEventListener('drop', event => {
+        event.preventDefault();
+        row.classList.remove('is-drag-over');
+        const draggingTask = event.dataTransfer.getData('text/plain');
+        if (!draggingTask || draggingTask === task) return;
+        const tasks = getGroupedMustDoCandidates();
+        const fromIndex = tasks.indexOf(draggingTask);
+        const toIndex = tasks.indexOf(task);
+        if (fromIndex === -1 || toIndex === -1) return;
+        tasks.splice(fromIndex, 1);
+        tasks.splice(toIndex, 0, draggingTask);
+        setActiveGroupTaskOrder(tasks);
+        buildMustDoCandidates();
+        saveState();
+    });
 }
 
 function buildMustDoCandidates() {
@@ -1443,10 +1558,11 @@ function buildMustDoCandidates() {
         const selected = state.mustDoTasks.includes(task);
         const row = document.createElement('div');
         row.className = 'candidate-item';
-        row.title = '长按或左滑移动到其他分组';
+        row.title = '拖动排序，点击移动按钮更换分组';
         row.innerHTML = `<span>${task}</span><button class="btn ${selected ? 'primary' : 'secondary'}">${selected ? '✓' : '移动'}</button>`;
         const button = row.querySelector('button');
         bindMustDoItemMoveInteractions(row, task);
+        bindMustDoItemDragInteractions(row, task);
 
         row.addEventListener('dblclick', () => {
             if (selected) return;
@@ -1594,6 +1710,11 @@ function finishInlineEdit() {
         if (nextText) {
             state.mustDoTaskGroups[nextText] = previousGroupId;
         }
+    }
+    if (previousText && previousText !== nextText) {
+        Object.keys(state.mustDoTaskOrder).forEach(groupId => {
+            state.mustDoTaskOrder[groupId] = state.mustDoTaskOrder[groupId].map(task => task === previousText ? nextText : task);
+        });
     }
     state.nowTask = nextText;
     if (!state.nowTask) {
@@ -1847,6 +1968,9 @@ completeNowBtn.addEventListener('click', () => {
     state.completedTasks.push(completedTask);
     state.boxTasks = state.boxTasks.filter(item => item !== state.nowTask);
     delete state.mustDoTaskGroups[state.nowTask];
+    Object.keys(state.mustDoTaskOrder).forEach(groupId => {
+        state.mustDoTaskOrder[groupId] = state.mustDoTaskOrder[groupId].filter(task => task !== state.nowTask);
+    });
     if (isMustDo) {
         state.mustDoTasks = state.mustDoTasks.filter(item => item !== state.nowTask);
     }
