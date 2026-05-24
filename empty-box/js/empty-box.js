@@ -12,12 +12,14 @@ const DEFAULT_MUST_DO_CRITERIA = [
     { id: 'urgent', name: '紧急' },
     { id: 'important', name: '重要' }
 ];
-const MUST_DO_UNLISTED_CRITERION = { id: '__unlisted__', name: '未保留' };
+const MUST_DO_INBOX_CRITERION = { id: '__inbox__', name: 'Inbox' };
 const MUST_DO_CRITERION_LONG_PRESS_MS = 700;
 const MUST_DO_CRITERION_TOUCH_LONG_PRESS_MS = 520;
 const MUST_DO_CRITERION_DOUBLE_TAP_MS = 360;
 const MUST_DO_CRITERION_TAP_MOVE_PX = 12;
 const MUST_DO_HIDDEN_RETENTION_DAYS = 14;
+const MUST_DO_ITEM_LONG_PRESS_MS = 560;
+const MUST_DO_ITEM_SWIPE_PX = 58;
 const QUOTE_ROTATION_MS = 2 * 60 * 60 * 1000;
 const QUOTES = [
     { theme: '斯多葛', text: '控制可控，接受不可控。' },
@@ -108,6 +110,7 @@ const blindboxOverlay = document.getElementById('blindboxOverlay');
 const reflectionOverlay = document.getElementById('reflectionOverlay');
 const settingsOverlay = document.getElementById('settingsOverlay');
 const criterionOverlay = document.getElementById('criterionOverlay');
+const moveTaskOverlay = document.getElementById('moveTaskOverlay');
 const migrationOverlay = document.getElementById('migrationOverlay');
 const spaceNameOverlay = document.getElementById('spaceNameOverlay');
 const confirmOverlay = document.getElementById('confirmOverlay');
@@ -136,6 +139,9 @@ const criterionDialogMessage = document.getElementById('criterionDialogMessage')
 const criterionDialogSaveBtn = document.getElementById('criterionDialogSaveBtn');
 const criterionDialogDeleteBtn = document.getElementById('criterionDialogDeleteBtn');
 const criterionDialogCancelBtn = document.getElementById('criterionDialogCancelBtn');
+const moveTaskTitle = document.getElementById('moveTaskTitle');
+const moveTaskList = document.getElementById('moveTaskList');
+const moveTaskCancelBtn = document.getElementById('moveTaskCancelBtn');
 
 const exportJsonBtn = document.getElementById('exportJsonBtn');
 const importJsonInput = document.getElementById('importJsonInput');
@@ -172,8 +178,8 @@ function createMustDoCriterionId() {
     return `criterion-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function isUnlistedMustDoCriterion(criterionId) {
-    return criterionId === MUST_DO_UNLISTED_CRITERION.id;
+function isInboxMustDoCriterion(criterionId) {
+    return criterionId === MUST_DO_INBOX_CRITERION.id;
 }
 
 function normalizeTaskList(value, dedupe = true) {
@@ -187,7 +193,7 @@ function normalizeMustDoCriteria(value) {
     const source = Array.isArray(value) ? value : [];
     const criteria = [];
     source.forEach(item => {
-        if (item && typeof item === 'object' && item.id === MUST_DO_UNLISTED_CRITERION.id) return;
+        if (item && typeof item === 'object' && item.id === MUST_DO_INBOX_CRITERION.id) return;
         const rawName = typeof item === 'string'
             ? item
             : item && typeof item === 'object' && typeof item.name === 'string'
@@ -217,14 +223,59 @@ function normalizeMustDoHiddenByDate(value) {
     return hiddenByDate;
 }
 
+function getStateTaskPool(source) {
+    return normalizeTaskList([
+        ...(Array.isArray(source.boxTasks) ? source.boxTasks : []),
+        typeof source.nowTask === 'string' ? source.nowTask : ''
+    ]);
+}
+
+function deriveMustDoTaskGroups(source, criteria, hiddenByDate) {
+    const validCriterionIds = new Set(criteria.map(criterion => criterion.id));
+    const taskPool = getStateTaskPool(source);
+    const existingGroups = source.mustDoTaskGroups && typeof source.mustDoTaskGroups === 'object' && !Array.isArray(source.mustDoTaskGroups)
+        ? source.mustDoTaskGroups
+        : null;
+
+    if (existingGroups) {
+        const taskGroups = {};
+        taskPool.forEach(task => {
+            const criterionId = existingGroups[task];
+            if (typeof criterionId === 'string' && validCriterionIds.has(criterionId)) {
+                taskGroups[task] = criterionId;
+            }
+        });
+        return taskGroups;
+    }
+
+    const hiddenByCriterion = new Map(criteria.map(criterion => [criterion.id, new Set()]));
+    Object.values(hiddenByDate).forEach(hiddenForDate => {
+        if (!hiddenForDate || typeof hiddenForDate !== 'object' || Array.isArray(hiddenForDate)) return;
+        Object.entries(hiddenForDate).forEach(([criterionId, tasks]) => {
+            if (!hiddenByCriterion.has(criterionId) || !Array.isArray(tasks)) return;
+            tasks.forEach(task => hiddenByCriterion.get(criterionId).add(task));
+        });
+    });
+
+    const taskGroups = {};
+    taskPool.forEach(task => {
+        const matchingCriteria = criteria.filter(criterion => !hiddenByCriterion.get(criterion.id).has(task));
+        if (matchingCriteria.length === 1) {
+            taskGroups[task] = matchingCriteria[0].id;
+        }
+    });
+    return taskGroups;
+}
+
 function normalizeState(parsed) {
     const source = parsed && typeof parsed === 'object' ? parsed : {};
     const mustDoCriteria = normalizeMustDoCriteria(source.mustDoCriteria);
+    const mustDoHiddenByDate = normalizeMustDoHiddenByDate(source.mustDoHiddenByDate);
     const activeMustDoCriterionId = typeof source.activeMustDoCriterionId === 'string' &&
-        (isUnlistedMustDoCriterion(source.activeMustDoCriterionId) ||
+        (isInboxMustDoCriterion(source.activeMustDoCriterionId) ||
             mustDoCriteria.some(criterion => criterion.id === source.activeMustDoCriterionId))
         ? source.activeMustDoCriterionId
-        : mustDoCriteria[0].id;
+        : MUST_DO_INBOX_CRITERION.id;
 
     return {
         boxTasks: normalizeTaskList(source.boxTasks),
@@ -237,7 +288,8 @@ function normalizeState(parsed) {
         mustDoTasks: normalizeTaskList(source.mustDoTasks),
         mustDoCriteria,
         activeMustDoCriterionId,
-        mustDoHiddenByDate: normalizeMustDoHiddenByDate(source.mustDoHiddenByDate)
+        mustDoHiddenByDate,
+        mustDoTaskGroups: deriveMustDoTaskGroups(source, mustDoCriteria, mustDoHiddenByDate)
     };
 }
 
@@ -251,8 +303,9 @@ let state = {
     blindboxCooldownUntil: 0,
     mustDoTasks: [],
     mustDoCriteria: cloneDefaultMustDoCriteria(),
-    activeMustDoCriterionId: DEFAULT_MUST_DO_CRITERIA[0].id,
-    mustDoHiddenByDate: {}
+    activeMustDoCriterionId: MUST_DO_INBOX_CRITERION.id,
+    mustDoHiddenByDate: {},
+    mustDoTaskGroups: {}
 };
 
 let blindboxTask = '没有任务';
@@ -267,6 +320,7 @@ let pendingSpaceMode = 'local_only';
 let isBooting = true;
 let activeLegacyMode = false;
 let pendingConfirmResolve = null;
+let pendingMoveTask = '';
 
 function createId(prefix) {
     if (crypto && crypto.randomUUID) return crypto.randomUUID();
@@ -715,7 +769,8 @@ function mergeStates(target, source) {
         mustDoTasks: mergeUnique(base.mustDoTasks, incoming.mustDoTasks).slice(0, 3),
         mustDoCriteria: mergeCriteria(base.mustDoCriteria, incoming.mustDoCriteria),
         activeMustDoCriterionId: base.activeMustDoCriterionId || incoming.activeMustDoCriterionId,
-        mustDoHiddenByDate: { ...incoming.mustDoHiddenByDate, ...base.mustDoHiddenByDate }
+        mustDoHiddenByDate: { ...incoming.mustDoHiddenByDate, ...base.mustDoHiddenByDate },
+        mustDoTaskGroups: { ...incoming.mustDoTaskGroups, ...base.mustDoTaskGroups }
     });
 }
 
@@ -734,7 +789,8 @@ function mergeTransferStates(target, source) {
         mustDoTasks: base.mustDoTasks,
         mustDoCriteria: base.mustDoCriteria,
         activeMustDoCriterionId: base.activeMustDoCriterionId,
-        mustDoHiddenByDate: base.mustDoHiddenByDate
+        mustDoHiddenByDate: base.mustDoHiddenByDate,
+        mustDoTaskGroups: base.mustDoTaskGroups
     });
 }
 
@@ -871,62 +927,53 @@ function ensureMustDoCriteria() {
     if (!Array.isArray(state.mustDoCriteria) || !state.mustDoCriteria.length) {
         state.mustDoCriteria = cloneDefaultMustDoCriteria();
     }
-    if (!isUnlistedMustDoCriterion(state.activeMustDoCriterionId) &&
+    if (!isInboxMustDoCriterion(state.activeMustDoCriterionId) &&
         !state.mustDoCriteria.some(criterion => criterion.id === state.activeMustDoCriterionId)) {
-        state.activeMustDoCriterionId = state.mustDoCriteria[0].id;
+        state.activeMustDoCriterionId = MUST_DO_INBOX_CRITERION.id;
     }
     if (!state.mustDoHiddenByDate || typeof state.mustDoHiddenByDate !== 'object' || Array.isArray(state.mustDoHiddenByDate)) {
         state.mustDoHiddenByDate = {};
     }
-    pruneMustDoHiddenByDate();
-}
-
-function getTodayHiddenTasks() {
-    ensureMustDoCriteria();
-    if (isUnlistedMustDoCriterion(state.activeMustDoCriterionId)) return [];
-    const todayKey = getTodayKey();
-    if (!state.mustDoHiddenByDate[todayKey]) {
-        state.mustDoHiddenByDate[todayKey] = {};
+    if (!state.mustDoTaskGroups || typeof state.mustDoTaskGroups !== 'object' || Array.isArray(state.mustDoTaskGroups)) {
+        state.mustDoTaskGroups = {};
     }
-    if (!Array.isArray(state.mustDoHiddenByDate[todayKey][state.activeMustDoCriterionId])) {
-        state.mustDoHiddenByDate[todayKey][state.activeMustDoCriterionId] = [];
-    }
-    return state.mustDoHiddenByDate[todayKey][state.activeMustDoCriterionId];
-}
-
-function getHiddenTasksForCriterionId(criterionId) {
-    const hiddenTasks = new Set();
-    getMustDoHiddenRetentionKeys().forEach(dateKey => {
-        const hiddenByCriterion = state.mustDoHiddenByDate[dateKey];
-        const tasks = hiddenByCriterion && hiddenByCriterion[criterionId];
-        if (Array.isArray(tasks)) {
-            tasks.forEach(task => hiddenTasks.add(task));
+    const validCriterionIds = new Set(state.mustDoCriteria.map(criterion => criterion.id));
+    Object.keys(state.mustDoTaskGroups).forEach(task => {
+        if (!validCriterionIds.has(state.mustDoTaskGroups[task]) || !getMustDoCandidatePool().includes(task)) {
+            delete state.mustDoTaskGroups[task];
         }
     });
-    return [...hiddenTasks];
-}
-
-function getActiveHiddenTasks() {
-    ensureMustDoCriteria();
-    if (isUnlistedMustDoCriterion(state.activeMustDoCriterionId)) return [];
-    return getHiddenTasksForCriterionId(state.activeMustDoCriterionId);
+    pruneMustDoHiddenByDate();
 }
 
 function getMustDoCandidatePool() {
     return [...new Set([...state.boxTasks, state.nowTask].filter(Boolean))];
 }
 
-function getUnlistedMustDoCandidates() {
+function getTaskGroupId(task) {
     ensureMustDoCriteria();
-    const criteria = state.mustDoCriteria;
-    if (!criteria.length) return [];
-    const hiddenByCriterion = new Map(criteria.map(criterion => [
-        criterion.id,
-        new Set(getHiddenTasksForCriterionId(criterion.id))
-    ]));
-    return getMustDoCandidatePool().filter(task =>
-        criteria.every(criterion => hiddenByCriterion.get(criterion.id).has(task))
-    );
+    return state.mustDoTaskGroups[task] || MUST_DO_INBOX_CRITERION.id;
+}
+
+function setTaskGroup(task, criterionId) {
+    ensureMustDoCriteria();
+    if (!task) return;
+    if (isInboxMustDoCriterion(criterionId)) {
+        delete state.mustDoTaskGroups[task];
+        return;
+    }
+    if (state.mustDoCriteria.some(criterion => criterion.id === criterionId)) {
+        state.mustDoTaskGroups[task] = criterionId;
+    }
+}
+
+function getGroupedMustDoCandidates() {
+    ensureMustDoCriteria();
+    const activeId = state.activeMustDoCriterionId;
+    return getMustDoCandidatePool().filter(task => {
+        const groupId = getTaskGroupId(task);
+        return isInboxMustDoCriterion(activeId) ? isInboxMustDoCriterion(groupId) : groupId === activeId;
+    });
 }
 
 function updateMustDoSummary() {
@@ -959,7 +1006,7 @@ function activateMustDoCriterion(criterionId) {
 function openCriterionNameDialog(mode, criterion = null) {
     criterionDialogMode = mode;
     criterionDialogCriterionId = criterion ? criterion.id : null;
-    criterionDialogTitle.textContent = mode === 'add' ? '新增标准' : '修改标准';
+    criterionDialogTitle.textContent = mode === 'add' ? '新增分组' : '修改分组';
     criterionDialogInput.style.display = 'block';
     criterionDialogInput.value = criterion ? criterion.name : '';
     criterionDialogMessage.textContent = '';
@@ -987,7 +1034,7 @@ function openCriterionMessageDialog(title, message) {
 function openCriterionDeleteDialog(criterion) {
     criterionDialogMode = 'delete';
     criterionDialogCriterionId = criterion.id;
-    criterionDialogTitle.textContent = '删除标准';
+    criterionDialogTitle.textContent = '删除分组';
     criterionDialogInput.style.display = 'none';
     criterionDialogMessage.textContent = `删除“${criterion.name}”？`;
     criterionDialogSaveBtn.style.display = 'none';
@@ -1009,7 +1056,7 @@ function showCriterionDialogMessage(message) {
 function saveCriterionNameDialog() {
     const trimmedName = criterionDialogInput.value.trim();
     if (!trimmedName) {
-        showCriterionDialogMessage('请输入标准名');
+        showCriterionDialogMessage('请输入分组名');
         return;
     }
 
@@ -1039,7 +1086,7 @@ function saveCriterionNameDialog() {
 
         const duplicate = state.mustDoCriteria.some(item => item.id !== criterion.id && item.name === trimmedName);
         if (duplicate) {
-            showCriterionDialogMessage('已经有这个标准');
+            showCriterionDialogMessage('已经有这个分组');
             return;
         }
 
@@ -1058,12 +1105,12 @@ function renameMustDoCriterion(criterionId) {
 
 function deleteMustDoCriterion(criterionId) {
     ensureMustDoCriteria();
-    if (isUnlistedMustDoCriterion(criterionId)) {
-        openCriterionMessageDialog('不能删除', '未保留是默认列表');
+    if (isInboxMustDoCriterion(criterionId)) {
+        openCriterionMessageDialog('不能删除', 'Inbox 是默认分组');
         return;
     }
     if (state.mustDoCriteria.length <= 1) {
-        openCriterionMessageDialog('不能删除', '至少保留一个标准');
+        openCriterionMessageDialog('不能删除', '至少保留一个分组');
         return;
     }
 
@@ -1077,7 +1124,7 @@ function deleteMustDoCriterion(criterionId) {
 function confirmDeleteMustDoCriterion() {
     ensureMustDoCriteria();
     const criterionId = criterionDialogCriterionId;
-    if (isUnlistedMustDoCriterion(criterionId)) {
+    if (isInboxMustDoCriterion(criterionId)) {
         closeCriterionDialog();
         return;
     }
@@ -1088,6 +1135,11 @@ function confirmDeleteMustDoCriterion() {
     }
 
     state.mustDoCriteria.splice(criterionIndex, 1);
+    Object.keys(state.mustDoTaskGroups).forEach(task => {
+        if (state.mustDoTaskGroups[task] === criterionId) {
+            delete state.mustDoTaskGroups[task];
+        }
+    });
     Object.values(state.mustDoHiddenByDate).forEach(hiddenByCriterion => {
         if (hiddenByCriterion && typeof hiddenByCriterion === 'object') {
             delete hiddenByCriterion[criterionId];
@@ -1095,15 +1147,14 @@ function confirmDeleteMustDoCriterion() {
     });
 
     if (state.activeMustDoCriterionId === criterionId) {
-        const nextCriterion = state.mustDoCriteria[Math.max(0, criterionIndex - 1)] || state.mustDoCriteria[0];
-        state.activeMustDoCriterionId = nextCriterion.id;
+        state.activeMustDoCriterionId = MUST_DO_INBOX_CRITERION.id;
     }
     closeCriterionDialog();
     refreshMustDoOverlayState();
 }
 
 function bindMustDoCriterionInteractions(button, criterion) {
-    if (isUnlistedMustDoCriterion(criterion.id)) {
+    if (isInboxMustDoCriterion(criterion.id)) {
         button.addEventListener('click', () => activateMustDoCriterion(criterion.id));
         return;
     }
@@ -1255,6 +1306,16 @@ function bindMustDoCriterionInteractions(button, criterion) {
 function renderMustDoCriteria() {
     ensureMustDoCriteria();
     mustDoCriteriaBar.innerHTML = '';
+    const inboxButton = document.createElement('button');
+    inboxButton.type = 'button';
+    inboxButton.className = `must-do-criterion fixed${isInboxMustDoCriterion(state.activeMustDoCriterionId) ? ' active' : ''}`;
+    inboxButton.dataset.criterionId = MUST_DO_INBOX_CRITERION.id;
+    inboxButton.setAttribute('aria-pressed', isInboxMustDoCriterion(state.activeMustDoCriterionId) ? 'true' : 'false');
+    inboxButton.title = '未分组任务';
+    inboxButton.textContent = MUST_DO_INBOX_CRITERION.name;
+    bindMustDoCriterionInteractions(inboxButton, MUST_DO_INBOX_CRITERION);
+    mustDoCriteriaBar.appendChild(inboxButton);
+
     state.mustDoCriteria.forEach(criterion => {
         const button = document.createElement('button');
         button.type = 'button';
@@ -1266,21 +1327,11 @@ function renderMustDoCriteria() {
         mustDoCriteriaBar.appendChild(button);
     });
 
-    const unlistedButton = document.createElement('button');
-    unlistedButton.type = 'button';
-    unlistedButton.className = `must-do-criterion fixed${isUnlistedMustDoCriterion(state.activeMustDoCriterionId) ? ' active' : ''}`;
-    unlistedButton.dataset.criterionId = MUST_DO_UNLISTED_CRITERION.id;
-    unlistedButton.setAttribute('aria-pressed', isUnlistedMustDoCriterion(state.activeMustDoCriterionId) ? 'true' : 'false');
-    unlistedButton.title = '所有列表都未保留的任务';
-    unlistedButton.textContent = MUST_DO_UNLISTED_CRITERION.name;
-    bindMustDoCriterionInteractions(unlistedButton, MUST_DO_UNLISTED_CRITERION);
-    mustDoCriteriaBar.appendChild(unlistedButton);
-
     const addButton = document.createElement('button');
     addButton.type = 'button';
     addButton.className = 'must-do-criterion add';
-    addButton.setAttribute('aria-label', '新增标准');
-    addButton.title = '新增标准';
+    addButton.setAttribute('aria-label', '新增分组');
+    addButton.title = '新增分组';
     addButton.textContent = '+';
     addButton.addEventListener('click', addMustDoCriterion);
     mustDoCriteriaBar.appendChild(addButton);
@@ -1290,26 +1341,101 @@ function addMustDoCriterion() {
     openCriterionNameDialog('add');
 }
 
-function hideMustDoCandidate(task) {
-    if (isUnlistedMustDoCriterion(state.activeMustDoCriterionId)) return;
-    const hiddenTasks = getTodayHiddenTasks();
-    if (!hiddenTasks.includes(task)) {
-        hiddenTasks.push(task);
-    }
-    buildMustDoCandidates();
-    saveState();
+function getMoveTaskGroups() {
+    ensureMustDoCriteria();
+    return [MUST_DO_INBOX_CRITERION, ...state.mustDoCriteria];
+}
+
+function closeMoveTaskDialog() {
+    pendingMoveTask = '';
+    closeOverlay(moveTaskOverlay);
+}
+
+function openMoveTaskDialog(task) {
+    pendingMoveTask = task;
+    moveTaskTitle.textContent = `移动“${task}”`;
+    moveTaskList.innerHTML = '';
+    const currentGroupId = getTaskGroupId(task);
+    getMoveTaskGroups().forEach(group => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = `btn ${group.id === currentGroupId ? 'primary' : 'secondary'}`;
+        button.textContent = group.name;
+        button.disabled = group.id === currentGroupId;
+        button.addEventListener('click', () => {
+            setTaskGroup(task, group.id);
+            closeMoveTaskDialog();
+            buildMustDoCandidates();
+            saveState();
+        });
+        moveTaskList.appendChild(button);
+    });
+    openOverlay(moveTaskOverlay);
+}
+
+function bindMustDoItemMoveInteractions(row, task) {
+    let longPressTimer = 0;
+    let pointerId = null;
+    let startX = 0;
+    let startY = 0;
+    let didOpenMove = false;
+
+    const clearLongPress = () => {
+        if (longPressTimer) {
+            window.clearTimeout(longPressTimer);
+            longPressTimer = 0;
+        }
+    };
+
+    row.addEventListener('pointerdown', event => {
+        if (event.pointerType === 'mouse' && event.button !== 0) return;
+        pointerId = event.pointerId;
+        startX = event.clientX;
+        startY = event.clientY;
+        didOpenMove = false;
+        longPressTimer = window.setTimeout(() => {
+            didOpenMove = true;
+            openMoveTaskDialog(task);
+            clearLongPress();
+        }, MUST_DO_ITEM_LONG_PRESS_MS);
+    });
+
+    row.addEventListener('pointermove', event => {
+        if (pointerId !== event.pointerId) return;
+        const deltaX = event.clientX - startX;
+        const deltaY = event.clientY - startY;
+        if (Math.abs(deltaY) > MUST_DO_CRITERION_TAP_MOVE_PX || Math.abs(deltaX) > MUST_DO_CRITERION_TAP_MOVE_PX) {
+            clearLongPress();
+        }
+    });
+
+    row.addEventListener('pointerup', event => {
+        if (pointerId !== event.pointerId) return;
+        clearLongPress();
+        const deltaX = event.clientX - startX;
+        const deltaY = event.clientY - startY;
+        pointerId = null;
+        if (didOpenMove) return;
+        if (event.pointerType !== 'mouse' && deltaX <= -MUST_DO_ITEM_SWIPE_PX && Math.abs(deltaY) < MUST_DO_ITEM_SWIPE_PX) {
+            openMoveTaskDialog(task);
+        }
+    });
+
+    row.addEventListener('pointercancel', () => {
+        pointerId = null;
+        clearLongPress();
+    });
+    row.addEventListener('contextmenu', event => event.preventDefault());
 }
 
 function buildMustDoCandidates() {
     mustDoSelection.innerHTML = '';
-    const isUnlisted = isUnlistedMustDoCriterion(state.activeMustDoCriterionId);
-    const tasks = isUnlistedMustDoCriterion(state.activeMustDoCriterionId)
-        ? getUnlistedMustDoCandidates()
-        : getMustDoCandidatePool().filter(task => !getActiveHiddenTasks().includes(task));
+    const isInbox = isInboxMustDoCriterion(state.activeMustDoCriterionId);
+    const tasks = getGroupedMustDoCandidates();
     if (!tasks.length) {
         const empty = document.createElement('div');
         empty.className = 'reflection-empty';
-        empty.textContent = isUnlisted ? '没有未保留任务' : '没有候选任务';
+        empty.textContent = isInbox ? 'Inbox 为空' : '这个分组还没有任务';
         mustDoSelection.appendChild(empty);
         return;
     }
@@ -1317,11 +1443,10 @@ function buildMustDoCandidates() {
         const selected = state.mustDoTasks.includes(task);
         const row = document.createElement('div');
         row.className = 'candidate-item';
-        row.innerHTML = `<span>${task}</span><button class="btn ${selected ? 'primary' : 'secondary'}">${selected ? '✓' : isUnlisted ? '·' : '×'}</button>`;
+        row.title = '长按或左滑移动到其他分组';
+        row.innerHTML = `<span>${task}</span><button class="btn ${selected ? 'primary' : 'secondary'}">${selected ? '✓' : '移动'}</button>`;
         const button = row.querySelector('button');
-        if (isUnlisted && !selected) {
-            button.disabled = true;
-        }
+        bindMustDoItemMoveInteractions(row, task);
 
         row.addEventListener('dblclick', () => {
             if (selected) return;
@@ -1343,9 +1468,8 @@ function buildMustDoCandidates() {
                 updateMustDoSummary();
                 renderMustDoList();
                 saveState();
-            } else if (!isUnlisted) {
-                // 移除候选项
-                hideMustDoCandidate(task);
+            } else {
+                openMoveTaskDialog(task);
             }
         });
 
@@ -1462,6 +1586,13 @@ function finishInlineEdit() {
             state.mustDoTasks = [...new Set(state.mustDoTasks.map(task => task === previousText ? nextText : task))];
         } else {
             state.mustDoTasks = state.mustDoTasks.filter(task => task !== previousText);
+        }
+    }
+    if (previousText && previousText !== nextText && state.mustDoTaskGroups[previousText]) {
+        const previousGroupId = state.mustDoTaskGroups[previousText];
+        delete state.mustDoTaskGroups[previousText];
+        if (nextText) {
+            state.mustDoTaskGroups[nextText] = previousGroupId;
         }
     }
     state.nowTask = nextText;
@@ -1715,6 +1846,7 @@ completeNowBtn.addEventListener('click', () => {
     const completedTask = isMustDo ? `${state.nowTask}【必做】` : state.nowTask;
     state.completedTasks.push(completedTask);
     state.boxTasks = state.boxTasks.filter(item => item !== state.nowTask);
+    delete state.mustDoTaskGroups[state.nowTask];
     if (isMustDo) {
         state.mustDoTasks = state.mustDoTasks.filter(item => item !== state.nowTask);
     }
@@ -1898,6 +2030,7 @@ undoFab.addEventListener('click', undoLastComplete);
 criterionDialogSaveBtn.addEventListener('click', saveCriterionNameDialog);
 criterionDialogDeleteBtn.addEventListener('click', confirmDeleteMustDoCriterion);
 criterionDialogCancelBtn.addEventListener('click', closeCriterionDialog);
+moveTaskCancelBtn.addEventListener('click', closeMoveTaskDialog);
 confirmAcceptBtn.addEventListener('click', () => closeConfirmDialog(true));
 confirmCancelBtn.addEventListener('click', () => closeConfirmDialog(false));
 
@@ -1956,6 +2089,8 @@ document.querySelectorAll('[data-close]').forEach(btn => {
         const target = document.getElementById(btn.dataset.close);
         if (target === criterionOverlay) {
             closeCriterionDialog();
+        } else if (target === moveTaskOverlay) {
+            closeMoveTaskDialog();
         } else if (target === spaceNameOverlay) {
             closeSpaceNameDialog();
         } else if (target === confirmOverlay) {
@@ -1966,11 +2101,13 @@ document.querySelectorAll('[data-close]').forEach(btn => {
     });
 });
 
-[searchOverlay, addOverlay, blindboxOverlay, reflectionOverlay, settingsOverlay, criterionOverlay, migrationOverlay, spaceNameOverlay, confirmOverlay].forEach(overlay => {
+[searchOverlay, addOverlay, blindboxOverlay, reflectionOverlay, settingsOverlay, criterionOverlay, moveTaskOverlay, migrationOverlay, spaceNameOverlay, confirmOverlay].forEach(overlay => {
     overlay.addEventListener('click', e => {
         if (e.target !== overlay) return;
         if (overlay === criterionOverlay) {
             closeCriterionDialog();
+        } else if (overlay === moveTaskOverlay) {
+            closeMoveTaskDialog();
         } else if (overlay === spaceNameOverlay) {
             closeSpaceNameDialog();
         } else if (overlay === confirmOverlay) {

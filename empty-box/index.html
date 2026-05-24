@@ -90,15 +90,28 @@
                 <div class="overlay" id="criterionOverlay">
                     <div class="overlay-card">
                         <div class="overlay-head">
-                            <h3 class="overlay-title" id="criterionDialogTitle">标准</h3>
+                            <h3 class="overlay-title" id="criterionDialogTitle">分组</h3>
                             <button class="close-btn" data-close="criterionOverlay">×</button>
                         </div>
-                        <input class="search-input" id="criterionDialogInput" placeholder="标准名…" />
+                        <input class="search-input" id="criterionDialogInput" placeholder="分组名…" />
                         <div class="criterion-dialog-message" id="criterionDialogMessage"></div>
                         <div class="actions">
                             <button class="btn primary" id="criterionDialogSaveBtn">确定</button>
                             <button class="btn secondary danger" id="criterionDialogDeleteBtn">删除</button>
                             <button class="btn secondary" id="criterionDialogCancelBtn">取消</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="overlay" id="moveTaskOverlay">
+                    <div class="overlay-card">
+                        <div class="overlay-head">
+                            <h3 class="overlay-title" id="moveTaskTitle">移动到分组</h3>
+                            <button class="close-btn" data-close="moveTaskOverlay">×</button>
+                        </div>
+                        <div class="move-task-list" id="moveTaskList"></div>
+                        <div class="actions">
+                            <button class="btn secondary" id="moveTaskCancelBtn">取消</button>
                         </div>
                     </div>
                 </div>

@@ -505,10 +505,22 @@
 
     .must-do-selection .candidate-item {
         align-items: center;
+        touch-action: pan-y;
     }
 
     .must-do-selection .candidate-item button {
         min-width: 68px;
+    }
+
+    .move-task-list {
+        display: grid;
+        gap: 10px;
+        margin-top: 4px;
+    }
+
+    .move-task-list .btn {
+        width: 100%;
+        text-align: left;
     }
 
     .must-do-summary {
