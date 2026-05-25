@@ -1575,7 +1575,7 @@ function startMustDoItemTextEdit(row, label, task) {
     input.select();
 
     let finished = false;
-    const finish = (shouldSave) => {
+    const finish = (shouldSave, source = 'commit') => {
         if (finished) return;
         finished = true;
         if (!shouldSave) {
@@ -1584,12 +1584,18 @@ function startMustDoItemTextEdit(row, label, task) {
         }
         const result = renameTaskText(task, input.value);
         if (!result.ok) {
+            if (source === 'blur') {
+                buildMustDoCandidates();
+                return;
+            }
             finished = false;
-            window.alert(result.message);
+            input.setCustomValidity(result.message);
+            input.reportValidity();
             input.focus();
             input.select();
             return;
         }
+        input.setCustomValidity('');
         buildMustDoCandidates();
         updateMustDoSummary();
         renderNow();
@@ -1608,7 +1614,8 @@ function startMustDoItemTextEdit(row, label, task) {
             finish(false);
         }
     });
-    input.addEventListener('blur', () => finish(true));
+    input.addEventListener('input', () => input.setCustomValidity(''));
+    input.addEventListener('blur', () => finish(true, 'blur'));
 }
 
 function buildMustDoCandidates() {
