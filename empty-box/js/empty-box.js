@@ -1498,9 +1498,11 @@ function bindMustDoItemMoveInteractions(row, task) {
     let pointerId = null;
     let startX = 0;
     let startY = 0;
+    const isActionTarget = target => Boolean(target.closest('button, input, textarea'));
 
     row.addEventListener('pointerdown', event => {
         if (event.pointerType === 'mouse' && event.button !== 0) return;
+        if (isActionTarget(event.target)) return;
         pointerId = event.pointerId;
         startX = event.clientX;
         startY = event.clientY;
@@ -1511,13 +1513,22 @@ function bindMustDoItemMoveInteractions(row, task) {
         const deltaX = event.clientX - startX;
         const deltaY = event.clientY - startY;
         pointerId = null;
-        if (event.pointerType !== 'mouse' && deltaX <= -MUST_DO_ITEM_SWIPE_PX && Math.abs(deltaY) < MUST_DO_ITEM_SWIPE_PX) {
-            openMoveTaskDialog(task);
+        if (event.pointerType === 'mouse' || Math.abs(deltaY) >= MUST_DO_ITEM_SWIPE_PX) return;
+        if (deltaX <= -MUST_DO_ITEM_SWIPE_PX) {
+            row.classList.add('is-actions-revealed');
+        }
+        if (deltaX >= MUST_DO_ITEM_SWIPE_PX) {
+            row.classList.remove('is-actions-revealed');
         }
     });
 
     row.addEventListener('pointercancel', () => {
         pointerId = null;
+    });
+
+    row.addEventListener('click', event => {
+        if (!row.classList.contains('is-actions-revealed') || isActionTarget(event.target)) return;
+        row.classList.remove('is-actions-revealed');
     });
 }
 
@@ -1647,11 +1658,15 @@ function buildMustDoCandidates() {
         moveButton.type = 'button';
         moveButton.className = 'btn secondary compact';
         moveButton.textContent = '移动';
+        const completeButton = document.createElement('button');
+        completeButton.type = 'button';
+        completeButton.className = 'btn secondary compact';
+        completeButton.textContent = '完成';
         const selectButton = document.createElement('button');
         selectButton.type = 'button';
         selectButton.className = `btn ${selected ? 'primary' : 'secondary'} compact`;
         selectButton.textContent = selected ? '取消' : '选中';
-        actions.append(editButton, moveButton, selectButton);
+        actions.append(editButton, moveButton, completeButton, selectButton);
         row.append(label, actions);
         bindMustDoItemMoveInteractions(row, task);
         bindMustDoItemDragInteractions(row, task);
@@ -1664,6 +1679,15 @@ function buildMustDoCandidates() {
         moveButton.addEventListener('click', (e) => {
             e.stopPropagation();
             openMoveTaskDialog(task);
+        });
+
+        completeButton.addEventListener('click', (e) => {
+            e.stopPropagation();
+            completeTask(task);
+            buildMustDoCandidates();
+            updateMustDoSummary();
+            renderMustDoList();
+            renderNow();
         });
 
         selectButton.addEventListener('click', (e) => {
@@ -1700,6 +1724,25 @@ function openMustDoOverlay() {
 function updateMustDoState() {
     renderMustDoList();
     saveState();
+}
+
+function completeTask(task) {
+    if (!task) return;
+    const isMustDo = state.mustDoTasks.includes(task);
+    lastCompletedTask = task;
+    state.completedTasks.push(isMustDo ? `${task}【必做】` : task);
+    state.boxTasks = state.boxTasks.filter(item => item !== task);
+    delete state.mustDoTaskGroups[task];
+    Object.keys(state.mustDoTaskOrder).forEach(groupId => {
+        state.mustDoTaskOrder[groupId] = state.mustDoTaskOrder[groupId].filter(item => item !== task);
+    });
+    if (isMustDo) {
+        state.mustDoTasks = state.mustDoTasks.filter(item => item !== task);
+    }
+    if (state.nowTask === task) {
+        state.nowTask = '';
+        state.nowTaskStartedAt = 0;
+    }
 }
 
 function addToBox(value) {
@@ -2058,20 +2101,7 @@ async function finishMigration(mode) {
 
 completeNowBtn.addEventListener('click', () => {
     if (!state.nowTask) return;
-    const isMustDo = state.mustDoTasks.includes(state.nowTask);
-    lastCompletedTask = state.nowTask;
-    const completedTask = isMustDo ? `${state.nowTask}【必做】` : state.nowTask;
-    state.completedTasks.push(completedTask);
-    state.boxTasks = state.boxTasks.filter(item => item !== state.nowTask);
-    delete state.mustDoTaskGroups[state.nowTask];
-    Object.keys(state.mustDoTaskOrder).forEach(groupId => {
-        state.mustDoTaskOrder[groupId] = state.mustDoTaskOrder[groupId].filter(task => task !== state.nowTask);
-    });
-    if (isMustDo) {
-        state.mustDoTasks = state.mustDoTasks.filter(item => item !== state.nowTask);
-    }
-    state.nowTask = '';
-    state.nowTaskStartedAt = 0;
+    completeTask(state.nowTask);
     renderNow();
     renderMustDoList();
 });

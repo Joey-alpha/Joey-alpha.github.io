@@ -747,4 +747,48 @@
         .space-transfer-grid {
             grid-template-columns: 1fr;
         }
+
+        .must-do-selection .candidate-item {
+            position: relative;
+            flex-wrap: nowrap;
+            min-height: 58px;
+            overflow: hidden;
+            padding-right: 16px;
+        }
+
+        .must-do-selection .candidate-text {
+            transition: transform 0.2s ease;
+        }
+
+        .must-do-selection .candidate-actions {
+            position: absolute;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            flex-wrap: nowrap;
+            gap: 6px;
+            padding: 8px 10px;
+            background: rgba(255, 255, 255, 0.92);
+            border-left: 1px solid var(--line);
+            box-shadow: -12px 0 18px rgba(15, 23, 42, 0.08);
+            opacity: 0;
+            pointer-events: none;
+            transform: translateX(104%);
+            transition: transform 0.22s ease, opacity 0.22s ease;
+        }
+
+        .must-do-selection .candidate-item.is-actions-revealed .candidate-text {
+            transform: translateX(-10px);
+        }
+
+        .must-do-selection .candidate-item.is-actions-revealed .candidate-actions {
+            opacity: 1;
+            pointer-events: auto;
+            transform: translateX(0);
+        }
+
+        .must-do-selection .candidate-actions .btn {
+            min-width: 48px;
+            padding-inline: 10px;
+        }
     }
