@@ -13,8 +13,6 @@ const DEFAULT_MUST_DO_CRITERIA = [
     { id: 'important', name: '重要' }
 ];
 const MUST_DO_INBOX_CRITERION = { id: '__inbox__', name: 'Inbox' };
-const MUST_DO_CRITERION_LONG_PRESS_MS = 700;
-const MUST_DO_CRITERION_TOUCH_LONG_PRESS_MS = 520;
 const MUST_DO_CRITERION_DOUBLE_TAP_MS = 360;
 const MUST_DO_CRITERION_TAP_MOVE_PX = 12;
 const MUST_DO_HIDDEN_RETENTION_DAYS = 14;
@@ -1147,6 +1145,19 @@ function openCriterionDeleteDialog(criterion) {
     openOverlay(criterionOverlay);
 }
 
+function openCriterionManageDialog(criterion) {
+    criterionDialogMode = 'manage';
+    criterionDialogCriterionId = criterion.id;
+    criterionDialogTitle.textContent = criterion.name;
+    criterionDialogInput.style.display = 'none';
+    criterionDialogMessage.textContent = '管理这个分组';
+    criterionDialogSaveBtn.style.display = 'inline-flex';
+    criterionDialogSaveBtn.textContent = '重命名';
+    criterionDialogDeleteBtn.style.display = 'inline-flex';
+    criterionDialogCancelBtn.textContent = '取消';
+    openOverlay(criterionOverlay);
+}
+
 function closeCriterionDialog() {
     closeOverlay(criterionOverlay);
     criterionDialogMessage.textContent = '';
@@ -1158,6 +1169,13 @@ function showCriterionDialogMessage(message) {
 }
 
 function saveCriterionNameDialog() {
+    if (criterionDialogMode === 'manage') {
+        const criterionId = criterionDialogCriterionId;
+        closeCriterionDialog();
+        renameMustDoCriterion(criterionId);
+        return;
+    }
+
     const trimmedName = criterionDialogInput.value.trim();
     if (!trimmedName) {
         showCriterionDialogMessage('请输入分组名');
@@ -1225,6 +1243,24 @@ function deleteMustDoCriterion(criterionId) {
     openCriterionDeleteDialog(criterion);
 }
 
+function manageMustDoCriterion(criterionId) {
+    ensureMustDoCriteria();
+    if (isInboxMustDoCriterion(criterionId)) return;
+    const criterion = state.mustDoCriteria.find(item => item.id === criterionId);
+    if (!criterion) return;
+    openCriterionManageDialog(criterion);
+}
+
+function handleCriterionDeleteDialogAction() {
+    if (criterionDialogMode === 'manage') {
+        const criterionId = criterionDialogCriterionId;
+        closeCriterionDialog();
+        deleteMustDoCriterion(criterionId);
+        return;
+    }
+    confirmDeleteMustDoCriterion();
+}
+
 function confirmDeleteMustDoCriterion() {
     ensureMustDoCriteria();
     const criterionId = criterionDialogCriterionId;
@@ -1283,174 +1319,67 @@ function bindMustDoCriterionInteractions(button, criterion) {
     });
 
     if (isInboxMustDoCriterion(criterion.id)) {
-        button.addEventListener('click', () => activateMustDoCriterion(criterion.id));
+        button.addEventListener('click', event => {
+            event.preventDefault();
+            activateMustDoCriterion(criterion.id);
+        });
+        button.addEventListener('dblclick', event => {
+            event.preventDefault();
+            event.stopPropagation();
+        });
         return;
     }
 
-    let longPressTimer = 0;
-    let didLongPress = false;
-    let pressPointerId = null;
-    let pressPointerType = '';
-    let pressStartX = 0;
-    let pressStartY = 0;
-    let touchMoved = false;
     let lastTouchTap = { ts: 0, x: 0, y: 0 };
-    let ignoreSyntheticClickUntil = 0;
-
-    const isTouchPointer = event => event.pointerType === 'touch' || event.pointerType === 'pen';
-
-    const clearLongPress = () => {
-        if (longPressTimer) {
-            window.clearTimeout(longPressTimer);
-            longPressTimer = 0;
-        }
-        button.classList.remove('is-pressing');
-    };
-
-    const clearPressState = () => {
-        clearLongPress();
-        pressPointerId = null;
-        pressPointerType = '';
-        touchMoved = false;
-    };
-
-    const releasePointer = event => {
-        if (button.releasePointerCapture && button.hasPointerCapture && button.hasPointerCapture(event.pointerId)) {
-            button.releasePointerCapture(event.pointerId);
-        }
-    };
-
-    const suppressNativeTouch = event => {
-        event.preventDefault();
-        event.stopPropagation();
-        ignoreSyntheticClickUntil = Date.now() + 700;
-    };
-
-    const removeSelection = () => {
-        const selection = window.getSelection && window.getSelection();
-        if (selection && selection.removeAllRanges) selection.removeAllRanges();
-    };
-
-    const openDeleteDialogFromPress = () => {
-        clearPressState();
-        didLongPress = true;
-        ignoreSyntheticClickUntil = Date.now() + 700;
-        removeSelection();
-        if (criterionDialogMode !== 'delete' || criterionDialogCriterionId !== criterion.id) {
-            deleteMustDoCriterion(criterion.id);
-        }
-    };
+    let suppressClickUntil = 0;
 
     button.draggable = true;
     button.addEventListener('dragstart', event => {
-        clearLongPress();
         button.classList.add('is-dragging');
         event.dataTransfer.effectAllowed = 'move';
         event.dataTransfer.setData('application/x-empty-box-criterion', criterion.id);
     });
     button.addEventListener('dragend', () => {
-        clearLongPress();
         button.classList.remove('is-dragging');
         mustDoCriteriaBar.querySelectorAll('.is-drop-target').forEach(item => item.classList.remove('is-drop-target'));
     });
 
-    button.addEventListener('pointerdown', (event) => {
-        if (event.pointerType === 'mouse' && event.button !== 0) return;
-        if (isTouchPointer(event)) suppressNativeTouch(event);
-        didLongPress = false;
-        pressPointerId = event.pointerId;
-        pressPointerType = event.pointerType;
-        pressStartX = event.clientX;
-        pressStartY = event.clientY;
-        touchMoved = false;
-        button.classList.add('is-pressing');
-        if (button.setPointerCapture) {
-            button.setPointerCapture(event.pointerId);
-        }
-        const longPressDelay = isTouchPointer(event)
-            ? MUST_DO_CRITERION_TOUCH_LONG_PRESS_MS
-            : MUST_DO_CRITERION_LONG_PRESS_MS;
-        longPressTimer = window.setTimeout(() => {
-            longPressTimer = 0;
-            openDeleteDialogFromPress();
-        }, longPressDelay);
-    });
-
-    button.addEventListener('pointermove', (event) => {
-        if (pressPointerId !== event.pointerId) return;
-        const moved = Math.hypot(event.clientX - pressStartX, event.clientY - pressStartY);
-        if (moved > MUST_DO_CRITERION_TAP_MOVE_PX) {
-            touchMoved = true;
-            clearLongPress();
-        }
-    });
-
-    button.addEventListener('pointerup', (event) => {
-        if (pressPointerId !== event.pointerId) return;
-        const isTouch = isTouchPointer(event) || pressPointerType === 'touch' || pressPointerType === 'pen';
-        if (isTouch) suppressNativeTouch(event);
-        clearLongPress();
-
-        if (didLongPress) {
-            didLongPress = false;
-            releasePointer(event);
-            clearPressState();
-            return;
-        }
-
-        if (!isTouch) {
-            releasePointer(event);
-            clearPressState();
-            return;
-        }
-
-        if (touchMoved) {
-            releasePointer(event);
-            clearPressState();
-            return;
-        }
-
-        const now = Date.now();
-        const closeToLastTap = Math.hypot(event.clientX - lastTouchTap.x, event.clientY - lastTouchTap.y) <= MUST_DO_CRITERION_TAP_MOVE_PX;
-        if (lastTouchTap.ts && now - lastTouchTap.ts < MUST_DO_CRITERION_DOUBLE_TAP_MS && closeToLastTap) {
-            lastTouchTap = { ts: 0, x: 0, y: 0 };
-            renameMustDoCriterion(criterion.id);
-        } else {
-            lastTouchTap = { ts: now, x: event.clientX, y: event.clientY };
-            activateMustDoCriterion(criterion.id);
-        }
-        releasePointer(event);
-        clearPressState();
-    });
-
-    button.addEventListener('pointercancel', (event) => {
-        releasePointer(event);
-        clearPressState();
-    });
-    button.addEventListener('lostpointercapture', clearPressState);
     button.addEventListener('contextmenu', event => {
         event.preventDefault();
         event.stopPropagation();
-        openDeleteDialogFromPress();
+        manageMustDoCriterion(criterion.id);
     });
     button.addEventListener('selectstart', event => event.preventDefault());
 
-    button.addEventListener('click', (event) => {
-        if (Date.now() < ignoreSyntheticClickUntil || didLongPress) {
+    button.addEventListener('click', event => {
+        if (Date.now() < suppressClickUntil) {
             event.preventDefault();
             event.stopPropagation();
-            didLongPress = false;
             return;
         }
+        event.preventDefault();
         activateMustDoCriterion(criterion.id);
     });
 
-    button.addEventListener('dblclick', (event) => {
+    button.addEventListener('pointerup', event => {
+        if (event.pointerType !== 'touch' && event.pointerType !== 'pen') return;
+        const now = Date.now();
+        const closeToLastTap = Math.hypot(event.clientX - lastTouchTap.x, event.clientY - lastTouchTap.y) <= MUST_DO_CRITERION_TAP_MOVE_PX;
+        if (lastTouchTap.ts && now - lastTouchTap.ts < MUST_DO_CRITERION_DOUBLE_TAP_MS && closeToLastTap) {
+            event.preventDefault();
+            event.stopPropagation();
+            lastTouchTap = { ts: 0, x: 0, y: 0 };
+            suppressClickUntil = Date.now() + 350;
+            manageMustDoCriterion(criterion.id);
+        } else {
+            lastTouchTap = { ts: now, x: event.clientX, y: event.clientY };
+        }
+    });
+
+    button.addEventListener('dblclick', event => {
         event.preventDefault();
         event.stopPropagation();
-        if (Date.now() < ignoreSyntheticClickUntil) return;
-        clearLongPress();
-        renameMustDoCriterion(criterion.id);
+        manageMustDoCriterion(criterion.id);
     });
 }
 
@@ -1707,42 +1636,45 @@ function buildMustDoCandidates() {
         editButton.type = 'button';
         editButton.className = 'btn secondary compact';
         editButton.textContent = '编辑';
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.className = `btn ${selected ? 'primary' : 'secondary'}`;
-        button.textContent = selected ? '✓' : '移动';
-        actions.append(editButton, button);
+        const moveButton = document.createElement('button');
+        moveButton.type = 'button';
+        moveButton.className = 'btn secondary compact';
+        moveButton.textContent = '移动';
+        const selectButton = document.createElement('button');
+        selectButton.type = 'button';
+        selectButton.className = `btn ${selected ? 'primary' : 'secondary'} compact`;
+        selectButton.textContent = selected ? '取消' : '选中';
+        actions.append(editButton, moveButton, selectButton);
         row.append(label, actions);
         bindMustDoItemMoveInteractions(row, task);
         bindMustDoItemDragInteractions(row, task);
-
-        row.addEventListener('dblclick', () => {
-            if (selected) return;
-            if (state.mustDoTasks.length < 3) {
-                state.mustDoTasks.push(task);
-                buildMustDoCandidates();
-                updateMustDoSummary();
-                renderMustDoList();
-                saveState();
-            }
-        });
 
         editButton.addEventListener('click', (e) => {
             e.stopPropagation();
             startMustDoItemTextEdit(row, label, task);
         });
 
-        button.addEventListener('click', (e) => {
+        moveButton.addEventListener('click', (e) => {
+            e.stopPropagation();
+            openMoveTaskDialog(task);
+        });
+
+        selectButton.addEventListener('click', (e) => {
             e.stopPropagation();
             if (selected) {
-                // 取消选中
                 state.mustDoTasks = state.mustDoTasks.filter(t => t !== task);
                 buildMustDoCandidates();
                 updateMustDoSummary();
                 renderMustDoList();
                 saveState();
-            } else {
-                openMoveTaskDialog(task);
+                return;
+            }
+            if (state.mustDoTasks.length < 3) {
+                state.mustDoTasks.push(task);
+                buildMustDoCandidates();
+                updateMustDoSummary();
+                renderMustDoList();
+                saveState();
             }
         });
 
@@ -2309,7 +2241,7 @@ migrateLaterBtn.addEventListener('click', () => {
 undoFab.addEventListener('click', undoLastComplete);
 
 criterionDialogSaveBtn.addEventListener('click', saveCriterionNameDialog);
-criterionDialogDeleteBtn.addEventListener('click', confirmDeleteMustDoCriterion);
+criterionDialogDeleteBtn.addEventListener('click', handleCriterionDeleteDialogAction);
 criterionDialogCancelBtn.addEventListener('click', closeCriterionDialog);
 moveTaskCancelBtn.addEventListener('click', closeMoveTaskDialog);
 confirmAcceptBtn.addEventListener('click', () => closeConfirmDialog(true));

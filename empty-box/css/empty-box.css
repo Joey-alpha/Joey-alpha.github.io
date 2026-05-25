@@ -524,6 +524,7 @@
     .must-do-selection .candidate-item {
         align-items: center;
         touch-action: pan-y;
+        flex-wrap: wrap;
     }
 
     .must-do-selection .candidate-text {
@@ -536,7 +537,13 @@
         display: flex;
         align-items: center;
         flex-shrink: 0;
+        flex-wrap: wrap;
+        justify-content: flex-end;
         gap: 8px;
+    }
+
+    .must-do-selection .candidate-actions .btn {
+        min-width: 0;
     }
 
     .must-do-inline-input {
@@ -567,7 +574,7 @@
     }
 
     .must-do-selection .candidate-item button {
-        min-width: 68px;
+        min-width: 56px;
     }
 
     .move-task-list {
