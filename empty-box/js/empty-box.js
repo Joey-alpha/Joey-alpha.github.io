@@ -1059,6 +1059,27 @@ function moveTaskToGroup(task, groupId, switchToGroup = false) {
     saveState();
 }
 
+function reorderMustDoCriterion(draggedCriterionId, targetCriterionId) {
+    if (!draggedCriterionId || draggedCriterionId === targetCriterionId || isInboxMustDoCriterion(draggedCriterionId)) return;
+    const fromIndex = state.mustDoCriteria.findIndex(criterion => criterion.id === draggedCriterionId);
+    if (fromIndex === -1) return;
+
+    const [draggedCriterion] = state.mustDoCriteria.splice(fromIndex, 1);
+    if (isInboxMustDoCriterion(targetCriterionId)) {
+        state.mustDoCriteria.unshift(draggedCriterion);
+    } else {
+        const targetIndex = state.mustDoCriteria.findIndex(criterion => criterion.id === targetCriterionId);
+        if (targetIndex === -1) {
+            state.mustDoCriteria.push(draggedCriterion);
+        } else {
+            state.mustDoCriteria.splice(targetIndex, 0, draggedCriterion);
+        }
+    }
+    renderMustDoCriteria();
+    buildMustDoCandidates();
+    saveState();
+}
+
 function updateMustDoSummary() {
     mustDoSummary.textContent = `已选 ${state.mustDoTasks.length} / 3 项`;
 }
@@ -1251,6 +1272,11 @@ function bindMustDoCriterionInteractions(button, criterion) {
         event.preventDefault();
         event.stopPropagation();
         button.classList.remove('is-drop-target');
+        const draggedCriterionId = event.dataTransfer.getData('application/x-empty-box-criterion');
+        if (draggedCriterionId) {
+            reorderMustDoCriterion(draggedCriterionId, criterion.id);
+            return;
+        }
         const task = event.dataTransfer.getData('application/x-empty-box-task') || event.dataTransfer.getData('text/plain');
         if (!task) return;
         moveTaskToGroup(task, criterion.id);
@@ -1304,6 +1330,19 @@ function bindMustDoCriterionInteractions(button, criterion) {
         const selection = window.getSelection && window.getSelection();
         if (selection && selection.removeAllRanges) selection.removeAllRanges();
     };
+
+    button.draggable = true;
+    button.addEventListener('dragstart', event => {
+        clearLongPress();
+        button.classList.add('is-dragging');
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('application/x-empty-box-criterion', criterion.id);
+    });
+    button.addEventListener('dragend', () => {
+        clearLongPress();
+        button.classList.remove('is-dragging');
+        mustDoCriteriaBar.querySelectorAll('.is-drop-target').forEach(item => item.classList.remove('is-drop-target'));
+    });
 
     button.addEventListener('pointerdown', (event) => {
         if (event.pointerType === 'mouse' && event.button !== 0) return;
