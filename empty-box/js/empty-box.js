@@ -1331,6 +1331,16 @@ function bindMustDoCriterionInteractions(button, criterion) {
         if (selection && selection.removeAllRanges) selection.removeAllRanges();
     };
 
+    const openDeleteDialogFromPress = () => {
+        clearPressState();
+        didLongPress = true;
+        ignoreSyntheticClickUntil = Date.now() + 700;
+        removeSelection();
+        if (criterionDialogMode !== 'delete' || criterionDialogCriterionId !== criterion.id) {
+            deleteMustDoCriterion(criterion.id);
+        }
+    };
+
     button.draggable = true;
     button.addEventListener('dragstart', event => {
         clearLongPress();
@@ -1362,11 +1372,7 @@ function bindMustDoCriterionInteractions(button, criterion) {
             : MUST_DO_CRITERION_LONG_PRESS_MS;
         longPressTimer = window.setTimeout(() => {
             longPressTimer = 0;
-            didLongPress = true;
-            ignoreSyntheticClickUntil = Date.now() + 700;
-            removeSelection();
-            button.classList.remove('is-pressing');
-            deleteMustDoCriterion(criterion.id);
+            openDeleteDialogFromPress();
         }, longPressDelay);
     });
 
@@ -1422,7 +1428,11 @@ function bindMustDoCriterionInteractions(button, criterion) {
         clearPressState();
     });
     button.addEventListener('lostpointercapture', clearPressState);
-    button.addEventListener('contextmenu', event => event.preventDefault());
+    button.addEventListener('contextmenu', event => {
+        event.preventDefault();
+        event.stopPropagation();
+        openDeleteDialogFromPress();
+    });
     button.addEventListener('selectstart', event => event.preventDefault());
 
     button.addEventListener('click', (event) => {
