@@ -1497,6 +1497,49 @@ function getMoveTaskGroups() {
     return [MUST_DO_INBOX_CRITERION, ...state.mustDoCriteria];
 }
 
+function replaceTaskTextInList(list, previousText, nextText) {
+    return normalizeTaskList((Array.isArray(list) ? list : []).map(task => task === previousText ? nextText : task));
+}
+
+function taskTextExists(text, previousText) {
+    if (!text || text === previousText) return false;
+    return state.boxTasks.includes(text) ||
+        state.mustDoTasks.includes(text) ||
+        state.nowTask === text ||
+        state.completedTasks.includes(text);
+}
+
+function renameTaskText(previousText, nextText) {
+    const trimmedText = nextText.trim();
+    if (!previousText || previousText === trimmedText) return { ok: true };
+    if (!trimmedText) return { ok: false, message: '任务内容不能为空' };
+    if (taskTextExists(trimmedText, previousText)) return { ok: false, message: '已存在同名任务' };
+
+    state.boxTasks = replaceTaskTextInList(state.boxTasks, previousText, trimmedText);
+    state.mustDoTasks = replaceTaskTextInList(state.mustDoTasks, previousText, trimmedText);
+    if (state.nowTask === previousText) state.nowTask = trimmedText;
+    if (blindboxTask === previousText) {
+        blindboxTask = trimmedText;
+        blindboxTaskText.textContent = trimmedText;
+    }
+
+    if (state.mustDoTaskGroups[previousText]) {
+        const previousGroupId = state.mustDoTaskGroups[previousText];
+        delete state.mustDoTaskGroups[previousText];
+        state.mustDoTaskGroups[trimmedText] = previousGroupId;
+    }
+    Object.keys(state.mustDoTaskOrder).forEach(groupId => {
+        state.mustDoTaskOrder[groupId] = replaceTaskTextInList(state.mustDoTaskOrder[groupId], previousText, trimmedText);
+    });
+    Object.values(state.mustDoHiddenByDate).forEach(hiddenByCriterion => {
+        if (!hiddenByCriterion || typeof hiddenByCriterion !== 'object') return;
+        Object.keys(hiddenByCriterion).forEach(criterionId => {
+            hiddenByCriterion[criterionId] = replaceTaskTextInList(hiddenByCriterion[criterionId], previousText, trimmedText);
+        });
+    });
+    return { ok: true };
+}
+
 function closeMoveTaskDialog() {
     pendingMoveTask = '';
     closeOverlay(moveTaskOverlay);
@@ -1592,6 +1635,53 @@ function bindMustDoItemDragInteractions(row, task) {
     });
 }
 
+function startMustDoItemTextEdit(row, label, task) {
+    row.draggable = false;
+    const input = document.createElement('input');
+    input.className = 'must-do-inline-input';
+    input.value = task;
+    input.setAttribute('aria-label', '编辑任务内容');
+    label.replaceWith(input);
+    input.focus();
+    input.select();
+
+    let finished = false;
+    const finish = (shouldSave) => {
+        if (finished) return;
+        finished = true;
+        if (!shouldSave) {
+            buildMustDoCandidates();
+            return;
+        }
+        const result = renameTaskText(task, input.value);
+        if (!result.ok) {
+            finished = false;
+            window.alert(result.message);
+            input.focus();
+            input.select();
+            return;
+        }
+        buildMustDoCandidates();
+        updateMustDoSummary();
+        renderNow();
+    };
+
+    input.addEventListener('pointerdown', event => event.stopPropagation());
+    input.addEventListener('click', event => event.stopPropagation());
+    input.addEventListener('dblclick', event => event.stopPropagation());
+    input.addEventListener('keydown', event => {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            finish(true);
+        }
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            finish(false);
+        }
+    });
+    input.addEventListener('blur', () => finish(true));
+}
+
 function buildMustDoCandidates() {
     mustDoSelection.innerHTML = '';
     const isInbox = isInboxMustDoCriterion(state.activeMustDoCriterionId);
@@ -1608,8 +1698,21 @@ function buildMustDoCandidates() {
         const row = document.createElement('div');
         row.className = 'candidate-item';
         row.title = '拖动排序，点击移动按钮更换分组';
-        row.innerHTML = `<span>${task}</span><button class="btn ${selected ? 'primary' : 'secondary'}">${selected ? '✓' : '移动'}</button>`;
-        const button = row.querySelector('button');
+        const label = document.createElement('span');
+        label.className = 'candidate-text';
+        label.textContent = task;
+        const actions = document.createElement('div');
+        actions.className = 'candidate-actions';
+        const editButton = document.createElement('button');
+        editButton.type = 'button';
+        editButton.className = 'btn secondary compact';
+        editButton.textContent = '编辑';
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = `btn ${selected ? 'primary' : 'secondary'}`;
+        button.textContent = selected ? '✓' : '移动';
+        actions.append(editButton, button);
+        row.append(label, actions);
         bindMustDoItemMoveInteractions(row, task);
         bindMustDoItemDragInteractions(row, task);
 
@@ -1622,6 +1725,11 @@ function buildMustDoCandidates() {
                 renderMustDoList();
                 saveState();
             }
+        });
+
+        editButton.addEventListener('click', (e) => {
+            e.stopPropagation();
+            startMustDoItemTextEdit(row, label, task);
         });
 
         button.addEventListener('click', (e) => {
