@@ -896,6 +896,90 @@ function openConfirmDialog({ title, message, confirmText = '确定', danger = fa
     });
 }
 
+function reorderSelectedMustDoTask(draggedTask, targetTask) {
+    if (!draggedTask || !targetTask || draggedTask === targetTask) return false;
+    const tasks = [...state.mustDoTasks];
+    const fromIndex = tasks.indexOf(draggedTask);
+    const toIndex = tasks.indexOf(targetTask);
+    if (fromIndex === -1 || toIndex === -1) return false;
+    tasks.splice(fromIndex, 1);
+    tasks.splice(toIndex, 0, draggedTask);
+    state.mustDoTasks = tasks;
+    renderMustDoList();
+    saveState();
+    return true;
+}
+
+function bindMustDoListItemDragInteractions(item, task) {
+    item.draggable = true;
+    item.dataset.task = task;
+    let pointerId = null;
+    let startX = 0;
+    let startY = 0;
+    let didPointerDrag = false;
+
+    item.addEventListener('dragstart', event => {
+        item.classList.add('is-dragging');
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('application/x-empty-box-selected-task', task);
+    });
+    item.addEventListener('dragend', () => {
+        item.classList.remove('is-dragging');
+    });
+    item.addEventListener('dragover', event => {
+        event.preventDefault();
+        const draggedTask = event.dataTransfer.getData('application/x-empty-box-selected-task');
+        if (!draggedTask || draggedTask === task) return;
+        item.classList.add('is-drag-over');
+    });
+    item.addEventListener('dragleave', () => {
+        item.classList.remove('is-drag-over');
+    });
+    item.addEventListener('drop', event => {
+        event.preventDefault();
+        item.classList.remove('is-drag-over');
+        const draggedTask = event.dataTransfer.getData('application/x-empty-box-selected-task');
+        reorderSelectedMustDoTask(draggedTask, task);
+    });
+
+    item.addEventListener('pointerdown', event => {
+        if (event.pointerType === 'mouse') return;
+        pointerId = event.pointerId;
+        startX = event.clientX;
+        startY = event.clientY;
+        didPointerDrag = false;
+        if (item.setPointerCapture) item.setPointerCapture(event.pointerId);
+    });
+    item.addEventListener('pointermove', event => {
+        if (pointerId !== event.pointerId) return;
+        const moved = Math.hypot(event.clientX - startX, event.clientY - startY);
+        if (moved <= MUST_DO_CRITERION_TAP_MOVE_PX) return;
+        didPointerDrag = true;
+        item.classList.add('is-dragging');
+        event.preventDefault();
+    });
+    item.addEventListener('pointerup', event => {
+        if (pointerId !== event.pointerId) return;
+        pointerId = null;
+        item.classList.remove('is-dragging');
+        if (item.releasePointerCapture && item.hasPointerCapture && item.hasPointerCapture(event.pointerId)) {
+            item.releasePointerCapture(event.pointerId);
+        }
+        if (!didPointerDrag) return;
+        event.preventDefault();
+        event.stopPropagation();
+        item.dataset.suppressClickUntil = String(Date.now() + 350);
+        const targetItem = document.elementFromPoint(event.clientX, event.clientY)?.closest('.must-do-item');
+        reorderSelectedMustDoTask(task, targetItem?.dataset.task);
+    });
+    item.addEventListener('pointercancel', event => {
+        if (pointerId !== event.pointerId) return;
+        pointerId = null;
+        didPointerDrag = false;
+        item.classList.remove('is-dragging');
+    });
+}
+
 function renderMustDoList() {
     mustDoList.innerHTML = '';
     if (!state.mustDoTasks.length) {
@@ -908,7 +992,13 @@ function renderMustDoList() {
         const item = document.createElement('div');
         item.className = 'must-do-item';
         item.innerHTML = `<span>${task}</span><span class="must-do-order">${index + 1}</span>`;
-        item.addEventListener('click', () => {
+        bindMustDoListItemDragInteractions(item, task);
+        item.addEventListener('click', event => {
+            if (Date.now() < Number(item.dataset.suppressClickUntil || 0)) {
+                event.preventDefault();
+                event.stopPropagation();
+                return;
+            }
             if (state.nowTask && state.nowTask !== task && !state.boxTasks.includes(state.nowTask)) {
                 state.boxTasks.unshift(state.nowTask);
             }
