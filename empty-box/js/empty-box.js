@@ -12,6 +12,7 @@ const DEFAULT_MUST_DO_CRITERIA = [
     { id: 'urgent', name: '紧急' },
     { id: 'important', name: '重要' }
 ];
+const MUST_DO_TASK_LIMIT = 6;
 const MUST_DO_INBOX_CRITERION = { id: '__inbox__', name: 'Inbox' };
 const MUST_DO_CRITERION_DOUBLE_TAP_MS = 360;
 const MUST_DO_CRITERION_TAP_MOVE_PX = 12;
@@ -792,7 +793,7 @@ function mergeStates(target, source) {
         reflectionNote: [base.reflectionNote, incoming.reflectionNote].filter(Boolean).join('\n\n'),
         blindboxRejectCount: Math.max(base.blindboxRejectCount, incoming.blindboxRejectCount),
         blindboxCooldownUntil: Math.max(base.blindboxCooldownUntil, incoming.blindboxCooldownUntil),
-        mustDoTasks: mergeUnique(base.mustDoTasks, incoming.mustDoTasks).slice(0, 3),
+        mustDoTasks: mergeUnique(base.mustDoTasks, incoming.mustDoTasks).slice(0, MUST_DO_TASK_LIMIT),
         mustDoCriteria: mergeCriteria(base.mustDoCriteria, incoming.mustDoCriteria),
         activeMustDoCriterionId: base.activeMustDoCriterionId || incoming.activeMustDoCriterionId,
         mustDoHiddenByDate: { ...incoming.mustDoHiddenByDate, ...base.mustDoHiddenByDate },
@@ -1080,7 +1081,7 @@ function reorderMustDoCriterion(draggedCriterionId, targetCriterionId, position 
 }
 
 function updateMustDoSummary() {
-    mustDoSummary.textContent = `已选 ${state.mustDoTasks.length} / 3 项`;
+    mustDoSummary.textContent = `已选 ${state.mustDoTasks.length} / ${MUST_DO_TASK_LIMIT} 项`;
 }
 
 function syncMustDoCriterionActiveState() {
@@ -1708,7 +1709,7 @@ function buildMustDoCandidates() {
                 saveState();
                 return;
             }
-            if (state.mustDoTasks.length < 3) {
+            if (state.mustDoTasks.length < MUST_DO_TASK_LIMIT) {
                 state.mustDoTasks.push(task);
                 buildMustDoCandidates();
                 updateMustDoSummary();
