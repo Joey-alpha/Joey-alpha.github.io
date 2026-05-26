@@ -1577,6 +1577,8 @@ function bindMustDoItemDragInteractions(row, task) {
 
 function startMustDoItemTextEdit(row, label, task) {
     row.draggable = false;
+    row.classList.remove('is-actions-revealed');
+    row.classList.add('is-editing');
     const input = document.createElement('input');
     input.className = 'must-do-inline-input';
     input.value = task;
@@ -1590,12 +1592,14 @@ function startMustDoItemTextEdit(row, label, task) {
         if (finished) return;
         finished = true;
         if (!shouldSave) {
+            row.classList.remove('is-editing');
             buildMustDoCandidates();
             return;
         }
         const result = renameTaskText(task, input.value);
         if (!result.ok) {
             if (source === 'blur') {
+                row.classList.remove('is-editing');
                 buildMustDoCandidates();
                 return;
             }
@@ -1607,6 +1611,7 @@ function startMustDoItemTextEdit(row, label, task) {
             return;
         }
         input.setCustomValidity('');
+        row.classList.remove('is-editing');
         buildMustDoCandidates();
         updateMustDoSummary();
         renderNow();
