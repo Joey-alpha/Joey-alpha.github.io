@@ -1057,7 +1057,7 @@ function moveTaskToGroup(task, groupId, switchToGroup = false) {
     saveState();
 }
 
-function reorderMustDoCriterion(draggedCriterionId, targetCriterionId) {
+function reorderMustDoCriterion(draggedCriterionId, targetCriterionId, position = 'before') {
     if (!draggedCriterionId || draggedCriterionId === targetCriterionId || isInboxMustDoCriterion(draggedCriterionId)) return;
     const fromIndex = state.mustDoCriteria.findIndex(criterion => criterion.id === draggedCriterionId);
     if (fromIndex === -1) return;
@@ -1070,7 +1070,8 @@ function reorderMustDoCriterion(draggedCriterionId, targetCriterionId) {
         if (targetIndex === -1) {
             state.mustDoCriteria.push(draggedCriterion);
         } else {
-            state.mustDoCriteria.splice(targetIndex, 0, draggedCriterion);
+            const insertIndex = position === 'after' ? targetIndex + 1 : targetIndex;
+            state.mustDoCriteria.splice(insertIndex, 0, draggedCriterion);
         }
     }
     renderMustDoCriteria();
@@ -1310,7 +1311,9 @@ function bindMustDoCriterionInteractions(button, criterion) {
         button.classList.remove('is-drop-target');
         const draggedCriterionId = event.dataTransfer.getData('application/x-empty-box-criterion');
         if (draggedCriterionId) {
-            reorderMustDoCriterion(draggedCriterionId, criterion.id);
+            const rect = button.getBoundingClientRect();
+            const position = event.clientX > rect.left + rect.width / 2 ? 'after' : 'before';
+            reorderMustDoCriterion(draggedCriterionId, criterion.id, position);
             return;
         }
         const task = event.dataTransfer.getData('application/x-empty-box-task') || event.dataTransfer.getData('text/plain');
