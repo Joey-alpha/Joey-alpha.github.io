@@ -15,20 +15,15 @@
             <button id="backBtn" onclick="goBack()">← Zoom Out</button>
             <button onclick="resetView()">Reset View</button>
             <button onclick="showGlobalMap()">🌐 Global Map</button>
-            <button onclick="clearCanvas()">🆕 New / Clear</button>
-            <button onclick="clearAutoSave()">🗑 Clear Cache</button>
-            <button id="exportMD" onclick="exportMarkdownDFS()">📄 Export MD</button>
-            <button id="exportJSONBtn" onclick="exportJSON()">📄 Export JSON</button>
-            <button onclick="document.getElementById('importInput').click()">📥 Import JSON</button>
             <button id="settingsBtn">⚙ Settings</button>
             <input type="file" id="importInput" accept=".json" style="display:none">
         </div>
 
-        <div id="current-title" style="font-weight:bold;color:var(--primary)">MAIN MACHINE</div>
+        <div id="current-title" class="current-title">MAIN MACHINE</div>
 
         <div class="status-wrap">
-            <div style="font-size:12px;color:#888;">
-                DEPTH: <span id="level-idx" style="color:white">0</span>
+            <div class="depth-indicator">
+                DEPTH: <span id="level-idx">0</span>
             </div>
             <div id="saveIndicator" class="save-indicator">Not saved yet</div>
         </div>
@@ -44,6 +39,13 @@
     <div class="modal-backdrop" id="settingsBackdrop">
         <div class="modal">
             <h2>Settings</h2>
+            <label for="themeSelect">Theme</label>
+            <select id="themeSelect">
+                <option value="system">System</option>
+                <option value="dark">Dark</option>
+                <option value="light">Light</option>
+            </select>
+
             <label for="spaceSelect">Space</label>
             <select id="spaceSelect"></select>
             <div class="modal-row">
@@ -68,6 +70,19 @@
                 <button id="migrateContentBtn">Migrate Copy</button>
                 <button id="deleteSpaceBtn" class="danger">Delete Space</button>
                 <button id="closeSettingsBtn">Close</button>
+            </div>
+
+            <label>Import / Export</label>
+            <div class="modal-row">
+                <button id="exportMDBtn">Export MD</button>
+                <button id="exportJSONSettingsBtn">Export JSON</button>
+                <button id="importJSONBtn">Import JSON</button>
+            </div>
+
+            <label>Maintenance</label>
+            <div class="modal-row">
+                <button id="clearCanvasBtn">New / Clear</button>
+                <button id="clearCacheBtn" class="danger">Clear Legacy Cache</button>
             </div>
             <div class="modal-note" id="settingsStatus">Local-first storage is active.</div>
         </div>

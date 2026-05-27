@@ -9,6 +9,7 @@ const SPACE_LIST_KEY = "five-process-spaces-v1";
 const CURRENT_SPACE_ID_KEY = "five_process_current_space_id";
 const CURRENT_CONTENT_ID_KEY = "five_process_current_content_id";
 const CURRENT_STORAGE_MODE_KEY = "five_process_current_storage_mode";
+const THEME_KEY = "five_process_theme";
 const SUPABASE_URL = "https://ufwvkabshfrrodmtycjj.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVmd3ZrYWJzaGZycm9kbXR5Y2pqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkxNjg4NjMsImV4cCI6MjA5NDc0NDg2M30.kSQJBTLSjd5XhLX0cddqjUfSw0QXt-Ilr2UsGPMamIo";
 const SAVE_DEBOUNCE_MS = 500;
@@ -21,6 +22,7 @@ const saveIndicator = document.getElementById("saveIndicator");
 const toast = document.getElementById("toast");
 const settingsBtn = document.getElementById("settingsBtn");
 const settingsBackdrop = document.getElementById("settingsBackdrop");
+const themeSelect = document.getElementById("themeSelect");
 const spaceSelect = document.getElementById("spaceSelect");
 const contentSelect = document.getElementById("contentSelect");
 const migrateSourceSelect = document.getElementById("migrateSourceSelect");
@@ -61,6 +63,21 @@ let cam = {
 
 let saveTimer = null;
 let toastTimer = null;
+
+function getSystemTheme() {
+    return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+}
+
+function getThemeChoice() {
+    return localStorage.getItem(THEME_KEY) || "system";
+}
+
+function applyTheme(choice = getThemeChoice()) {
+    const resolvedTheme = choice === "system" ? getSystemTheme() : choice;
+    document.body.dataset.theme = resolvedTheme;
+    if (themeSelect) themeSelect.value = choice;
+    drawMiniMap();
+}
 
 function showToast(message, duration = 1800) {
     toast.textContent = message;
@@ -681,6 +698,9 @@ function getBounds() {
 function drawMiniMap() {
     const w = minimap.width = minimap.clientWidth;
     const h = minimap.height = minimap.clientHeight;
+    const styles = getComputedStyle(document.body);
+    const mutedColor = styles.getPropertyValue("--muted").trim() || "#888";
+    const primaryColor = styles.getPropertyValue("--primary").trim() || "#ff4d4d";
 
     mmCtx.clearRect(0, 0, w, h);
 
@@ -694,7 +714,7 @@ function drawMiniMap() {
     const offsetY = (h - worldH * scale) / 2;
 
     navigationStack.forEach(l => {
-        mmCtx.strokeStyle = "#888";
+        mmCtx.strokeStyle = mutedColor;
         mmCtx.lineWidth = 1;
         mmCtx.strokeRect(
             offsetX + (l.x - b.minX) * scale,
@@ -709,7 +729,7 @@ function drawMiniMap() {
     const viewW = viewport.clientWidth / cam.zoom;
     const viewH = viewport.clientHeight / cam.zoom;
 
-    mmCtx.strokeStyle = "#ff4d4d";
+    mmCtx.strokeStyle = primaryColor;
     mmCtx.lineWidth = 2;
     mmCtx.strokeRect(
         offsetX + (viewLeft - b.minX) * scale,
@@ -1096,6 +1116,18 @@ document.getElementById("importInput").addEventListener("change", e => {
     e.target.value = "";
 });
 
+themeSelect.addEventListener("change", () => {
+    localStorage.setItem(THEME_KEY, themeSelect.value);
+    applyTheme(themeSelect.value);
+});
+window.matchMedia("(prefers-color-scheme: light)").addEventListener("change", () => {
+    if (getThemeChoice() === "system") applyTheme("system");
+});
+document.getElementById("exportMDBtn").addEventListener("click", exportMarkdownDFS);
+document.getElementById("exportJSONSettingsBtn").addEventListener("click", exportJSON);
+document.getElementById("importJSONBtn").addEventListener("click", () => document.getElementById("importInput").click());
+document.getElementById("clearCanvasBtn").addEventListener("click", clearCanvas);
+document.getElementById("clearCacheBtn").addEventListener("click", clearAutoSave);
 settingsBtn.addEventListener("click", openSettings);
 document.getElementById("closeSettingsBtn").addEventListener("click", closeSettings);
 document.getElementById("refreshCloudSpacesBtn").addEventListener("click", async () => {
@@ -1195,6 +1227,8 @@ document.addEventListener("keydown", e => {
 });
 
 async function initApp() {
+    applyTheme(getThemeChoice());
+
     try {
         await FiveProcessStorage.syncCloudSpaces();
     } catch (error) {
