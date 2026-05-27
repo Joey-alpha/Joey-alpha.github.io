@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Learning Roadmap Tree</title>
+    <link rel="stylesheet" href="css/tree-map.css" />
+</head>
+
+<body>
+    <div id="app">
+        <div class="toolbar">
+            <div class="group">
+                <button id="addRootBtn">Add Root</button>
+                <button id="addChildBtn">Add Child</button>
+                <button id="addSiblingBtn">Add Sibling</button>
+                <button id="makeRootBtn">Make Root</button>
+                <button id="deleteBtn" class="danger">Delete</button>
+            </div>
+            <div class="group">
+                <button id="exportBtn">Export JSON</button>
+                <label class="file-label">Import JSON<input id="importInput" type="file"
+                        accept="application/json" /></label>
+                <button id="resetViewBtn">Reset View</button>
+                <button id="settingsBtn">Settings</button>
+            </div>
+            <div class="group">
+                <div class="status" id="statusText">No selection</div>
+            </div>
+        </div>
+
+        <div id="viewport">
+            <div id="scene">
+                <svg id="edges"></svg>
+                <div id="nodesLayer"></div>
+            </div>
+        </div>
+
+        <div class="hint">
+            Click card to collapse / expand. Double click or second tap to edit. Enter edit · Tab child · Delete
+            remove · Space collapse. Drag
+            nodes to re-parent or reorder. Wheel / pinch to zoom, drag background to pan.
+        </div>
+
+        <div class="modal-backdrop" id="editorBackdrop">
+            <div class="modal">
+                <h3>Edit Node</h3>
+                <label for="titleInput">Title</label>
+                <input id="titleInput" type="text" maxlength="120" />
+                <div class="impact-panel" id="parentImpactPanel" hidden>
+                    <label>Parent impact</label>
+                    <div class="impact-toggle" role="group" aria-label="Parent impact">
+                        <button type="button" class="impact-btn" data-impact="benefit">助益</button>
+                        <button type="button" class="impact-btn" data-impact="harm">损害</button>
+                    </div>
+                </div>
+                <div class="row">
+                    <button id="plusCountBtn">+1 count</button>
+                    <button id="plusTimeBtn">+20 minutes</button>
+                </div>
+                <div class="stats" id="editorStats"></div>
+                <div class="row">
+                    <button id="saveNodeBtn" class="primary">Save</button>
+                    <button id="cancelNodeBtn">Close</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal-backdrop" id="exportBackdrop">
+            <div class="modal">
+                <h3>Export / Import JSON</h3>
+                <textarea id="importExportArea" spellcheck="false"></textarea>
+                <div class="row">
+                    <button id="copyJsonBtn" class="primary">Copy JSON</button>
+                    <button id="downloadJsonBtn" class="primary">Download JSON File</button>
+                    <button id="loadJsonBtn">Load JSON</button>
+                    <button id="closeExportBtn">Close</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal-backdrop" id="settingsBackdrop">
+            <div class="modal">
+                <h3>Settings</h3>
+                <label for="spaceSelect">Space</label>
+                <select class="space-select" id="spaceSelect" aria-label="Tree Map Space"></select>
+                <div class="stats" id="spaceStatus"></div>
+                <div class="row">
+                    <button id="newLocalSpaceBtn">New Local</button>
+                    <button id="newCloudSpaceBtn">New Cloud</button>
+                    <button id="refreshCloudSpacesBtn">Refresh Cloud</button>
+                </div>
+                <label for="migrationSourceSelect">Migrate from</label>
+                <select class="space-select" id="migrationSourceSelect" aria-label="Migration source"></select>
+                <label for="migrationTargetSelect">Migrate to</label>
+                <select class="space-select" id="migrationTargetSelect" aria-label="Migration target"></select>
+                <div class="row">
+                    <button id="migrateSpaceBtn">Migrate</button>
+                    <button id="deleteSpaceBtn" class="danger">Delete Space</button>
+                    <button id="closeSettingsBtn">Close</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal-backdrop" id="spaceNameBackdrop">
+            <div class="modal">
+                <h3 id="spaceNameTitle">New Space</h3>
+                <label for="spaceNameInput">Name</label>
+                <input id="spaceNameInput" type="text" maxlength="80" />
+                <div class="stats" id="spaceNameMessage"></div>
+                <div class="row">
+                    <button id="spaceNameSaveBtn" class="primary">Create</button>
+                    <button id="spaceNameCancelBtn">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="js/tree-map.js"></script>
+</body>
+
+</html>
