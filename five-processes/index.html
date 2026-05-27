@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Loop Machine</title>
+    <link rel="stylesheet" href="css/five-processes.css" />
+</head>
+
+<body>
+
+    <div class="nav-header">
+        <div class="controls">
+            <button id="backBtn" onclick="goBack()">← Zoom Out</button>
+            <button onclick="resetView()">Reset View</button>
+            <button onclick="showGlobalMap()">🌐 Global Map</button>
+            <button onclick="clearCanvas()">🆕 New / Clear</button>
+            <button onclick="clearAutoSave()">🗑 Clear Cache</button>
+            <button id="exportMD" onclick="exportMarkdownDFS()">📄 Export MD</button>
+            <button id="exportJSONBtn" onclick="exportJSON()">📄 Export JSON</button>
+            <button onclick="document.getElementById('importInput').click()">📥 Import JSON</button>
+            <button id="settingsBtn">⚙ Settings</button>
+            <input type="file" id="importInput" accept=".json" style="display:none">
+        </div>
+
+        <div id="current-title" style="font-weight:bold;color:var(--primary)">MAIN MACHINE</div>
+
+        <div class="status-wrap">
+            <div style="font-size:12px;color:#888;">
+                DEPTH: <span id="level-idx" style="color:white">0</span>
+            </div>
+            <div id="saveIndicator" class="save-indicator">Not saved yet</div>
+        </div>
+    </div>
+
+    <div id="viewport">
+        <div id="world"></div>
+    </div>
+
+    <canvas id="minimap"></canvas>
+    <div id="toast" class="toast"></div>
+
+    <div class="modal-backdrop" id="settingsBackdrop">
+        <div class="modal">
+            <h2>Settings</h2>
+            <label for="spaceSelect">Space</label>
+            <select id="spaceSelect"></select>
+            <div class="modal-row">
+                <button id="newLocalSpaceBtn">New Local Space</button>
+                <button id="newCloudSpaceBtn">New Cloud Space</button>
+                <button id="refreshCloudSpacesBtn">Refresh Cloud</button>
+            </div>
+
+            <label for="contentSelect">Content</label>
+            <select id="contentSelect"></select>
+            <div class="modal-row">
+                <button id="newContentBtn">New Content</button>
+                <button id="duplicateContentBtn">Duplicate</button>
+                <button id="deleteContentBtn" class="danger">Delete Content</button>
+            </div>
+
+            <label for="migrateSourceSelect">Migrate from</label>
+            <select id="migrateSourceSelect"></select>
+            <label for="migrateTargetSelect">Migrate to</label>
+            <select id="migrateTargetSelect"></select>
+            <div class="modal-row">
+                <button id="migrateContentBtn">Migrate Copy</button>
+                <button id="deleteSpaceBtn" class="danger">Delete Space</button>
+                <button id="closeSettingsBtn">Close</button>
+            </div>
+            <div class="modal-note" id="settingsStatus">Local-first storage is active.</div>
+        </div>
+    </div>
+
+    <div class="modal-backdrop" id="nameBackdrop">
+        <div class="modal">
+            <h2 id="nameDialogTitle">Name</h2>
+            <label for="nameInput">Name</label>
+            <input id="nameInput" type="text" maxlength="100">
+            <div class="modal-row">
+                <button id="nameSaveBtn">Save</button>
+                <button id="nameCancelBtn">Cancel</button>
+            </div>
+            <div class="modal-note" id="nameMessage"></div>
+        </div>
+    </div>
+    <script src="js/five-processes.js"></script>
+</body>
+
+</html>
