@@ -9,7 +9,6 @@ const SPACE_LIST_KEY = "five-process-spaces-v1";
 const CURRENT_SPACE_ID_KEY = "five_process_current_space_id";
 const CURRENT_CONTENT_ID_KEY = "five_process_current_content_id";
 const CURRENT_STORAGE_MODE_KEY = "five_process_current_storage_mode";
-const THEME_KEY = "five_process_theme";
 const SUPABASE_URL = "https://ufwvkabshfrrodmtycjj.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVmd3ZrYWJzaGZycm9kbXR5Y2pqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkxNjg4NjMsImV4cCI6MjA5NDc0NDg2M30.kSQJBTLSjd5XhLX0cddqjUfSw0QXt-Ilr2UsGPMamIo";
 const SAVE_DEBOUNCE_MS = 500;
@@ -22,7 +21,6 @@ const saveIndicator = document.getElementById("saveIndicator");
 const toast = document.getElementById("toast");
 const settingsBtn = document.getElementById("settingsBtn");
 const settingsBackdrop = document.getElementById("settingsBackdrop");
-const themeSelect = document.getElementById("themeSelect");
 const spaceSelect = document.getElementById("spaceSelect");
 const contentSelect = document.getElementById("contentSelect");
 const renameSpaceBtn = document.getElementById("renameSpaceBtn");
@@ -71,14 +69,8 @@ function getSystemTheme() {
     return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
 }
 
-function getThemeChoice() {
-    return localStorage.getItem(THEME_KEY) || "system";
-}
-
-function applyTheme(choice = getThemeChoice()) {
-    const resolvedTheme = choice === "system" ? getSystemTheme() : choice;
-    document.body.dataset.theme = resolvedTheme;
-    if (themeSelect) themeSelect.value = choice;
+function applyTheme() {
+    document.body.dataset.theme = getSystemTheme();
     drawMiniMap();
 }
 
@@ -344,6 +336,42 @@ const FiveProcessStorage = {
             await this.saveLocalContents(space, contents);
         }
         this.setCurrentContentId(space.id, item.id);
+        return item;
+    },
+
+    async copyContentToSpace(targetSpace, sourceContent) {
+        if (!targetSpace) throw new Error("Target space was not found.");
+        if (!sourceContent) throw new Error("Source content was not found.");
+
+        const now = new Date().toISOString();
+        const title = sourceContent.title || sourceContent.content?.root?.title || "MAIN MACHINE";
+        const payload = {
+            ...sourceContent.content,
+            root: {
+                ...sourceContent.content?.root,
+                title
+            }
+        };
+        const item = {
+            id: createId("five-content"),
+            space_id: targetSpace.id,
+            owner_id: null,
+            title,
+            content: payload,
+            created_at: now,
+            updated_at: now
+        };
+
+        if (targetSpace.storage_mode === "cloud_sync") {
+            await supabaseRequest("five_process_contents", {
+                method: "POST",
+                body: JSON.stringify(item)
+            });
+        } else {
+            const contents = await this.getContents(targetSpace);
+            contents.unshift(item);
+            await this.saveLocalContents(targetSpace, contents);
+        }
         return item;
     },
 
@@ -947,29 +975,31 @@ async function renderSettings() {
         contentSelect.appendChild(option);
     });
 
-    const legacyOption = document.createElement("option");
-    legacyOption.value = "legacy";
-    legacyOption.textContent = "Legacy autosave";
-    migrateSourceSelect.appendChild(legacyOption);
-
-    contents.forEach(content => {
+    spaces.forEach(space => {
         const source = document.createElement("option");
-        source.value = content.id;
-        source.textContent = content.title || "MAIN MACHINE";
+        source.value = space.id;
+        source.textContent = `${space.name} · ${space.storage_mode === "cloud_sync" ? "Cloud" : "Local"}`;
+        source.selected = currentSpace && currentSpace.id === space.id;
         migrateSourceSelect.appendChild(source);
 
         const target = document.createElement("option");
-        target.value = content.id;
-        target.textContent = content.title || "MAIN MACHINE";
-        target.selected = currentContent && currentContent.id === content.id;
+        target.value = space.id;
+        target.textContent = source.textContent;
+        target.selected = currentSpace && currentSpace.id !== space.id;
         migrateTargetSelect.appendChild(target);
     });
+
+    if (spaces.length > 1 && migrateSourceSelect.value === migrateTargetSelect.value) {
+        const fallbackTarget = spaces.find(space => space.id !== migrateSourceSelect.value);
+        if (fallbackTarget) migrateTargetSelect.value = fallbackTarget.id;
+    }
 
     const localCount = spaces.filter(space => space.storage_mode === "local_only").length;
     const cloudCount = spaces.filter(space => space.storage_mode === "cloud_sync").length;
     settingsStatus.textContent = `${currentSpace ? currentSpace.name : "Legacy"} · ${currentSpace?.storage_mode === "cloud_sync" ? "Cloud sync" : "Local"} · ${contents.length} contents · Local ${localCount} / Cloud ${cloudCount}`;
     renameSpaceBtn.disabled = !currentSpace;
     renameContentBtn.disabled = !currentContent;
+    document.getElementById("migrateContentBtn").disabled = spaces.length < 2;
 }
 
 async function switchSpace(spaceId) {
@@ -1107,49 +1137,34 @@ async function openRenameContentDialog() {
     openNameDialog("Rename Content", "renameContent", content.title || stateTree.title || "MAIN MACHINE");
 }
 
-async function migrateContentCopy() {
+async function migrateSpaceCopy() {
     const sourceId = migrateSourceSelect.value;
     const targetId = migrateTargetSelect.value;
-    const space = FiveProcessStorage.getCurrentSpace();
-    if (!space || !targetId) {
-        settingsStatus.textContent = "Choose a target content.";
+    const spaces = FiveProcessStorage.getSpaces();
+    const sourceSpace = spaces.find(space => space.id === sourceId);
+    const targetSpace = spaces.find(space => space.id === targetId);
+    if (!sourceSpace || !targetSpace) {
+        settingsStatus.textContent = "Choose source and target spaces.";
         return;
     }
     if (sourceId === targetId) {
         settingsStatus.textContent = "Source and target must be different.";
         return;
     }
-    const contents = await FiveProcessStorage.getContents(space);
-    const sourcePayload = sourceId === "legacy"
-        ? readJson(STORAGE_KEY, null)
-        : contents.find(item => item.id === sourceId)?.content;
-    const target = contents.find(item => item.id === targetId);
-    if (!sourcePayload || !target) {
-        settingsStatus.textContent = "Source or target content was not found.";
+
+    await autoSaveCurrentNow();
+    const sourceContents = await FiveProcessStorage.getContents(sourceSpace);
+    if (!sourceContents.length) {
+        settingsStatus.textContent = "Source space has no contents.";
         return;
     }
-    const sourceRoot = deserializeLoop(sourcePayload.root);
-    const targetRoot = deserializeLoop(target.content.root);
-    const slot = stepNames.findIndex((_, index) => !targetRoot.children[index]);
-    if (slot === -1) {
-        settingsStatus.textContent = "Target root already has 5 child loops.";
-        return;
+
+    for (const content of sourceContents) {
+        await FiveProcessStorage.copyContentToSpace(targetSpace, content);
     }
-    sourceRoot.title = sourceRoot.title || "Migrated Loop";
-    targetRoot.children[slot] = sourceRoot;
-    await FiveProcessStorage.saveCurrentContent(createPayloadFromTree());
-    FiveProcessStorage.setCurrentContentId(space.id, target.id);
-    await FiveProcessStorage.saveCurrentContent({
-        version: 1,
-        time: Date.now(),
-        root: serializeLoop(targetRoot)
-    });
-    restorePayload({ version: 1, time: Date.now(), root: serializeLoop(targetRoot) });
-    world.innerHTML = "";
-    renderAll(true);
-    resetView();
+
     await renderSettings();
-    settingsStatus.textContent = "Migrated copy into target content.";
+    settingsStatus.textContent = `Copied ${sourceContents.length} contents from "${sourceSpace.name}" to "${targetSpace.name}".`;
 }
 
 function escapeHtml(str) {
@@ -1241,12 +1256,8 @@ document.getElementById("importInput").addEventListener("change", e => {
     e.target.value = "";
 });
 
-themeSelect.addEventListener("change", () => {
-    localStorage.setItem(THEME_KEY, themeSelect.value);
-    applyTheme(themeSelect.value);
-});
 window.matchMedia("(prefers-color-scheme: light)").addEventListener("change", () => {
-    if (getThemeChoice() === "system") applyTheme("system");
+    applyTheme();
 });
 document.getElementById("exportMDBtn").addEventListener("click", exportMarkdownDFS);
 document.getElementById("exportJSONSettingsBtn").addEventListener("click", exportJSON);
@@ -1293,11 +1304,12 @@ document.getElementById("deleteSpaceBtn").addEventListener("click", () => {
     });
 });
 document.getElementById("migrateContentBtn").addEventListener("click", () => {
-    migrateContentCopy().catch(error => {
+    migrateSpaceCopy().catch(error => {
         console.error(error);
         settingsStatus.textContent = `Migration failed: ${formatErrorMessage(error)}`;
     });
 });
+
 spaceSelect.addEventListener("change", () => {
     if (spaceSelect.value) switchSpace(spaceSelect.value).catch(error => {
         settingsStatus.textContent = `Switch failed: ${formatErrorMessage(error)}`;
@@ -1364,7 +1376,7 @@ document.addEventListener("keydown", e => {
 });
 
 async function initApp() {
-    applyTheme(getThemeChoice());
+    applyTheme();
 
     try {
         await FiveProcessStorage.syncCloudSpaces();

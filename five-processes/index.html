@@ -38,21 +38,18 @@
 
     <div class="modal-backdrop" id="settingsBackdrop">
         <div class="modal">
-            <h2>Settings</h2>
-            <label for="themeSelect">Theme</label>
-            <select id="themeSelect">
-                <option value="system">System</option>
-                <option value="dark">Dark</option>
-                <option value="light">Light</option>
-            </select>
-
+            <div class="modal-head">
+                <h2>Settings</h2>
+                <button id="closeSettingsBtn" class="modal-close" aria-label="Close settings">×</button>
+            </div>
             <label for="spaceSelect">Space</label>
             <select id="spaceSelect"></select>
-            <div class="modal-row">
-                <button id="newLocalSpaceBtn">New Local Space</button>
-                <button id="newCloudSpaceBtn">New Cloud Space</button>
-                <button id="renameSpaceBtn">Rename Space</button>
-                <button id="refreshCloudSpacesBtn">Refresh Cloud</button>
+            <div class="modal-row space-action-row">
+                <button id="newLocalSpaceBtn">New Local</button>
+                <button id="newCloudSpaceBtn">New Cloud</button>
+                <button id="renameSpaceBtn">Rename</button>
+                <button id="refreshCloudSpacesBtn">Refresh</button>
+                <button id="deleteSpaceBtn" class="danger">Delete</button>
             </div>
 
             <label for="contentSelect">Content</label>
@@ -64,14 +61,13 @@
                 <button id="deleteContentBtn" class="danger">Delete Content</button>
             </div>
 
-            <label for="migrateSourceSelect">Migrate from</label>
-            <select id="migrateSourceSelect"></select>
-            <label for="migrateTargetSelect">Migrate to</label>
-            <select id="migrateTargetSelect"></select>
+            <label>Migrate</label>
+            <div class="settings-grid">
+                <select id="migrateSourceSelect" aria-label="Migration source"></select>
+                <select id="migrateTargetSelect" aria-label="Migration target"></select>
+            </div>
             <div class="modal-row">
-                <button id="migrateContentBtn">Migrate Copy</button>
-                <button id="deleteSpaceBtn" class="danger">Delete Space</button>
-                <button id="closeSettingsBtn">Close</button>
+                <button id="migrateContentBtn">Migrate Space Copy</button>
             </div>
 
             <label>Import / Export</label>

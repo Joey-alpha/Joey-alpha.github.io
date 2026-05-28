@@ -373,9 +373,27 @@ button:disabled {
 }
 
 .modal h2 {
-    margin: 0 0 16px;
+    margin: 0;
     font-size: 20px;
     color: var(--text);
+}
+
+.modal-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.modal-close {
+    width: 34px;
+    height: 34px;
+    min-width: 34px;
+    padding: 0;
+    border-radius: 999px;
+    font-size: 20px;
+    line-height: 1;
 }
 
 .modal label {
@@ -430,6 +448,23 @@ button:disabled {
     flex: 1 1 auto;
 }
 
+.modal-row.space-action-row {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.modal-row.space-action-row button {
+    min-width: 0;
+    padding-inline: 8px;
+    white-space: normal;
+}
+
+.settings-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+
 .modal-note {
     margin-top: 12px;
     color: var(--muted);
@@ -450,6 +485,10 @@ button.danger {
     .nav-header {
         align-items: flex-start;
         flex-wrap: wrap;
+    }
+
+    .settings-grid {
+        grid-template-columns: 1fr;
     }
 
     .controls,
