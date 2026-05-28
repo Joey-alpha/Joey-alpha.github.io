@@ -404,10 +404,14 @@
 
             const updated = { ...space, name: nextName };
             if (space.storage_mode === 'cloud_sync') {
-                await supabaseRequest(`tree_map_spaces?id=eq.${encodeURIComponent(space.id)}`, {
+                const rows = await supabaseRequest(`tree_map_spaces?id=eq.${encodeURIComponent(space.id)}&select=id,name`, {
                     method: 'PATCH',
+                    headers: { Prefer: 'return=representation' },
                     body: JSON.stringify({ name: nextName }),
                 });
+                if (!Array.isArray(rows) || !rows.some(row => row.id === space.id && row.name === nextName)) {
+                    throw new Error('Remote rename was not applied. Check Supabase UPDATE policy for tree_map_spaces.');
+                }
             }
 
             this.saveSpaces(this.getSpaces().map(item => item.id === space.id ? updated : item));
