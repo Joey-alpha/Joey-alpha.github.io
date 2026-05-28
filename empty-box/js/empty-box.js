@@ -146,6 +146,7 @@ const importJsonInput = document.getElementById('importJsonInput');
 const spaceSelect = document.getElementById('spaceSelect');
 const newLocalSpaceBtn = document.getElementById('newLocalSpaceBtn');
 const newCloudSpaceBtn = document.getElementById('newCloudSpaceBtn');
+const renameSpaceBtn = document.getElementById('renameSpaceBtn');
 const refreshCloudSpacesBtn = document.getElementById('refreshCloudSpacesBtn');
 const deleteSpaceBtn = document.getElementById('deleteSpaceBtn');
 const migrateSourceSpaceSelect = document.getElementById('migrateSourceSpaceSelect');
@@ -344,6 +345,7 @@ let lastShake = 0;
 let criterionDialogMode = 'add';
 let criterionDialogCriterionId = null;
 let pendingSpaceMode = 'local_only';
+let pendingRenameSpaceId = null;
 let isBooting = true;
 let activeLegacyMode = false;
 let pendingConfirmResolve = null;
@@ -352,6 +354,10 @@ let pendingMoveTask = '';
 function createId(prefix) {
     if (crypto && crypto.randomUUID) return crypto.randomUUID();
     return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function isTextCompositionEvent(event) {
+    return event.isComposing || event.keyCode === 229;
 }
 
 function createEmptyState() {
@@ -495,6 +501,27 @@ const StorageService = {
             await this.saveAppState(initialState, space);
         }
         return space;
+    },
+
+    async renameSpace(spaceId, name) {
+        const nextName = String(name || '').trim();
+        if (!nextName) throw new Error('Space 名称不能为空');
+
+        const space = this.getSpaceById(spaceId);
+        if (!space) throw new Error('找不到要重命名的 Space');
+
+        const updated = { ...space, name: nextName };
+        if (space.storage_mode === 'cloud_sync') {
+            await supabaseRequest(`spaces?id=eq.${encodeURIComponent(space.id)}`, {
+                method: 'PATCH',
+                body: JSON.stringify({ name: nextName })
+            });
+        }
+
+        const spaces = this.getSpaces().map(item => item.id === space.id ? updated : item);
+        this.saveSpaces(spaces);
+        localStorage.setItem(UPDATE_PING_KEY, String(Date.now()));
+        return updated;
     },
 
     async setCurrentSpace(spaceId) {
@@ -1715,6 +1742,7 @@ function startMustDoItemTextEdit(row, label, task) {
     input.addEventListener('click', event => event.stopPropagation());
     input.addEventListener('dblclick', event => event.stopPropagation());
     input.addEventListener('keydown', event => {
+        if (isTextCompositionEvent(event)) return;
         if (event.key === 'Enter') {
             event.preventDefault();
             finish(true);
@@ -2036,6 +2064,7 @@ function renderSpaceSettings() {
     const localCount = spaces.filter(space => space.storage_mode === 'local_only').length;
     const currentName = current ? current.name : '未选择';
     spaceStatus.textContent = `${currentName} · ${label} · 本地 ${localCount} / 云端 ${cloudCount}`;
+    renameSpaceBtn.disabled = !current;
     deleteSpaceBtn.disabled = !current;
     transferSpaceNotesBtn.disabled = spaces.length < 2;
     if (!spaceTransferStatus.textContent && spaces.length < 2) {
@@ -2076,25 +2105,40 @@ function showMigrationPromptIfNeeded() {
     }
 }
 
-function openSpaceNameDialog(storageMode) {
+function openSpaceNameDialog(storageMode, space = null) {
     pendingSpaceMode = storageMode;
-    spaceNameTitle.textContent = storageMode === 'cloud_sync' ? '新建云端分区' : '新建本地分区';
-    spaceNameInput.value = '';
+    pendingRenameSpaceId = space ? space.id : null;
+    const isRename = storageMode === 'rename';
+    spaceNameTitle.textContent = isRename ? '重命名 Space' : storageMode === 'cloud_sync' ? '新建云端分区' : '新建本地分区';
+    spaceNameInput.value = isRename && space ? space.name : '';
     spaceNameMessage.textContent = '';
-    spaceNameConfirmBtn.textContent = '创建';
+    spaceNameConfirmBtn.textContent = isRename ? '保存' : '创建';
     openOverlay(spaceNameOverlay);
-    setTimeout(() => spaceNameInput.focus(), 0);
+    setTimeout(() => {
+        spaceNameInput.focus();
+        if (isRename) spaceNameInput.select();
+    }, 0);
 }
 
 function closeSpaceNameDialog() {
     closeOverlay(spaceNameOverlay);
     spaceNameMessage.textContent = '';
+    pendingRenameSpaceId = null;
+    spaceNameConfirmBtn.textContent = '创建';
 }
 
-async function createNamedSpace() {
+async function saveNamedSpace() {
     const storageMode = pendingSpaceMode;
     const name = spaceNameInput.value.trim();
     try {
+        if (storageMode === 'rename') {
+            await StorageService.renameSpace(pendingRenameSpaceId, name);
+            closeSpaceNameDialog();
+            renderSpaceSettings();
+            renderNow();
+            return;
+        }
+
         await StorageService.createSpace({
             name: name || (storageMode === 'cloud_sync' ? '云端分区' : '本地分区'),
             storage_mode: storageMode,
@@ -2106,8 +2150,17 @@ async function createNamedSpace() {
         renderNow();
     } catch (error) {
         console.error(error);
-        spaceNameMessage.textContent = `创建失败：${formatErrorMessage(error)}`;
+        spaceNameMessage.textContent = `${storageMode === 'rename' ? '重命名' : '创建'}失败：${formatErrorMessage(error)}`;
     }
+}
+
+function openRenameSpaceDialog() {
+    const current = StorageService.getCurrentSpace();
+    if (!current) {
+        spaceStatus.textContent = '当前没有可重命名的 Space。';
+        return;
+    }
+    openSpaceNameDialog('rename', current);
 }
 
 async function transferSelectedSpaceNotes() {
@@ -2230,6 +2283,7 @@ confirmAddBtn.addEventListener('click', () => {
 });
 
 addInput.addEventListener('keydown', e => {
+    if (isTextCompositionEvent(e)) return;
     if (e.key === 'Enter') {
         e.preventDefault();
         confirmAddBtn.click();
@@ -2338,6 +2392,7 @@ spaceSelect.addEventListener('change', async () => {
 
 newLocalSpaceBtn.addEventListener('click', () => openSpaceNameDialog('local_only'));
 newCloudSpaceBtn.addEventListener('click', () => openSpaceNameDialog('cloud_sync'));
+renameSpaceBtn.addEventListener('click', openRenameSpaceDialog);
 refreshCloudSpacesBtn.addEventListener('click', () => refreshCloudSpaces(true));
 deleteSpaceBtn.addEventListener('click', deleteCurrentSpace);
 transferSpaceNotesBtn.addEventListener('click', transferSelectedSpaceNotes);
@@ -2351,15 +2406,16 @@ migrateSourceSpaceSelect.addEventListener('change', () => {
 migrateTargetSpaceSelect.addEventListener('change', () => {
     spaceTransferStatus.textContent = '';
 });
-spaceNameConfirmBtn.addEventListener('click', createNamedSpace);
+spaceNameConfirmBtn.addEventListener('click', saveNamedSpace);
 spaceNameCancelBtn.addEventListener('click', closeSpaceNameDialog);
 spaceNameInput.addEventListener('input', () => {
     spaceNameMessage.textContent = '';
 });
 spaceNameInput.addEventListener('keydown', event => {
+    if (isTextCompositionEvent(event)) return;
     if (event.key === 'Enter') {
         event.preventDefault();
-        createNamedSpace();
+        saveNamedSpace();
     }
     if (event.key === 'Escape') {
         event.preventDefault();
@@ -2388,6 +2444,7 @@ criterionDialogInput.addEventListener('input', () => {
 });
 
 criterionDialogInput.addEventListener('keydown', event => {
+    if (isTextCompositionEvent(event)) return;
     if (event.key === 'Enter') {
         event.preventDefault();
         saveCriterionNameDialog();
@@ -2427,6 +2484,7 @@ importJsonInput.addEventListener('change', async e => {
 nowTaskText.addEventListener('click', startInlineEdit);
 nowTaskText.addEventListener('blur', finishInlineEdit);
 nowTaskText.addEventListener('keydown', e => {
+    if (isTextCompositionEvent(e)) return;
     if (e.key === 'Enter') {
         e.preventDefault();
         nowTaskText.blur();

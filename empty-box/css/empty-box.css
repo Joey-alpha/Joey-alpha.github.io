@@ -604,7 +604,12 @@
     .move-task-list {
         display: grid;
         gap: 10px;
+        flex: 1 1 auto;
+        max-height: min(52vh, 420px);
         margin-top: 4px;
+        min-height: 0;
+        overflow-y: auto;
+        padding-right: 4px;
     }
 
     .move-task-list .btn {
