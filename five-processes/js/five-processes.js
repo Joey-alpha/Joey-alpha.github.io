@@ -25,6 +25,8 @@ const settingsBackdrop = document.getElementById("settingsBackdrop");
 const themeSelect = document.getElementById("themeSelect");
 const spaceSelect = document.getElementById("spaceSelect");
 const contentSelect = document.getElementById("contentSelect");
+const renameSpaceBtn = document.getElementById("renameSpaceBtn");
+const renameContentBtn = document.getElementById("renameContentBtn");
 const migrateSourceSelect = document.getElementById("migrateSourceSelect");
 const migrateTargetSelect = document.getElementById("migrateTargetSelect");
 const settingsStatus = document.getElementById("settingsStatus");
@@ -51,6 +53,7 @@ let stateTree = createEmptyState();
 let navigationStack = [stateTree];
 let activeLegacyMode = false;
 let pendingNameAction = null;
+let pendingNameValue = "";
 
 let cam = {
     x: 0,
@@ -271,6 +274,24 @@ const FiveProcessStorage = {
         return space;
     },
 
+    async renameSpace(spaceId, name) {
+        const nextName = String(name || "").trim();
+        if (!nextName) throw new Error("Space name cannot be empty.");
+
+        const space = this.getSpaces().find(item => item.id === spaceId);
+        if (!space) throw new Error("Space was not found.");
+
+        if (space.storage_mode === "cloud_sync") {
+            await supabaseRequest(`five_process_spaces?id=eq.${encodeURIComponent(space.id)}`, {
+                method: "PATCH",
+                body: JSON.stringify({ name: nextName })
+            });
+        }
+
+        this.saveSpaces(this.getSpaces().map(item => item.id === space.id ? { ...item, name: nextName } : item));
+        return { ...space, name: nextName };
+    },
+
     getCurrentContentId(spaceId) {
         return localStorage.getItem(currentContentKey(spaceId));
     },
@@ -295,12 +316,20 @@ const FiveProcessStorage = {
 
     async createContent(space, title, payload = createPayloadFromTree()) {
         const now = new Date().toISOString();
+        const nextTitle = title || payload.root?.title || "MAIN MACHINE";
+        const nextPayload = {
+            ...payload,
+            root: {
+                ...payload.root,
+                title: nextTitle
+            }
+        };
         const item = {
             id: createId("five-content"),
             space_id: space.id,
             owner_id: null,
-            title: title || payload.root?.title || "MAIN MACHINE",
-            content: payload,
+            title: nextTitle,
+            content: nextPayload,
             created_at: now,
             updated_at: now
         };
@@ -316,6 +345,42 @@ const FiveProcessStorage = {
         }
         this.setCurrentContentId(space.id, item.id);
         return item;
+    },
+
+    async renameContent(space, contentId, title) {
+        const nextTitle = String(title || "").trim();
+        if (!nextTitle) throw new Error("Content name cannot be empty.");
+        if (!space) throw new Error("Create a space first.");
+
+        const item = (await this.getContents(space)).find(content => content.id === contentId);
+        if (!item) throw new Error("Content was not found.");
+
+        const nextContent = {
+            ...item.content,
+            root: {
+                ...item.content?.root,
+                title: nextTitle
+            }
+        };
+        const patch = {
+            title: nextTitle,
+            content: nextContent,
+            updated_at: new Date().toISOString()
+        };
+
+        if (space.storage_mode === "cloud_sync") {
+            await supabaseRequest(`five_process_contents?id=eq.${encodeURIComponent(item.id)}`, {
+                method: "PATCH",
+                body: JSON.stringify(patch)
+            });
+        } else {
+            const contents = await this.getContents(space);
+            await this.saveLocalContents(space, contents.map(content => content.id === item.id
+                ? { ...content, ...patch }
+                : content));
+        }
+
+        return { ...item, ...patch };
     },
 
     async getCurrentContent(space) {
@@ -356,7 +421,14 @@ const FiveProcessStorage = {
         const space = this.getCurrentSpace();
         if (!space) return null;
         const item = await this.getCurrentContent(space);
-        return item ? item.content : null;
+        if (!item) return null;
+        return {
+            ...item.content,
+            root: {
+                ...item.content?.root,
+                title: item.title || item.content?.root?.title || "MAIN MACHINE"
+            }
+        };
     },
 
     async deleteCurrentContent() {
@@ -539,6 +611,8 @@ function drawLoop(data) {
         data.dom.style.left = `${data.x}px`;
         data.dom.style.top = `${data.y}px`;
         data.dom.style.transform = `scale(${data.scale})`;
+        const title = data.dom.querySelector(".center-evolution h1");
+        if (title) title.textContent = data.title;
         return;
     }
 
@@ -812,19 +886,24 @@ function closeSettings() {
     settingsBackdrop.classList.remove("open");
 }
 
-function openNameDialog(title, action) {
+function openNameDialog(title, action, initialValue = "") {
     pendingNameAction = action;
+    pendingNameValue = initialValue;
     nameDialogTitle.textContent = title;
-    nameInput.value = "";
+    nameInput.value = initialValue;
     nameMessage.textContent = "";
     nameBackdrop.classList.add("open");
-    setTimeout(() => nameInput.focus(), 0);
+    setTimeout(() => {
+        nameInput.focus();
+        if (initialValue) nameInput.select();
+    }, 0);
 }
 
 function closeNameDialog() {
     nameBackdrop.classList.remove("open");
     nameMessage.textContent = "";
     pendingNameAction = null;
+    pendingNameValue = "";
 }
 
 async function renderSettings() {
@@ -889,6 +968,8 @@ async function renderSettings() {
     const localCount = spaces.filter(space => space.storage_mode === "local_only").length;
     const cloudCount = spaces.filter(space => space.storage_mode === "cloud_sync").length;
     settingsStatus.textContent = `${currentSpace ? currentSpace.name : "Legacy"} · ${currentSpace?.storage_mode === "cloud_sync" ? "Cloud sync" : "Local"} · ${contents.length} contents · Local ${localCount} / Cloud ${cloudCount}`;
+    renameSpaceBtn.disabled = !currentSpace;
+    renameContentBtn.disabled = !currentContent;
 }
 
 async function switchSpace(spaceId) {
@@ -932,19 +1013,44 @@ async function handleNameSave() {
         } else if (pendingNameAction === "cloudSpace") {
             const space = await FiveProcessStorage.createSpace(name || "Cloud Space", "cloud_sync");
             await FiveProcessStorage.createContent(space, stateTree.title || "MAIN MACHINE", createPayloadFromTree());
+        } else if (pendingNameAction === "renameSpace") {
+            const space = FiveProcessStorage.getCurrentSpace();
+            if (!space) throw new Error("Create a space first.");
+            await FiveProcessStorage.renameSpace(space.id, name || pendingNameValue);
         } else if (pendingNameAction === "content") {
             const space = FiveProcessStorage.getCurrentSpace();
             if (!space) throw new Error("Create a space first.");
             stateTree = createEmptyState();
+            stateTree.title = name || "MAIN MACHINE";
             navigationStack = [stateTree];
-            await FiveProcessStorage.createContent(space, name || "MAIN MACHINE", createPayloadFromTree());
+            await FiveProcessStorage.createContent(space, stateTree.title, createPayloadFromTree());
             world.innerHTML = "";
             renderAll(true);
             resetView();
         } else if (pendingNameAction === "duplicate") {
             const space = FiveProcessStorage.getCurrentSpace();
             if (!space) throw new Error("Create a space first.");
-            await FiveProcessStorage.createContent(space, name || `${stateTree.title || "MAIN MACHINE"} Copy`, createPayloadFromTree());
+            const duplicateTitle = name || `${stateTree.title || "MAIN MACHINE"} Copy`;
+            const duplicated = createPayloadFromTree();
+            duplicated.root.title = duplicateTitle;
+            await FiveProcessStorage.createContent(space, duplicateTitle, duplicated);
+            stateTree.title = duplicateTitle;
+            stripRuntimeFields(stateTree);
+            world.innerHTML = "";
+            renderAll(true);
+            resetView();
+        } else if (pendingNameAction === "renameContent") {
+            const space = FiveProcessStorage.getCurrentSpace();
+            if (!space) throw new Error("Create a space first.");
+            const current = await FiveProcessStorage.getCurrentContent(space);
+            if (!current) throw new Error("No content selected.");
+            const nextName = name || pendingNameValue;
+            await FiveProcessStorage.renameContent(space, current.id, nextName);
+            stateTree.title = nextName;
+            stripRuntimeFields(stateTree);
+            world.innerHTML = "";
+            renderAll(true);
+            autoSave(false);
         }
         closeNameDialog();
         await renderSettings();
@@ -980,6 +1086,25 @@ async function deleteCurrentSpace() {
     renderAll(true);
     resetView();
     await renderSettings();
+}
+
+async function openRenameSpaceDialog() {
+    const space = FiveProcessStorage.getCurrentSpace();
+    if (!space) {
+        settingsStatus.textContent = "No space selected.";
+        return;
+    }
+    openNameDialog("Rename Space", "renameSpace", space.name);
+}
+
+async function openRenameContentDialog() {
+    const space = FiveProcessStorage.getCurrentSpace();
+    const content = space ? await FiveProcessStorage.getCurrentContent(space) : null;
+    if (!content) {
+        settingsStatus.textContent = "No content selected.";
+        return;
+    }
+    openNameDialog("Rename Content", "renameContent", content.title || stateTree.title || "MAIN MACHINE");
 }
 
 async function migrateContentCopy() {
@@ -1141,7 +1266,19 @@ document.getElementById("refreshCloudSpacesBtn").addEventListener("click", async
 });
 document.getElementById("newLocalSpaceBtn").addEventListener("click", () => openNameDialog("New Local Space", "localSpace"));
 document.getElementById("newCloudSpaceBtn").addEventListener("click", () => openNameDialog("New Cloud Space", "cloudSpace"));
+renameSpaceBtn.addEventListener("click", () => {
+    openRenameSpaceDialog().catch(error => {
+        console.error(error);
+        settingsStatus.textContent = `Rename failed: ${formatErrorMessage(error)}`;
+    });
+});
 document.getElementById("newContentBtn").addEventListener("click", () => openNameDialog("New Content", "content"));
+renameContentBtn.addEventListener("click", () => {
+    openRenameContentDialog().catch(error => {
+        console.error(error);
+        settingsStatus.textContent = `Rename failed: ${formatErrorMessage(error)}`;
+    });
+});
 document.getElementById("duplicateContentBtn").addEventListener("click", () => openNameDialog("Duplicate Content", "duplicate"));
 document.getElementById("deleteContentBtn").addEventListener("click", () => {
     deleteCurrentContent().catch(error => {
