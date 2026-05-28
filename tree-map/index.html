@@ -80,30 +80,33 @@
 
         <div class="modal-backdrop" id="settingsBackdrop">
             <div class="modal">
-                <h3>Settings</h3>
+                <div class="modal-head">
+                    <h3>Settings</h3>
+                    <button id="closeSettingsBtn" class="modal-close" aria-label="Close settings">×</button>
+                </div>
                 <label for="spaceSelect">Space</label>
                 <select class="space-select" id="spaceSelect" aria-label="Tree Map Space"></select>
                 <div class="stats" id="spaceStatus"></div>
-                <div class="row">
+                <div class="row space-action-row">
                     <button id="newLocalSpaceBtn">New Local</button>
                     <button id="newCloudSpaceBtn">New Cloud</button>
                     <button id="renameSpaceBtn">Rename</button>
                     <button id="refreshCloudSpacesBtn">Refresh Cloud</button>
+                    <button id="deleteSpaceBtn" class="danger">Delete Space</button>
                 </div>
-                <label for="migrationSourceSelect">Migrate from</label>
-                <select class="space-select" id="migrationSourceSelect" aria-label="Migration source"></select>
-                <label for="migrationTargetSelect">Migrate to</label>
-                <select class="space-select" id="migrationTargetSelect" aria-label="Migration target"></select>
+                <label>Migrate</label>
+                <div class="settings-grid">
+                    <select class="space-select" id="migrationSourceSelect" aria-label="Migration source"></select>
+                    <select class="space-select" id="migrationTargetSelect" aria-label="Migration target"></select>
+                </div>
                 <div class="row">
                     <button id="migrateSpaceBtn">Migrate</button>
-                    <button id="deleteSpaceBtn" class="danger">Delete Space</button>
                 </div>
                 <label>Import / Export</label>
                 <div class="row">
                     <button id="exportBtn">Export JSON</button>
                     <label class="file-label">Import JSON<input id="importInput" type="file"
                             accept="application/json" /></label>
-                    <button id="closeSettingsBtn">Close</button>
                 </div>
             </div>
         </div>
