@@ -19,13 +19,11 @@
                 <button id="deleteBtn" class="danger">Delete</button>
             </div>
             <div class="group">
-                <button id="exportBtn">Export JSON</button>
-                <label class="file-label">Import JSON<input id="importInput" type="file"
-                        accept="application/json" /></label>
                 <button id="resetViewBtn">Reset View</button>
                 <button id="settingsBtn">Settings</button>
             </div>
             <div class="group">
+                <div class="space-name" id="currentSpaceName"></div>
                 <div class="status" id="statusText">No selection</div>
             </div>
         </div>
@@ -89,6 +87,7 @@
                 <div class="row">
                     <button id="newLocalSpaceBtn">New Local</button>
                     <button id="newCloudSpaceBtn">New Cloud</button>
+                    <button id="renameSpaceBtn">Rename</button>
                     <button id="refreshCloudSpacesBtn">Refresh Cloud</button>
                 </div>
                 <label for="migrationSourceSelect">Migrate from</label>
@@ -98,6 +97,12 @@
                 <div class="row">
                     <button id="migrateSpaceBtn">Migrate</button>
                     <button id="deleteSpaceBtn" class="danger">Delete Space</button>
+                </div>
+                <label>Import / Export</label>
+                <div class="row">
+                    <button id="exportBtn">Export JSON</button>
+                    <label class="file-label">Import JSON<input id="importInput" type="file"
+                            accept="application/json" /></label>
                     <button id="closeSettingsBtn">Close</button>
                 </div>
             </div>

@@ -80,9 +80,11 @@
     const settingsBtn = document.getElementById('settingsBtn');
     const settingsBackdrop = document.getElementById('settingsBackdrop');
     const closeSettingsBtn = document.getElementById('closeSettingsBtn');
+    const currentSpaceName = document.getElementById('currentSpaceName');
     const spaceSelect = document.getElementById('spaceSelect');
     const newLocalSpaceBtn = document.getElementById('newLocalSpaceBtn');
     const newCloudSpaceBtn = document.getElementById('newCloudSpaceBtn');
+    const renameSpaceBtn = document.getElementById('renameSpaceBtn');
     const refreshCloudSpacesBtn = document.getElementById('refreshCloudSpacesBtn');
     const migrationSourceSelect = document.getElementById('migrationSourceSelect');
     const migrationTargetSelect = document.getElementById('migrationTargetSelect');
@@ -111,6 +113,7 @@
     let pinchState = null;
     let activeLegacyMode = false;
     let pendingSpaceMode = 'local_only';
+    let pendingRenameSpaceId = null;
     const CHIP_DOUBLE_TAP_MS = 360;
     const CHIP_TAP_MOVE_PX = 12;
     const NODE_EDIT_TAP_MS = 420;
@@ -390,6 +393,25 @@
             await this.setCurrentSpace(space.id);
             await this.saveState(initialState, space);
             return space;
+        },
+
+        async renameSpace(spaceId, name) {
+            const nextName = String(name || '').trim();
+            if (!nextName) throw new Error('Space name cannot be empty.');
+
+            const space = this.getSpaces().find(item => item.id === spaceId);
+            if (!space) throw new Error('Space was not found.');
+
+            const updated = { ...space, name: nextName };
+            if (space.storage_mode === 'cloud_sync') {
+                await supabaseRequest(`tree_map_spaces?id=eq.${encodeURIComponent(space.id)}`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({ name: nextName }),
+                });
+            }
+
+            this.saveSpaces(this.getSpaces().map(item => item.id === space.id ? updated : item));
+            return updated;
         },
 
         async deleteCurrentSpace() {
@@ -1682,6 +1704,17 @@
         return false;
     }
 
+    function renderCurrentSpaceName(current = TreeMapStorage.getCurrentSpace()) {
+        if (!currentSpaceName) return;
+        if (!current) {
+            currentSpaceName.textContent = activeLegacyMode ? 'Space · Legacy local' : '';
+            currentSpaceName.title = '';
+            return;
+        }
+        currentSpaceName.textContent = `Space · ${current.name}`;
+        currentSpaceName.title = `${current.name} · ${current.storage_mode === 'cloud_sync' ? 'Cloud' : 'Local'}`;
+    }
+
     function renderSpaceSettings() {
         const spaces = TreeMapStorage.getSpaces();
         const current = TreeMapStorage.getCurrentSpace();
@@ -1722,7 +1755,9 @@
         const label = current
             ? `${current.storage_mode === 'cloud_sync' ? 'Cloud sync' : 'Local only'}`
             : 'Legacy local';
+        renderCurrentSpaceName(current);
         spaceStatus.textContent = `${current ? current.name : 'Current'} · ${label} · Local ${localCount} / Cloud ${cloudCount}`;
+        renameSpaceBtn.disabled = !current;
     }
 
     async function refreshCloudSpaces(showStatus = false) {
@@ -1746,26 +1781,41 @@
         settingsBackdrop.classList.remove('open');
     }
 
-    function openSpaceNameDialog(storageMode) {
+    function openSpaceNameDialog(storageMode, space = null) {
         pendingSpaceMode = storageMode;
-        spaceNameTitle.textContent = storageMode === 'cloud_sync' ? 'New Cloud Tree' : 'New Local Tree';
-        spaceNameInput.value = '';
+        pendingRenameSpaceId = space ? space.id : null;
+        const isRename = storageMode === 'rename';
+        spaceNameTitle.textContent = isRename ? 'Rename Space' : storageMode === 'cloud_sync' ? 'New Cloud Tree' : 'New Local Tree';
+        spaceNameInput.value = isRename && space ? space.name : '';
         spaceNameMessage.textContent = '';
+        spaceNameSaveBtn.textContent = isRename ? 'Save' : 'Create';
         spaceNameBackdrop.classList.add('open');
-        setTimeout(() => spaceNameInput.focus(), 0);
+        setTimeout(() => {
+            spaceNameInput.focus();
+            if (isRename) spaceNameInput.select();
+        }, 0);
     }
 
     function closeSpaceNameDialog() {
         spaceNameBackdrop.classList.remove('open');
         spaceNameMessage.textContent = '';
+        pendingRenameSpaceId = null;
+        spaceNameSaveBtn.textContent = 'Create';
     }
 
-    async function createNamedSpace() {
+    async function saveNamedSpace() {
         const storageMode = pendingSpaceMode;
-        const name = spaceNameInput.value.trim() || (storageMode === 'cloud_sync' ? 'Cloud Tree' : 'Local Tree');
+        const name = spaceNameInput.value.trim();
         try {
+            if (storageMode === 'rename') {
+                await TreeMapStorage.renameSpace(pendingRenameSpaceId, name);
+                closeSpaceNameDialog();
+                renderSpaceSettings();
+                return;
+            }
+
             await TreeMapStorage.createSpace({
-                name,
+                name: name || (storageMode === 'cloud_sync' ? 'Cloud Tree' : 'Local Tree'),
                 storage_mode: storageMode,
                 initialState: state,
             });
@@ -1777,8 +1827,17 @@
             resetView();
         } catch (error) {
             console.error(error);
-            spaceNameMessage.textContent = `Create failed: ${formatErrorMessage(error)}`;
+            spaceNameMessage.textContent = `${storageMode === 'rename' ? 'Rename' : 'Create'} failed: ${formatErrorMessage(error)}`;
         }
+    }
+
+    function openRenameSpaceDialog() {
+        const current = TreeMapStorage.getCurrentSpace();
+        if (!current) {
+            spaceStatus.textContent = 'No space selected.';
+            return;
+        }
+        openSpaceNameDialog('rename', current);
     }
 
     async function switchCurrentSpace(spaceId) {
@@ -1983,12 +2042,13 @@
     newCloudSpaceBtn.addEventListener('click', function () {
         openSpaceNameDialog('cloud_sync');
     });
+    renameSpaceBtn.addEventListener('click', openRenameSpaceDialog);
     refreshCloudSpacesBtn.addEventListener('click', function () {
         refreshCloudSpaces(true);
     });
     deleteSpaceBtn.addEventListener('click', deleteCurrentSpace);
     migrateSpaceBtn.addEventListener('click', migrateSpaceData);
-    spaceNameSaveBtn.addEventListener('click', createNamedSpace);
+    spaceNameSaveBtn.addEventListener('click', saveNamedSpace);
     spaceNameCancelBtn.addEventListener('click', closeSpaceNameDialog);
     spaceNameInput.addEventListener('input', function () {
         spaceNameMessage.textContent = '';
@@ -1996,7 +2056,7 @@
     spaceNameInput.addEventListener('keydown', function (e) {
         if (e.key === 'Enter') {
             e.preventDefault();
-            createNamedSpace();
+            saveNamedSpace();
         }
         if (e.key === 'Escape') {
             e.preventDefault();
