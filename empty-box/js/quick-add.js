@@ -6,6 +6,7 @@ const SPACE_LIST_KEY = 'empty-box-spaces-v1';
 const CURRENT_SPACE_ID_KEY = 'current_space_id';
 const CURRENT_STORAGE_MODE_KEY = 'current_storage_mode';
 const CLOUD_STATE_SOURCE = 'empty_box_state';
+const MUST_DO_INBOX_CRITERION_ID = '__inbox__';
 
 const taskInput = document.getElementById('taskInput');
 const addBtn = document.getElementById('addBtn');
@@ -27,8 +28,14 @@ function createEmptyState() {
       { id: 'important', name: '重要' }
     ],
     activeMustDoCriterionId: 'urgent',
-    mustDoHiddenByDate: {}
+    mustDoHiddenByDate: {},
+    mustDoTaskGroups: {},
+    mustDoTaskOrder: {}
   };
+}
+
+function normalizeObjectMap(value) {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 }
 
 function normalizeState(parsed) {
@@ -45,7 +52,9 @@ function normalizeState(parsed) {
     mustDoTasks: Array.isArray(source.mustDoTasks) ? source.mustDoTasks.filter(Boolean) : [],
     mustDoCriteria: Array.isArray(source.mustDoCriteria) && source.mustDoCriteria.length ? source.mustDoCriteria : fallback.mustDoCriteria,
     activeMustDoCriterionId: typeof source.activeMustDoCriterionId === 'string' ? source.activeMustDoCriterionId : fallback.activeMustDoCriterionId,
-    mustDoHiddenByDate: source.mustDoHiddenByDate && typeof source.mustDoHiddenByDate === 'object' ? source.mustDoHiddenByDate : {}
+    mustDoHiddenByDate: normalizeObjectMap(source.mustDoHiddenByDate),
+    mustDoTaskGroups: normalizeObjectMap(source.mustDoTaskGroups),
+    mustDoTaskOrder: normalizeObjectMap(source.mustDoTaskOrder)
   };
 }
 
@@ -173,6 +182,18 @@ async function addToBoxQuick(value) {
   }
 
   state.boxTasks.unshift(text);
+  // Keep the main app's tab order cache in sync; otherwise new tasks render after older Inbox items.
+  Object.keys(state.mustDoTaskOrder).forEach(groupId => {
+    state.mustDoTaskOrder[groupId] = Array.isArray(state.mustDoTaskOrder[groupId])
+      ? state.mustDoTaskOrder[groupId].filter(task => task !== text)
+      : [];
+  });
+  state.mustDoTaskOrder[MUST_DO_INBOX_CRITERION_ID] = [
+    text,
+    ...(Array.isArray(state.mustDoTaskOrder[MUST_DO_INBOX_CRITERION_ID])
+      ? state.mustDoTaskOrder[MUST_DO_INBOX_CRITERION_ID]
+      : [])
+  ];
   await saveState(state);
   return { ok: true };
 }

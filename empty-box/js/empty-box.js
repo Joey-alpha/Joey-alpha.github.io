@@ -1018,7 +1018,12 @@ function renderMustDoList() {
     state.mustDoTasks.forEach((task, index) => {
         const item = document.createElement('div');
         item.className = 'must-do-item';
-        item.innerHTML = `<span>${task}</span><span class="must-do-order">${index + 1}</span>`;
+        const taskText = document.createElement('span');
+        taskText.textContent = task;
+        const orderText = document.createElement('span');
+        orderText.className = 'must-do-order';
+        orderText.textContent = String(index + 1);
+        item.append(taskText, orderText);
         bindMustDoListItemDragInteractions(item, task);
         item.addEventListener('click', event => {
             if (Date.now() < Number(item.dataset.suppressClickUntil || 0)) {
@@ -1027,7 +1032,7 @@ function renderMustDoList() {
                 return;
             }
             if (state.nowTask && state.nowTask !== task && !state.boxTasks.includes(state.nowTask)) {
-                state.boxTasks.unshift(state.nowTask);
+                prependTaskToBox(state.nowTask, getTaskGroupIdRaw(state.nowTask));
             }
             state.boxTasks = state.boxTasks.filter(item => item !== task);
             state.nowTask = task;
@@ -1112,6 +1117,33 @@ function getMustDoCandidatePool() {
 
 function getTaskGroupIdRaw(task) {
     return state.mustDoTaskGroups[task] || MUST_DO_INBOX_CRITERION.id;
+}
+
+function removeTaskFromAllGroupOrders(task) {
+    if (!task || !state.mustDoTaskOrder || typeof state.mustDoTaskOrder !== 'object') return;
+    Object.keys(state.mustDoTaskOrder).forEach(groupId => {
+        state.mustDoTaskOrder[groupId] = normalizeTaskList(state.mustDoTaskOrder[groupId]).filter(item => item !== task);
+    });
+}
+
+function prependTaskToGroupOrder(task, groupId = MUST_DO_INBOX_CRITERION.id) {
+    ensureMustDoCriteria();
+    if (!task) return;
+    removeTaskFromAllGroupOrders(task);
+    if (!state.mustDoTaskOrder[groupId]) state.mustDoTaskOrder[groupId] = [];
+    state.mustDoTaskOrder[groupId] = [task, ...normalizeTaskList(state.mustDoTaskOrder[groupId])];
+}
+
+function prependTaskToBox(task, groupId = MUST_DO_INBOX_CRITERION.id) {
+    if (!task) return;
+    state.boxTasks = state.boxTasks.filter(item => item !== task);
+    state.boxTasks.unshift(task);
+    if (isInboxMustDoCriterion(groupId)) {
+        delete state.mustDoTaskGroups[task];
+    } else {
+        state.mustDoTaskGroups[task] = groupId;
+    }
+    prependTaskToGroupOrder(task, groupId);
 }
 
 function getTaskGroupId(task) {
@@ -1876,7 +1908,7 @@ function addToBox(value) {
     const text = value.trim();
     if (!text) return false;
     if (!state.boxTasks.includes(text) && !state.completedTasks.includes(text) && text !== state.nowTask) {
-        state.boxTasks.unshift(text);
+        prependTaskToBox(text);
         saveState();
         renderFabState();
         return true;
@@ -1892,10 +1924,15 @@ function renderSearchResults(keyword) {
     matched.forEach(task => {
         const row = document.createElement('div');
         row.className = 'candidate-item';
-        row.innerHTML = `<span>${task}</span><button class="btn primary">选择</button>`;
-        row.querySelector('button').addEventListener('click', () => {
+        const taskText = document.createElement('span');
+        taskText.textContent = task;
+        const selectButton = document.createElement('button');
+        selectButton.className = 'btn primary';
+        selectButton.textContent = '选择';
+        row.append(taskText, selectButton);
+        selectButton.addEventListener('click', () => {
             if (state.nowTask && !state.boxTasks.includes(state.nowTask)) {
-                state.boxTasks.unshift(state.nowTask);
+                prependTaskToBox(state.nowTask, getTaskGroupIdRaw(state.nowTask));
             }
             state.boxTasks = state.boxTasks.filter(item => item !== task);
             state.nowTask = task;
@@ -2320,7 +2357,7 @@ blindboxFab.addEventListener('click', () => {
 acceptBlindboxBtn.addEventListener('click', () => {
     if (!blindboxTask || blindboxTask === '没有任务') return;
     if (state.nowTask && !state.boxTasks.includes(state.nowTask)) {
-        state.boxTasks.unshift(state.nowTask);
+        prependTaskToBox(state.nowTask, getTaskGroupIdRaw(state.nowTask));
     }
     state.boxTasks = state.boxTasks.filter(item => item !== blindboxTask);
     state.nowTask = blindboxTask;
