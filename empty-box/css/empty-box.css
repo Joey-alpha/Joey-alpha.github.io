@@ -414,10 +414,10 @@
         background: rgba(255, 255, 255, 0.65);
         display: flex;
         justify-content: flex-start;
-        align-items: flex-start;
+        align-items: center;
         gap: 12px;
         cursor: pointer;
-        min-height: 0;
+        height: auto;
     }
 
     .must-do-item[draggable="true"] {
@@ -437,7 +437,7 @@
         flex: 1;
         min-width: 0;
         font-size: 16px;
-        line-height: 1.4;
+        line-height: 1.5;
         display: block;
         overflow-wrap: anywhere;
         white-space: normal;
@@ -541,14 +541,21 @@
     .must-do-selection .candidate-item {
         align-items: flex-start;
         touch-action: pan-y;
-        flex-wrap: wrap;
-        min-height: 0;
+        flex-wrap: nowrap;
+        height: auto;
+        min-height: auto;
+        overflow: visible;
     }
 
     .must-do-selection .candidate-text {
         min-width: 0;
-        flex: 1;
+        flex: 1 1 auto;
+        display: block;
+        line-height: 1.45;
+        max-width: 100%;
+        overflow-wrap: anywhere;
         word-break: break-word;
+        white-space: normal;
     }
 
     .must-do-selection .candidate-actions {
@@ -786,8 +793,8 @@
         .must-do-selection .candidate-item {
             position: relative;
             flex-wrap: nowrap;
-            min-height: 58px;
-            overflow: hidden;
+            min-height: auto;
+            overflow: visible;
             padding-right: 16px;
         }
 
