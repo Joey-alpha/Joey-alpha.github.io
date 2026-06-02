@@ -84,6 +84,13 @@
         border-color: rgba(255, 255, 255, 0.10);
     }
 
+    body.night .candidate-more-btn,
+    body.night .must-do-selection .candidate-actions {
+        background: rgba(31, 39, 58, 0.98);
+        color: #eef2ff;
+        border-color: rgba(255, 255, 255, 0.10);
+    }
+
     body.night .must-do-criterion.active {
         background: var(--accent);
         color: #fff;
@@ -557,12 +564,15 @@
         display: grid;
         gap: 10px;
         margin-top: 10px;
-        max-height: 44vh;
+        flex: 1 1 auto;
+        min-height: min(32vh, 260px);
+        max-height: none;
         overflow: auto;
         padding-right: 4px;
     }
 
     .must-do-selection .candidate-item {
+        position: relative;
         align-items: flex-start;
         touch-action: pan-y;
         flex-wrap: nowrap;
@@ -582,18 +592,55 @@
         white-space: normal;
     }
 
+    .candidate-more-btn {
+        width: 36px;
+        height: 36px;
+        min-width: 36px;
+        padding: 0;
+        border-radius: 999px;
+        border: 1px solid var(--line);
+        background: var(--modal-item);
+        color: inherit;
+        cursor: pointer;
+        font: inherit;
+        font-size: 20px;
+        line-height: 1;
+        flex: 0 0 auto;
+    }
+
     .must-do-selection .candidate-actions {
-        display: flex;
-        align-items: center;
+        position: absolute;
+        right: 56px;
+        top: 50%;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(48px, 1fr));
+        align-items: stretch;
         align-self: center;
-        flex-shrink: 0;
-        flex-wrap: wrap;
-        justify-content: flex-end;
-        gap: 8px;
+        gap: 6px;
+        width: 132px;
+        padding: 8px;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background: var(--modal-panel);
+        box-shadow: 0 18px 36px rgba(24, 31, 56, 0.18);
+        opacity: 0;
+        pointer-events: none;
+        transform: translateY(-50%) translateX(6px);
+        transition: opacity 0.16s ease, transform 0.16s ease;
+        z-index: 4;
+    }
+
+    .must-do-selection .candidate-item.is-menu-open .candidate-actions {
+        opacity: 1;
+        pointer-events: auto;
+        transform: translateY(-50%) translateX(0);
     }
 
     .must-do-selection .candidate-actions .btn {
-        min-width: 0;
+        min-width: 44px;
+        padding: 8px 10px;
+        font-size: 13px;
+        width: 100%;
     }
 
     .must-do-selection .candidate-item.is-editing .candidate-actions {
@@ -829,6 +876,10 @@
             grid-template-columns: 1fr;
         }
 
+        .must-do-selection {
+            min-height: 34vh;
+        }
+
         .must-do-selection .candidate-item {
             position: relative;
             flex-wrap: nowrap;
@@ -842,47 +893,20 @@
         }
 
         .must-do-selection .candidate-actions {
-            position: absolute;
-            top: 0;
-            right: 0;
-            bottom: 0;
-            flex-wrap: nowrap;
-            gap: 6px;
-            padding: 8px 10px;
-            background: rgba(255, 255, 255, 0.92);
-            border-left: 1px solid var(--line);
-            box-shadow: -12px 0 18px rgba(15, 23, 42, 0.08);
-            opacity: 0;
-            pointer-events: none;
-            transform: translateX(104%);
-            transition: transform 0.22s ease, opacity 0.22s ease;
+            right: 52px;
+            width: 124px;
         }
 
-        body.night .must-do-selection .candidate-actions {
-            background: rgba(15, 23, 42, 0.96);
-            border-left-color: rgba(148, 163, 184, 0.22);
-            box-shadow: -12px 0 18px rgba(2, 6, 23, 0.28);
+        .must-do-selection .candidate-actions .btn {
+            min-width: 40px;
+            padding: 7px 8px;
+            font-size: 13px;
         }
 
         body.night .must-do-selection .candidate-actions .btn.secondary {
             background: rgba(51, 65, 85, 0.92);
             border-color: rgba(148, 163, 184, 0.26);
             color: #eef2ff;
-        }
-
-        .must-do-selection .candidate-item.is-actions-revealed .candidate-text {
-            transform: translateX(-10px);
-        }
-
-        .must-do-selection .candidate-item.is-actions-revealed .candidate-actions {
-            opacity: 1;
-            pointer-events: auto;
-            transform: translateX(0);
-        }
-
-        .must-do-selection .candidate-actions .btn {
-            min-width: 48px;
-            padding-inline: 10px;
         }
 
         .must-do-selection .candidate-item.is-editing {

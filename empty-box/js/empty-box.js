@@ -18,6 +18,8 @@ const MUST_DO_CRITERION_DOUBLE_TAP_MS = 360;
 const MUST_DO_CRITERION_TAP_MOVE_PX = 12;
 const MUST_DO_HIDDEN_RETENTION_DAYS = 14;
 const MUST_DO_ITEM_SWIPE_PX = 58;
+const MUST_DO_AUTO_SCROLL_EDGE_PX = 72;
+const MUST_DO_AUTO_SCROLL_MAX_PX = 22;
 const QUOTE_ROTATION_MS = 2 * 60 * 60 * 1000;
 const QUOTES = [
     { theme: '斯多葛', text: '控制可控，接受不可控。' },
@@ -1699,6 +1701,7 @@ function bindMustDoItemDragInteractions(row, task) {
     row.dataset.task = task;
 
     row.addEventListener('dragstart', event => {
+        row.classList.remove('is-menu-open');
         row.classList.add('is-dragging');
         event.dataTransfer.effectAllowed = 'move';
         event.dataTransfer.setData('application/x-empty-box-task', task);
@@ -1711,6 +1714,7 @@ function bindMustDoItemDragInteractions(row, task) {
 
     row.addEventListener('dragover', event => {
         event.preventDefault();
+        autoScrollMustDoSelection(event.clientY);
         const draggingTask = event.dataTransfer.getData('text/plain');
         if (!draggingTask || draggingTask === task) return;
         row.classList.add('is-drag-over');
@@ -1735,6 +1739,21 @@ function bindMustDoItemDragInteractions(row, task) {
         buildMustDoCandidates();
         saveState();
     });
+}
+
+function autoScrollMustDoSelection(clientY) {
+    const rect = mustDoSelection.getBoundingClientRect();
+    const distanceToTop = clientY - rect.top;
+    const distanceToBottom = rect.bottom - clientY;
+    let delta = 0;
+
+    if (distanceToTop < MUST_DO_AUTO_SCROLL_EDGE_PX) {
+        delta = -Math.ceil((1 - Math.max(distanceToTop, 0) / MUST_DO_AUTO_SCROLL_EDGE_PX) * MUST_DO_AUTO_SCROLL_MAX_PX);
+    } else if (distanceToBottom < MUST_DO_AUTO_SCROLL_EDGE_PX) {
+        delta = Math.ceil((1 - Math.max(distanceToBottom, 0) / MUST_DO_AUTO_SCROLL_EDGE_PX) * MUST_DO_AUTO_SCROLL_MAX_PX);
+    }
+
+    if (delta) mustDoSelection.scrollTop += delta;
 }
 
 function startMustDoItemTextEdit(row, label, task) {
@@ -1812,10 +1831,15 @@ function buildMustDoCandidates() {
         const selected = state.mustDoTasks.includes(task);
         const row = document.createElement('div');
         row.className = 'candidate-item';
-        row.title = '拖动排序，点击移动按钮更换分组';
+        row.title = '拖动排序，点击 ⋯ 查看操作';
         const label = document.createElement('span');
         label.className = 'candidate-text';
         label.textContent = task;
+        const moreButton = document.createElement('button');
+        moreButton.type = 'button';
+        moreButton.className = 'candidate-more-btn';
+        moreButton.setAttribute('aria-label', '更多操作');
+        moreButton.textContent = '⋯';
         const actions = document.createElement('div');
         actions.className = 'candidate-actions';
         const editButton = document.createElement('button');
@@ -1835,22 +1859,34 @@ function buildMustDoCandidates() {
         selectButton.className = `btn ${selected ? 'primary' : 'secondary'} compact`;
         selectButton.textContent = selected ? '取消' : '选中';
         actions.append(editButton, moveButton, completeButton, selectButton);
-        row.append(label, actions);
+        row.append(label, moreButton, actions);
         bindMustDoItemMoveInteractions(row, task);
         bindMustDoItemDragInteractions(row, task);
 
+        moreButton.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const shouldOpen = !row.classList.contains('is-menu-open');
+            mustDoSelection.querySelectorAll('.candidate-item.is-menu-open').forEach(item => {
+                item.classList.remove('is-menu-open');
+            });
+            row.classList.toggle('is-menu-open', shouldOpen);
+        });
+
         editButton.addEventListener('click', (e) => {
             e.stopPropagation();
+            row.classList.remove('is-menu-open');
             startMustDoItemTextEdit(row, label, task);
         });
 
         moveButton.addEventListener('click', (e) => {
             e.stopPropagation();
+            row.classList.remove('is-menu-open');
             openMoveTaskDialog(task);
         });
 
         completeButton.addEventListener('click', (e) => {
             e.stopPropagation();
+            row.classList.remove('is-menu-open');
             completeTask(task);
             buildMustDoCandidates();
             updateMustDoSummary();
@@ -1860,6 +1896,7 @@ function buildMustDoCandidates() {
 
         selectButton.addEventListener('click', (e) => {
             e.stopPropagation();
+            row.classList.remove('is-menu-open');
             if (selected) {
                 state.mustDoTasks = state.mustDoTasks.filter(t => t !== task);
                 buildMustDoCandidates();
@@ -2347,6 +2384,20 @@ searchInput.addEventListener('input', e => {
 });
 
 ambientHint.addEventListener('dblclick', openMustDoOverlay);
+
+mustDoSelection.addEventListener('dragover', event => {
+    const dragTypes = Array.from(event.dataTransfer?.types || []);
+    if (!dragTypes.includes('text/plain')) return;
+    event.preventDefault();
+    autoScrollMustDoSelection(event.clientY);
+});
+
+mustDoSelection.addEventListener('click', event => {
+    if (event.target.closest('.candidate-more-btn, .candidate-actions')) return;
+    mustDoSelection.querySelectorAll('.candidate-item.is-menu-open').forEach(item => {
+        item.classList.remove('is-menu-open');
+    });
+});
 
 confirmMustDoBtn.addEventListener('click', () => {
     closeOverlay(mustDoOverlay);
