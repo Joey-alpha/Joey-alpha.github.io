@@ -1119,6 +1119,10 @@ function getTaskGroupIdRaw(task) {
     return state.mustDoTaskGroups[task] || MUST_DO_INBOX_CRITERION.id;
 }
 
+function getTaskGroupCount(groupId) {
+    return getMustDoCandidatePool().filter(task => getTaskGroupIdRaw(task) === groupId).length;
+}
+
 function removeTaskFromAllGroupOrders(task) {
     if (!task || !state.mustDoTaskOrder || typeof state.mustDoTaskOrder !== 'object') return;
     Object.keys(state.mustDoTaskOrder).forEach(groupId => {
@@ -1539,22 +1543,27 @@ function bindMustDoCriterionInteractions(button, criterion) {
 function renderMustDoCriteria() {
     ensureMustDoCriteria();
     mustDoCriteriaBar.innerHTML = '';
+    const inboxCount = getTaskGroupCount(MUST_DO_INBOX_CRITERION.id);
     const inboxButton = document.createElement('button');
     inboxButton.type = 'button';
-    inboxButton.className = `must-do-criterion fixed${isInboxMustDoCriterion(state.activeMustDoCriterionId) ? ' active' : ''}`;
+    inboxButton.className = `must-do-criterion fixed${inboxCount ? ' has-tasks' : ''}${isInboxMustDoCriterion(state.activeMustDoCriterionId) ? ' active' : ''}`;
     inboxButton.dataset.criterionId = MUST_DO_INBOX_CRITERION.id;
+    inboxButton.dataset.count = String(inboxCount);
     inboxButton.setAttribute('aria-pressed', isInboxMustDoCriterion(state.activeMustDoCriterionId) ? 'true' : 'false');
-    inboxButton.title = '未分组任务';
+    inboxButton.title = inboxCount ? `未分组任务 · ${inboxCount} 项` : '未分组任务';
     inboxButton.textContent = MUST_DO_INBOX_CRITERION.name;
     bindMustDoCriterionInteractions(inboxButton, MUST_DO_INBOX_CRITERION);
     mustDoCriteriaBar.appendChild(inboxButton);
 
     state.mustDoCriteria.forEach(criterion => {
+        const taskCount = getTaskGroupCount(criterion.id);
         const button = document.createElement('button');
         button.type = 'button';
-        button.className = `must-do-criterion${criterion.id === state.activeMustDoCriterionId ? ' active' : ''}`;
+        button.className = `must-do-criterion${taskCount ? ' has-tasks' : ''}${criterion.id === state.activeMustDoCriterionId ? ' active' : ''}`;
         button.dataset.criterionId = criterion.id;
+        button.dataset.count = String(taskCount);
         button.setAttribute('aria-pressed', criterion.id === state.activeMustDoCriterionId ? 'true' : 'false');
+        button.title = taskCount ? `${criterion.name} · ${taskCount} 项` : criterion.name;
         button.textContent = criterion.name;
         bindMustDoCriterionInteractions(button, criterion);
         mustDoCriteriaBar.appendChild(button);

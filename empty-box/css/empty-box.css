@@ -508,6 +508,18 @@
         box-shadow: 0 0 0 3px rgba(94, 119, 255, 0.14);
     }
 
+    .must-do-criterion.has-tasks:not(.active) {
+        background: rgba(94, 119, 255, 0.13);
+        border-color: rgba(94, 119, 255, 0.24);
+        color: #4257d8;
+    }
+
+    body.night .overlay .must-do-criterion.has-tasks:not(.active) {
+        background: rgba(122, 162, 255, 0.18);
+        border-color: rgba(122, 162, 255, 0.30);
+        color: #d7e1ff;
+    }
+
     .must-do-criterion.active {
         background: var(--accent);
         border-color: transparent;
