@@ -97,11 +97,14 @@
     }
 
     body.night .time-block p,
-    body.night .quote-strip,
     body.night .now-task h3.is-empty::before,
     body.night .criterion-dialog-message,
     body.night .reflection-textarea::placeholder {
         color: #c6d0e7;
+    }
+
+    body.night .quote-strip {
+        color: #d8e0f4;
     }
 
     .app {
@@ -167,10 +170,14 @@
 
     .quote-strip {
         color: var(--muted);
-        font-size: 13px;
+        font-size: 17px;
         line-height: 1.45;
-        margin-top: 6px;
+        margin-top: 8px;
         word-break: break-word;
+    }
+
+    .time-block .quote-strip {
+        font-size: 17px;
     }
 
     .now-card {
