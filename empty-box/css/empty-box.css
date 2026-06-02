@@ -5,6 +5,8 @@
         --muted: #667085;
         --line: rgba(21, 31, 56, 0.08);
         --panel: rgba(255, 255, 255, 0.62);
+        --modal-panel: rgba(255, 255, 255, 0.98);
+        --modal-item: rgba(255, 255, 255, 0.96);
         --accent: #5e77ff;
         --shadow: 0 18px 40px rgba(31, 36, 48, 0.10);
         --radius-xl: 28px;
@@ -48,11 +50,16 @@
 
     body.night .shell,
     body.night .ambient-hint,
-    body.night .overlay-card,
     body.night .fab {
         background: rgba(24, 30, 46, 0.70);
         color: #eef2ff;
         border-color: rgba(255, 255, 255, 0.08);
+    }
+
+    body.night .overlay-card {
+        background: rgba(24, 30, 46, 0.98);
+        color: #eef2ff;
+        border-color: rgba(255, 255, 255, 0.10);
     }
 
     body.night .must-do-item {
@@ -63,13 +70,18 @@
 
     body.night .search-input,
     body.night .reflection-textarea,
-    body.night .settings-select,
-    body.night .candidate-item,
-    body.night .blindbox-task,
-    body.night .must-do-criterion {
+    body.night .settings-select {
         background: rgba(255, 255, 255, 0.04);
         color: #eef2ff;
         border-color: rgba(255, 255, 255, 0.08);
+    }
+
+    body.night .overlay .candidate-item,
+    body.night .overlay .blindbox-task,
+    body.night .overlay .must-do-criterion {
+        background: rgba(31, 39, 58, 0.96);
+        color: #eef2ff;
+        border-color: rgba(255, 255, 255, 0.10);
     }
 
     body.night .must-do-criterion.active {
@@ -337,7 +349,7 @@
         padding: 12px 14px;
         border-radius: 16px;
         border: 1px solid var(--line);
-        background: rgba(255, 255, 255, 0.48);
+        background: var(--modal-item);
         font-size: 14px;
         line-height: 1.5;
         cursor: pointer;
@@ -345,7 +357,7 @@
     }
 
     .reflection-completed-item:hover {
-        background: rgba(255, 255, 255, 0.7);
+        background: #fff;
     }
 
     .reflection-empty {
@@ -464,7 +476,7 @@
     .must-do-criterion {
         border: 1px solid var(--line);
         border-radius: 999px;
-        background: rgba(255, 255, 255, 0.58);
+        background: var(--modal-item);
         color: inherit;
         cursor: pointer;
         font: inherit;
@@ -582,7 +594,7 @@
         flex: 1;
         border: 1px solid rgba(94, 119, 255, 0.42);
         border-radius: 12px;
-        background: rgba(255, 255, 255, 0.86);
+        background: var(--modal-item);
         color: inherit;
         font: inherit;
         padding: 9px 10px;
@@ -675,12 +687,25 @@
     .overlay {
         position: fixed;
         inset: 0;
-        background: rgba(10, 14, 24, 0.25);
+        background: rgba(10, 14, 24, 0.32);
         display: none;
         align-items: center;
         justify-content: center;
         padding: 20px;
         z-index: 30;
+        isolation: isolate;
+    }
+
+    .overlay#criterionOverlay,
+    .overlay#moveTaskOverlay,
+    .overlay#spaceNameOverlay,
+    .overlay#confirmOverlay {
+        z-index: 60;
+        background: rgba(10, 14, 24, 0.42);
+    }
+
+    .overlay#migrationOverlay {
+        z-index: 70;
     }
 
     .overlay.active {
@@ -690,14 +715,16 @@
     .overlay-card {
         width: min(560px, 100%);
         max-height: min(80vh, 720px);
-        background: rgba(255, 255, 255, 0.9);
+        background: var(--modal-panel);
         border: 1px solid var(--line);
         border-radius: 28px;
         padding: 20px;
-        box-shadow: 0 18px 40px rgba(24, 31, 56, 0.14);
+        box-shadow: 0 28px 70px rgba(24, 31, 56, 0.24);
         display: flex;
         flex-direction: column;
         overflow: hidden;
+        position: relative;
+        z-index: 1;
     }
 
     .overlay-head {
@@ -733,7 +760,7 @@
         padding: 14px 16px;
         border-radius: 18px;
         border: 1px solid var(--line);
-        background: rgba(255, 255, 255, 0.65);
+        background: var(--modal-item);
         display: flex;
         justify-content: space-between;
         align-items: center;
@@ -743,7 +770,7 @@
     .blindbox-task {
         padding: 24px;
         border-radius: 24px;
-        background: linear-gradient(180deg, rgba(255, 255, 255, 0.68), rgba(255, 255, 255, 0.44));
+        background: var(--modal-item);
         border: 1px solid var(--line);
         min-height: 120px;
         display: flex;
