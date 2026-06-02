@@ -1234,7 +1234,7 @@ function reorderMustDoCriterion(draggedCriterionId, targetCriterionId, position 
 }
 
 function updateMustDoSummary() {
-    mustDoSummary.textContent = `已选 ${state.mustDoTasks.length} / ${MUST_DO_TASK_LIMIT} 项`;
+    if (mustDoSummary) mustDoSummary.textContent = '';
 }
 
 function syncMustDoCriterionActiveState() {
