@@ -17,6 +17,7 @@
     const nodeOverlay = document.getElementById('nodeOverlay');
     const input = document.getElementById('nodeInput');
     const confirmNodeBtn = document.getElementById('confirmNodeBtn');
+    const cancelNodeBtn = document.getElementById('cancelNodeBtn');
     const settingsOverlay = document.getElementById('settingsOverlay');
     const closeSettingsBtn = document.getElementById('closeSettingsBtn');
     const spaceSelect = document.getElementById('spaceSelect');
@@ -715,6 +716,7 @@
     addBtn.addEventListener('click', showModal);
     clearBtn.addEventListener('click', clearAll);
     confirmNodeBtn.addEventListener('click', confirmNode);
+    cancelNodeBtn.addEventListener('click', closeModal);
     settingsBtn.addEventListener('click', openSettings);
     closeSettingsBtn.addEventListener('click', closeSettings);
     spaceSelect.addEventListener('change', () => {
