@@ -437,7 +437,7 @@
         };
 
         node.appendChild(label);
-        container.appendChild(deleteButton);
+        node.appendChild(deleteButton);
         container.appendChild(node);
         content.appendChild(container);
         attachNodeActions(container, deleteButton);
