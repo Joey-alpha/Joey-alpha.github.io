@@ -2676,6 +2676,11 @@ window.addEventListener('devicemotion', (event) => {
 });
 
 window.addEventListener('keydown', (event) => {
+    if ((event.ctrlKey || event.metaKey) && (event.key === '/' || event.code === 'Slash')) {
+        event.preventDefault();
+        addFab.click();
+        return;
+    }
     if ((event.ctrlKey || event.metaKey) && event.key === 'z') {
         event.preventDefault();
         undoLastComplete();
