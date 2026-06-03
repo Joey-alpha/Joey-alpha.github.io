@@ -44,6 +44,7 @@
     let activeLegacyMode = false;
     let pendingSpaceMode = 'local_only';
     let pendingRenameSpaceId = null;
+    const isMac = /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent);
 
     function createEmptyState() {
         return { nodes: [], pan: { x: 0, y: 0 } };
@@ -391,6 +392,10 @@
         input.value = '';
     }
 
+    function updateShortcutHints() {
+        addBtn.title = isMac ? '⌘ /' : 'Ctrl + /';
+    }
+
     function confirmNode() {
         const text = input.value.trim();
         if (text) {
@@ -477,7 +482,7 @@
 
         window.addEventListener('mousemove', e => {
             if (!isDragging) return;
-            if (e.shiftKey || isReordering) {
+            if (isHorizontalReorderGesture(e) || isReordering) {
                 isReordering = true;
                 if (container) {
                     container.classList.add('is-reordering');
@@ -502,6 +507,10 @@
                 saveData();
             }
         });
+    }
+
+    function isHorizontalReorderGesture(event) {
+        return isMac ? event.metaKey : event.ctrlKey;
     }
 
     function reorderContainerAt(container, clientX) {
@@ -664,6 +673,7 @@
         await MindJumpStorage.setCurrentSpace(spaceId);
         renderState(await MindJumpStorage.getCurrentState());
         renderSpaceSettings();
+        updateShortcutHints();
     }
 
     async function deleteCurrentSpace() {
@@ -818,6 +828,7 @@
         }
         renderState(await MindJumpStorage.getCurrentState());
         renderSpaceSettings();
+        updateShortcutHints();
     }
 
     initApp();
