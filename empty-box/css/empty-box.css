@@ -569,6 +569,9 @@
 
     .must-do-selection {
         display: grid;
+        align-content: start;
+        align-items: start;
+        grid-auto-rows: max-content;
         gap: 10px;
         margin-top: 10px;
         flex: 1 1 auto;
@@ -580,6 +583,7 @@
 
     .must-do-selection .candidate-item {
         position: relative;
+        width: 100%;
         align-items: flex-start;
         touch-action: pan-y;
         flex-wrap: nowrap;
