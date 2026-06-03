@@ -767,7 +767,10 @@
             if (e.key === 'Escape') closeModal();
             return;
         }
-        if (e.ctrlKey && e.key === '/') showModal();
+        if ((e.metaKey || e.ctrlKey) && e.key === '/') {
+            e.preventDefault();
+            showModal();
+        }
     });
 
     async function initApp() {
