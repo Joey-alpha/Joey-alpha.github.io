@@ -82,6 +82,7 @@
             ? input.nodes.map(node => ({
                 text: String(node && node.text ? node.text : '').trim(),
                 top: typeof (node && node.top) === 'string' ? node.top : `${parseInt(node && node.top, 10) || 0}px`,
+                inactive: !!(node && node.inactive),
             })).filter(node => node.text)
             : [];
         return { nodes, pan: normalizePan(input.pan) };
@@ -352,7 +353,11 @@
         const nodes = Array.from(document.querySelectorAll('.node-container')).map(container => {
             const point = container.querySelector('.point');
             const label = container.querySelector('.label');
-            return { text: label.textContent, top: point.style.top };
+            return {
+                text: label.textContent,
+                top: point.style.top,
+                inactive: container.classList.contains('is-inactive'),
+            };
         });
         return normalizeState({ nodes, pan: { x: panX, y: panY } });
     }
@@ -371,7 +376,7 @@
         panX = state.pan.x;
         panY = state.pan.y;
         content.innerHTML = '';
-        state.nodes.forEach(data => createNode(data.text, data.top, false));
+        state.nodes.forEach(data => createNode(data.text, data.top, false, data.inactive));
         applyPan();
         renderCurrentSpaceName();
     }
@@ -394,12 +399,20 @@
         }
     }
 
-    function createNode(text, savedTop = null, shouldSave = true) {
+    function createNode(text, savedTop = null, shouldSave = true, inactive = false) {
         const container = document.createElement('div');
         container.className = 'node-container';
+        container.classList.toggle('is-inactive', !!inactive);
 
         const lastPoint = content.querySelector('.node-container:last-child .point');
         const initialTop = savedTop !== null ? savedTop : (lastPoint ? lastPoint.style.top : '0px');
+
+        const deleteButton = document.createElement('button');
+        deleteButton.type = 'button';
+        deleteButton.className = 'delete-node-btn';
+        deleteButton.textContent = '×';
+        deleteButton.title = '删除';
+        deleteButton.setAttribute('aria-label', `删除 ${text}`);
 
         const node = document.createElement('div');
         node.className = 'point';
@@ -419,10 +432,29 @@
         };
 
         node.appendChild(label);
+        container.appendChild(deleteButton);
         container.appendChild(node);
         content.appendChild(container);
+        attachNodeActions(container, deleteButton);
         makeDraggable(node);
         if (shouldSave) saveData();
+    }
+
+    function attachNodeActions(container, deleteButton) {
+        deleteButton.addEventListener('mousedown', e => {
+            e.stopPropagation();
+        });
+        deleteButton.addEventListener('click', e => {
+            e.stopPropagation();
+            container.remove();
+            saveData();
+        });
+        container.addEventListener('dblclick', e => {
+            if (e.target === deleteButton) return;
+            e.preventDefault();
+            container.classList.toggle('is-inactive');
+            saveData();
+        });
     }
 
     function makeDraggable(el) {

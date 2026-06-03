@@ -95,6 +95,16 @@ body {
     transition: none;
 }
 
+.node-container.is-inactive {
+    opacity: 0.56;
+    filter: grayscale(1);
+}
+
+.node-container.is-inactive .point {
+    background: var(--muted);
+    box-shadow: 0 0 16px rgba(100, 116, 139, 0.28);
+}
+
 .point {
     width: 40px;
     height: 40px;
@@ -330,6 +340,36 @@ button:hover {
 button:disabled {
     opacity: 0.45;
     cursor: not-allowed;
+}
+
+.delete-node-btn {
+    position: absolute;
+    top: -10px;
+    right: -10px;
+    z-index: 4;
+    width: 24px;
+    height: 24px;
+    min-width: 24px;
+    padding: 0;
+    border-radius: 999px;
+    color: var(--danger);
+    background: var(--panel);
+    border: 1px solid var(--glass);
+    box-shadow: var(--shadow);
+    line-height: 1;
+    opacity: 0;
+    transform: scale(0.88);
+    transition: opacity 0.14s ease, transform 0.14s ease, background 0.14s ease;
+}
+
+.node-container:hover .delete-node-btn,
+.delete-node-btn:focus {
+    opacity: 1;
+    transform: scale(1);
+}
+
+.delete-node-btn:hover {
+    background: var(--danger-soft);
 }
 
 .primary-action {
