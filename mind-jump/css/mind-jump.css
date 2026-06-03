@@ -19,6 +19,8 @@
     --label-focus-bg: #111827;
     --label-focus-text: #ffffff;
     --shadow: 0 20px 60px rgba(15, 23, 42, 0.16);
+    --item-slot-width: 176px;
+    --item-gap: 44px;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -78,13 +80,15 @@ body {
     display: flex;
     align-items: flex-start;
     padding: 100px;
-    gap: 120px;
+    gap: var(--item-gap);
     transform-origin: 0 0;
     pointer-events: none;
 }
 
 .node-container {
     position: relative;
+    width: var(--item-slot-width);
+    min-width: var(--item-slot-width);
     flex-shrink: 0;
     pointer-events: auto;
     transition: transform 0.18s ease;
@@ -113,6 +117,7 @@ body {
     cursor: ns-resize;
     position: relative;
     top: 0;
+    margin: 0 auto;
     box-shadow: 0 0 20px rgba(99, 102, 241, 0.4);
     display: flex;
     align-items: center;
@@ -136,9 +141,15 @@ body {
     position: absolute;
     top: 55px;
     left: 50%;
+    width: max-content;
+    max-width: calc(var(--item-slot-width) - 16px);
     transform: translateX(-50%);
-    white-space: nowrap;
+    white-space: normal;
     font-size: 14px;
+    line-height: 1.35;
+    text-align: center;
+    overflow-wrap: anywhere;
+    word-break: break-word;
     color: var(--text);
     background: var(--label-bg);
     padding: 5px 12px;
@@ -420,7 +431,8 @@ button:disabled {
 @media (max-width: 720px) {
     #content {
         padding: 86px 70px;
-        gap: 96px;
+        gap: 34px;
+        --item-slot-width: 150px;
     }
 
     .controls {
