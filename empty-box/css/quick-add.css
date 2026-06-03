@@ -9,6 +9,18 @@
   --shadow: 0 18px 40px rgba(31, 36, 48, 0.10);
 }
 
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-1: #111827;
+    --bg-2: #273244;
+    --text: #eef2ff;
+    --muted: #c6d0e7;
+    --line: rgba(255,255,255,0.10);
+    --panel: rgba(24,30,46,0.82);
+    --shadow: 0 18px 44px rgba(0,0,0,0.34);
+  }
+}
+
 * { box-sizing: border-box; }
 html, body { height: 100%; }
 
@@ -58,6 +70,16 @@ p.desc {
   padding: 16px 18px;
   outline: none;
   font-size: 16px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .input {
+    background: rgba(255,255,255,0.06);
+  }
+
+  .btn.secondary {
+    background: rgba(255,255,255,0.08);
+  }
 }
 
 .actions {
