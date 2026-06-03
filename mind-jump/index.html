@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="zh">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>思维跃迁 Pro</title>
+    <link rel="stylesheet" href="css/mind-jump.css">
+</head>
+
+<body>
+    <div id="viewport">
+        <div id="content"></div>
+    </div>
+
+    <div class="space-pill" id="currentSpaceName"></div>
+
+    <div class="controls">
+        <button class="btn btn-settings" id="settingsBtn" title="设置">⚙</button>
+        <button class="btn btn-clear" id="clearBtn" title="清空所有">🗑</button>
+        <button class="btn btn-add" id="addBtn" title="Ctrl + /">+</button>
+    </div>
+
+    <div class="overlay" id="nodeOverlay">
+        <div class="modal">
+            <h4>新增思维点</h4>
+            <input type="text" id="nodeInput" placeholder="输入内容...">
+            <button class="primary-action" id="confirmNodeBtn">确认</button>
+        </div>
+    </div>
+
+    <div class="overlay" id="settingsOverlay">
+        <div class="modal settings-modal">
+            <div class="modal-head">
+                <h4>Settings</h4>
+                <button class="modal-close" id="closeSettingsBtn" aria-label="Close settings">×</button>
+            </div>
+
+            <label for="spaceSelect">Space</label>
+            <select class="space-select" id="spaceSelect" aria-label="Mind Jump Space"></select>
+            <div class="status-line" id="spaceStatus"></div>
+
+            <div class="space-action-row">
+                <button id="newLocalSpaceBtn">New Local</button>
+                <button id="newCloudSpaceBtn">New Cloud</button>
+                <button id="renameSpaceBtn">Rename</button>
+                <button id="refreshCloudSpacesBtn">Refresh Cloud</button>
+                <button class="danger-action" id="deleteSpaceBtn">Delete Space</button>
+            </div>
+
+            <label>Migrate</label>
+            <div class="settings-grid">
+                <select class="space-select" id="migrationSourceSelect" aria-label="Migration source"></select>
+                <select class="space-select" id="migrationTargetSelect" aria-label="Migration target"></select>
+            </div>
+            <button id="migrateSpaceBtn">Migrate</button>
+        </div>
+    </div>
+
+    <div class="overlay" id="spaceNameOverlay">
+        <div class="modal">
+            <h4 id="spaceNameTitle">New Space</h4>
+            <input type="text" id="spaceNameInput" maxlength="80" placeholder="Space name...">
+            <div class="status-line" id="spaceNameMessage"></div>
+            <div class="dialog-actions">
+                <button class="primary-action" id="spaceNameSaveBtn">Create</button>
+                <button id="spaceNameCancelBtn">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/mind-jump.js"></script>
+</body>
+
+</html>
