@@ -17,7 +17,6 @@
 
     <div class="controls">
         <button class="btn btn-settings" id="settingsBtn" title="设置">⚙</button>
-        <button class="btn btn-clear" id="clearBtn" title="清空所有">🗑</button>
         <button class="btn btn-add" id="addBtn" title="Ctrl + /">+</button>
     </div>
 
@@ -37,7 +36,9 @@
             </div>
 
             <label for="spaceSelect">Space</label>
-            <select class="space-select" id="spaceSelect" aria-label="Mind Jump Space"></select>
+            <div class="select-shell">
+                <select class="space-select" id="spaceSelect" aria-label="Mind Jump Space"></select>
+            </div>
             <div class="status-line" id="spaceStatus"></div>
 
             <div class="space-action-row">
@@ -50,10 +51,17 @@
 
             <label>Migrate</label>
             <div class="settings-grid">
-                <select class="space-select" id="migrationSourceSelect" aria-label="Migration source"></select>
-                <select class="space-select" id="migrationTargetSelect" aria-label="Migration target"></select>
+                <div class="select-shell compact">
+                    <select class="space-select" id="migrationSourceSelect" aria-label="Migration source"></select>
+                </div>
+                <div class="select-shell compact">
+                    <select class="space-select" id="migrationTargetSelect" aria-label="Migration target"></select>
+                </div>
             </div>
             <button id="migrateSpaceBtn">Migrate</button>
+
+            <label>Danger Zone</label>
+            <button class="danger-action danger-full" id="clearBtn">Clear Current Space</button>
         </div>
     </div>
 

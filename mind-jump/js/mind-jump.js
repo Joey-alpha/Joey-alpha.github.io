@@ -426,11 +426,17 @@
 
     function makeDraggable(el) {
         let isDragging = false;
+        let isReordering = false;
         let startY = 0;
+        let startX = 0;
         let startOffsetTop = 0;
+        let container = null;
 
         el.addEventListener('mousedown', e => {
             isDragging = true;
+            isReordering = false;
+            container = el.closest('.node-container');
+            startX = e.clientX;
             startY = e.clientY;
             startOffsetTop = parseInt(el.style.top, 10) || 0;
             e.stopPropagation();
@@ -438,6 +444,15 @@
 
         window.addEventListener('mousemove', e => {
             if (!isDragging) return;
+            if (e.shiftKey || isReordering) {
+                isReordering = true;
+                if (container) {
+                    container.classList.add('is-reordering');
+                    container.style.transform = `translateX(${e.clientX - startX}px)`;
+                    reorderContainerAt(container, e.clientX);
+                }
+                return;
+            }
             const diffY = e.clientY - startY;
             el.style.top = `${startOffsetTop + diffY}px`;
         });
@@ -445,9 +460,29 @@
         window.addEventListener('mouseup', () => {
             if (isDragging) {
                 isDragging = false;
+                isReordering = false;
+                if (container) {
+                    container.classList.remove('is-reordering');
+                    container.style.transform = '';
+                    container = null;
+                }
                 saveData();
             }
         });
+    }
+
+    function reorderContainerAt(container, clientX) {
+        const siblings = Array.from(content.querySelectorAll('.node-container'))
+            .filter(item => item !== container);
+        const before = siblings.find(item => {
+            const rect = item.getBoundingClientRect();
+            return clientX < rect.left + rect.width / 2;
+        });
+        if (before) {
+            content.insertBefore(container, before);
+        } else {
+            content.appendChild(container);
+        }
     }
 
     function clearAll() {

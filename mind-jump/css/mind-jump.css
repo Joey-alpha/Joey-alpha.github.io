@@ -1,10 +1,46 @@
 :root {
     --primary: #6366f1;
-    --bg: #0b0f1a;
+    --primary-soft: rgba(99, 102, 241, 0.22);
+    --bg: #f7f8fc;
     --danger: #ef4444;
-    --glass: rgba(255, 255, 255, 0.08);
-    --panel: #1e293b;
-    --muted: #94a3b8;
+    --danger-soft: rgba(239, 68, 68, 0.12);
+    --glass: rgba(15, 23, 42, 0.1);
+    --panel: #ffffff;
+    --text: #111827;
+    --muted: #64748b;
+    --field-bg: #f8fafc;
+    --field-bg-hover: #f1f5f9;
+    --button-bg: rgba(15, 23, 42, 0.07);
+    --button-bg-hover: rgba(15, 23, 42, 0.12);
+    --overlay: rgba(15, 23, 42, 0.36);
+    --dot: rgba(15, 23, 42, 0.12);
+    --pill-bg: rgba(255, 255, 255, 0.82);
+    --label-bg: rgba(255, 255, 255, 0.92);
+    --label-focus-bg: #111827;
+    --label-focus-text: #ffffff;
+    --shadow: 0 20px 60px rgba(15, 23, 42, 0.16);
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg: #0b0f1a;
+        --danger-soft: rgba(239, 68, 68, 0.16);
+        --glass: rgba(255, 255, 255, 0.08);
+        --panel: #1e293b;
+        --text: #ffffff;
+        --muted: #94a3b8;
+        --field-bg: #0b0f1a;
+        --field-bg-hover: #111827;
+        --button-bg: rgba(255, 255, 255, 0.1);
+        --button-bg-hover: rgba(255, 255, 255, 0.16);
+        --overlay: rgba(0, 0, 0, 0.8);
+        --dot: rgba(255, 255, 255, 0.05);
+        --pill-bg: rgba(15, 23, 42, 0.76);
+        --label-bg: rgba(30, 41, 59, 0.9);
+        --label-focus-bg: #ffffff;
+        --label-focus-text: #000000;
+        --shadow: 0 20px 60px rgba(0, 0, 0, 0.38);
+    }
 }
 
 * {
@@ -17,7 +53,7 @@ body {
     width: 100%;
     height: 100%;
     overflow: hidden;
-    color: white;
+    color: var(--text);
     background: var(--bg);
     font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
@@ -27,7 +63,7 @@ body {
     height: 100vh;
     cursor: grab;
     position: relative;
-    background-image: radial-gradient(circle, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+    background-image: radial-gradient(circle, var(--dot) 1px, transparent 1px);
     background-size: 30px 30px;
 }
 
@@ -51,6 +87,12 @@ body {
     position: relative;
     flex-shrink: 0;
     pointer-events: auto;
+    transition: transform 0.18s ease;
+}
+
+.node-container.is-reordering {
+    z-index: 20;
+    transition: none;
 }
 
 .point {
@@ -65,6 +107,11 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
+}
+
+.node-container.is-reordering .point {
+    cursor: ew-resize;
+    box-shadow: 0 0 0 8px var(--primary-soft), 0 0 28px rgba(99, 102, 241, 0.65);
 }
 
 .point::after {
@@ -82,7 +129,8 @@ body {
     transform: translateX(-50%);
     white-space: nowrap;
     font-size: 14px;
-    background: rgba(30, 41, 59, 0.9);
+    color: var(--text);
+    background: var(--label-bg);
     padding: 5px 12px;
     border-radius: 6px;
     border: 1px solid var(--glass);
@@ -92,9 +140,9 @@ body {
 }
 
 .label:focus {
-    background: white;
-    color: black;
-    box-shadow: 0 0 10px white;
+    background: var(--label-focus-bg);
+    color: var(--label-focus-text);
+    box-shadow: 0 0 10px var(--primary-soft);
 }
 
 .space-pill {
@@ -104,8 +152,8 @@ body {
     max-width: min(420px, calc(100vw - 36px));
     z-index: 100;
     padding: 9px 12px;
-    color: rgba(255, 255, 255, 0.78);
-    background: rgba(15, 23, 42, 0.76);
+    color: var(--muted);
+    background: var(--pill-bg);
     border: 1px solid var(--glass);
     border-radius: 999px;
     font-size: 12px;
@@ -141,11 +189,6 @@ body {
     background: var(--primary);
 }
 
-.btn-clear {
-    background: var(--danger);
-    font-size: 18px;
-}
-
 .btn:hover {
     transform: scale(1.1);
 }
@@ -154,7 +197,7 @@ body {
     display: none;
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.8);
+    background: var(--overlay);
     z-index: 1000;
     place-items: center;
     padding: 16px;
@@ -165,12 +208,14 @@ body {
 }
 
 .modal {
-    background: var(--panel);
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 42%),
+        var(--panel);
     padding: 25px;
     border-radius: 16px;
     width: min(320px, 100%);
     border: 1px solid var(--glass);
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.38);
+    box-shadow: var(--shadow);
 }
 
 .settings-modal {
@@ -201,6 +246,8 @@ label {
     margin: 12px 0 6px;
     color: var(--muted);
     font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
 }
 
 input,
@@ -212,31 +259,72 @@ button {
 input,
 .space-select {
     width: 100%;
-    padding: 12px;
-    background: #0b0f1a;
+    min-height: 48px;
+    padding: 12px 44px 12px 14px;
+    background: var(--field-bg);
     border: 1px solid var(--glass);
-    color: white;
-    border-radius: 8px;
+    color: var(--text);
+    border-radius: 12px;
     outline: none;
+    appearance: none;
+    -webkit-appearance: none;
+}
+
+.select-shell {
+    position: relative;
+    border-radius: 14px;
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.02)),
+        var(--field-bg);
+}
+
+.select-shell::after {
+    content: "";
+    position: absolute;
+    right: 16px;
+    top: 50%;
+    width: 9px;
+    height: 9px;
+    border-right: 2px solid var(--muted);
+    border-bottom: 2px solid var(--muted);
+    pointer-events: none;
+    transform: translateY(-68%) rotate(45deg);
+}
+
+.select-shell:hover .space-select {
+    border-color: rgba(255, 255, 255, 0.18);
+    background-color: var(--field-bg-hover);
+}
+
+.select-shell:focus-within {
+    box-shadow: 0 0 0 4px var(--primary-soft);
+}
+
+.select-shell:focus-within::after {
+    border-color: var(--text);
+}
+
+.select-shell.compact .space-select {
+    min-height: 44px;
 }
 
 input:focus,
 .space-select:focus {
     border-color: var(--primary);
-    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.18);
+    box-shadow: inset 0 0 0 1px rgba(99, 102, 241, 0.4);
 }
 
 button {
     border: none;
-    color: white;
-    background: rgba(255, 255, 255, 0.1);
+    color: var(--text);
+    background: var(--button-bg);
     border-radius: 8px;
     padding: 11px 12px;
     cursor: pointer;
 }
 
 button:hover {
-    background: rgba(255, 255, 255, 0.16);
+    background: var(--button-bg-hover);
 }
 
 button:disabled {
@@ -247,10 +335,17 @@ button:disabled {
 .primary-action {
     width: 100%;
     background: var(--primary);
+    color: white;
 }
 
 .danger-action {
-    color: #fecaca;
+    color: var(--danger);
+    background: var(--danger-soft);
+}
+
+.danger-full {
+    width: 100%;
+    margin-top: 2px;
 }
 
 .space-action-row {
