@@ -111,6 +111,8 @@
     let recentNodeSingleToggle = null;
     let ignoreNodeClickUntil = 0;
     let pinchState = null;
+    let dragAutoPanFrame = 0;
+    let dragAutoPanLastTs = 0;
     let activeLegacyMode = false;
     let pendingSpaceMode = 'local_only';
     let pendingRenameSpaceId = null;
@@ -118,6 +120,8 @@
     const CHIP_TAP_MOVE_PX = 12;
     const NODE_EDIT_TAP_MS = 420;
     const NODE_SINGLE_CLICK_DELAY_MS = 260;
+    const DRAG_AUTO_PAN_EDGE_PX = 72;
+    const DRAG_AUTO_PAN_MAX_SPEED = 520;
 
     function createSampleState() {
         const rootId = uid();
@@ -1101,6 +1105,73 @@
         view.y = clientY - rect.top - before.y * view.scale;
         applyView();
     }
+
+    function updateDraggedNodePosition() {
+        if (!dragState || !dragState.dragging) return;
+        const el = nodeEls.get(dragState.id);
+        if (!el) return;
+        const wp = worldPoint(dragState.lastClientX, dragState.lastClientY);
+        el.style.left = (wp.x - dragState.pointerOffsetX) + 'px';
+        el.style.top = (wp.y - dragState.pointerOffsetY) + 'px';
+    }
+
+    function computeDragAutoPanVelocity(clientX, clientY) {
+        const rect = viewport.getBoundingClientRect();
+        const x = clientX - rect.left;
+        const y = clientY - rect.top;
+        const edge = DRAG_AUTO_PAN_EDGE_PX;
+        const maxSpeed = DRAG_AUTO_PAN_MAX_SPEED;
+        let vx = 0;
+        let vy = 0;
+
+        if (x < edge) vx = clamp((edge - x) / edge, 0, 1) * maxSpeed;
+        else if (x > rect.width - edge) vx = -clamp((x - (rect.width - edge)) / edge, 0, 1) * maxSpeed;
+
+        if (y < edge) vy = clamp((edge - y) / edge, 0, 1) * maxSpeed;
+        else if (y > rect.height - edge) vy = -clamp((y - (rect.height - edge)) / edge, 0, 1) * maxSpeed;
+
+        return { x: vx, y: vy };
+    }
+
+    function startDragAutoPan() {
+        if (dragAutoPanFrame) return;
+        dragAutoPanLastTs = 0;
+        dragAutoPanFrame = window.requestAnimationFrame(tickDragAutoPan);
+    }
+
+    function stopDragAutoPan() {
+        if (dragAutoPanFrame) {
+            window.cancelAnimationFrame(dragAutoPanFrame);
+            dragAutoPanFrame = 0;
+        }
+        dragAutoPanLastTs = 0;
+    }
+
+    function tickDragAutoPan(ts) {
+        dragAutoPanFrame = 0;
+        if (!dragState || !dragState.dragging) {
+            dragAutoPanLastTs = 0;
+            return;
+        }
+
+        const dt = dragAutoPanLastTs ? Math.min(64, ts - dragAutoPanLastTs) : 16;
+        dragAutoPanLastTs = ts;
+        const velocity = computeDragAutoPanVelocity(dragState.lastClientX, dragState.lastClientY);
+
+        if (velocity.x || velocity.y) {
+            view.x += velocity.x * dt / 1000;
+            view.y += velocity.y * dt / 1000;
+            applyView();
+            updateDraggedNodePosition();
+
+            const target = detectDropTarget(dragState.lastClientX, dragState.lastClientY, dragState.id);
+            dragState.dropTargetId = target ? target.id : null;
+            dragState.dropMode = target ? target.mode : 'child';
+            paintDropTarget();
+        }
+
+        dragAutoPanFrame = window.requestAnimationFrame(tickDragAutoPan);
+    }
     function getLevelInfo(points) {
         const value = nonNegativeNumber(points);
         const level = getLevelFromPoints(value);
@@ -1278,10 +1349,14 @@
                 pointerId: e.pointerId,
                 startClientX: e.clientX,
                 startClientY: e.clientY,
+                lastClientX: e.clientX,
+                lastClientY: e.clientY,
                 startWorldX: start.x,
                 startWorldY: start.y,
                 originLeft: pos.x,
                 originTop: pos.y,
+                pointerOffsetX: start.x - pos.x,
+                pointerOffsetY: start.y - pos.y,
                 dragging: false,
                 dropTargetId: null,
                 dropMode: 'child',
@@ -1290,20 +1365,20 @@
 
         el.addEventListener('pointermove', function (e) {
             if (!dragState || dragState.pointerId !== e.pointerId || dragState.id !== id) return;
+            dragState.lastClientX = e.clientX;
+            dragState.lastClientY = e.clientY;
 
-            const dx = (e.clientX - dragState.startClientX) / view.scale;
-            const dy = (e.clientY - dragState.startClientY) / view.scale;
             const moved = Math.hypot(e.clientX - dragState.startClientX, e.clientY - dragState.startClientY);
 
             if (!dragState.dragging && moved > 8) {
                 dragState.dragging = true;
                 el.classList.add('dragging');
+                startDragAutoPan();
             }
 
             if (!dragState.dragging) return;
 
-            el.style.left = (dragState.originLeft + dx) + 'px';
-            el.style.top = (dragState.originTop + dy) + 'px';
+            updateDraggedNodePosition();
             el.style.zIndex = '50';
 
             const target = detectDropTarget(e.clientX, e.clientY, id);
@@ -1322,6 +1397,7 @@
                 ignoreNodeClickUntil = Date.now() + 500;
                 clearPendingNodeClick();
                 tapInfo = { id: null, ts: 0 };
+                stopDragAutoPan();
             }
 
             if (wasDragging && dragState.dropTargetId) {
@@ -1342,6 +1418,7 @@
                 ignoreNodeClickUntil = Date.now() + 500;
                 clearPendingNodeClick();
                 tapInfo = { id: null, ts: 0 };
+                stopDragAutoPan();
             }
             if (dragState) {
                 el.style.left = dragState.originLeft + 'px';
@@ -1472,7 +1549,31 @@
                 return { id, mode };
             }
         }
-        return null;
+        return detectSiblingSortTarget(wp, dragId);
+    }
+
+    function detectSiblingSortTarget(wp, dragId) {
+        const parentId = findParentId(dragId);
+        const siblingIds = parentId ? getNode(parentId).children : state.rootIds;
+        const siblingBoxes = siblingIds
+            .filter(id => id !== dragId)
+            .map(id => ({ id, pos: layoutMap.get(id) }))
+            .filter(item => item.pos)
+            .sort((a, b) => a.pos.x - b.pos.x);
+
+        if (!siblingBoxes.length) return null;
+
+        const rowTop = Math.min(...siblingBoxes.map(item => item.pos.y));
+        const rowBottom = Math.max(...siblingBoxes.map(item => item.pos.y + item.pos.height));
+        const rowSlack = Math.max(24, V_GAP / 2);
+        if (wp.y < rowTop - rowSlack || wp.y > rowBottom + rowSlack) return null;
+
+        for (const item of siblingBoxes) {
+            const midpoint = item.pos.x + item.pos.width / 2;
+            if (wp.x < midpoint) return { id: item.id, mode: 'before' };
+        }
+
+        return { id: siblingBoxes[siblingBoxes.length - 1].id, mode: 'after' };
     }
 
     function paintDropTarget() {
