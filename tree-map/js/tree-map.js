@@ -1821,7 +1821,7 @@
             await TreeMapStorage.createSpace({
                 name: name || (storageMode === 'cloud_sync' ? 'Cloud Tree' : 'Local Tree'),
                 storage_mode: storageMode,
-                initialState: state,
+                initialState: createSampleState(),
             });
             state = await TreeMapStorage.getCurrentState();
             selectedId = state.rootIds[0] || null;
