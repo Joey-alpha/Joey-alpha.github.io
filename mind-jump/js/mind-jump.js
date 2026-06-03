@@ -45,6 +45,12 @@
     let pendingSpaceMode = 'local_only';
     let pendingRenameSpaceId = null;
     const isMac = /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent);
+    const EDGE_PAN_ZONE = 70;
+    const EDGE_PAN_MAX_SPEED = 18;
+    let lastViewportPointer = null;
+    let pendingInsertPlan = null;
+    let edgePanPointer = null;
+    let edgePanFrame = 0;
 
     function createEmptyState() {
         return { nodes: [], pan: { x: 0, y: 0 } };
@@ -382,7 +388,8 @@
         renderCurrentSpaceName();
     }
 
-    function showModal() {
+    function showModal(insertPlan = getInsertionPlanFromPointer()) {
+        pendingInsertPlan = insertPlan;
         nodeOverlay.classList.add('open');
         input.focus();
     }
@@ -390,6 +397,7 @@
     function closeModal() {
         nodeOverlay.classList.remove('open');
         input.value = '';
+        pendingInsertPlan = null;
     }
 
     function updateShortcutHints() {
@@ -399,12 +407,13 @@
     function confirmNode() {
         const text = input.value.trim();
         if (text) {
-            createNode(text);
+            const plan = pendingInsertPlan || getInsertionPlanFromPointer();
+            createNode(text, plan.top, true, false, plan.index);
             closeModal();
         }
     }
 
-    function createNode(text, savedTop = null, shouldSave = true, inactive = false) {
+    function createNode(text, savedTop = null, shouldSave = true, inactive = false, insertIndex = null) {
         const container = document.createElement('div');
         container.className = 'node-container';
         container.classList.toggle('is-inactive', !!inactive);
@@ -439,10 +448,45 @@
         node.appendChild(label);
         node.appendChild(deleteButton);
         container.appendChild(node);
-        content.appendChild(container);
+        insertNodeContainer(container, insertIndex);
         attachNodeActions(container, deleteButton);
         makeDraggable(node);
         if (shouldSave) saveData();
+    }
+
+    function insertNodeContainer(container, insertIndex = null) {
+        const containers = Array.from(content.querySelectorAll('.node-container'));
+        const index = Number.isInteger(insertIndex) ? insertIndex : containers.length;
+        const before = containers[Math.max(0, Math.min(index, containers.length))] || null;
+        content.insertBefore(container, before);
+    }
+
+    function getInsertionPlanFromPointer() {
+        const rect = viewport.getBoundingClientRect();
+        const pointer = lastViewportPointer || {
+            clientX: rect.left + rect.width / 2,
+            clientY: rect.top + rect.height / 2,
+        };
+        return {
+            index: getInsertionIndex(pointer.clientX),
+            top: `${getPointTopFromClientY(pointer.clientY)}px`,
+        };
+    }
+
+    function getInsertionIndex(clientX) {
+        const containers = Array.from(content.querySelectorAll('.node-container'));
+        const beforeIndex = containers.findIndex(container => {
+            const rect = container.getBoundingClientRect();
+            return clientX < rect.left + rect.width / 2;
+        });
+        return beforeIndex === -1 ? containers.length : beforeIndex;
+    }
+
+    function getPointTopFromClientY(clientY) {
+        const contentRect = content.getBoundingClientRect();
+        const styles = getComputedStyle(content);
+        const paddingTop = parseFloat(styles.paddingTop) || 0;
+        return Math.round(clientY - contentRect.top - paddingTop - 20);
     }
 
     function attachNodeActions(container, deleteButton) {
@@ -482,6 +526,7 @@
 
         window.addEventListener('mousemove', e => {
             if (!isDragging) return;
+            updateEdgePan(e.clientX, e.clientY);
             if (isHorizontalReorderGesture(e) || isReordering) {
                 isReordering = true;
                 if (container) {
@@ -499,6 +544,7 @@
             if (isDragging) {
                 isDragging = false;
                 isReordering = false;
+                stopEdgePan();
                 if (container) {
                     container.classList.remove('is-reordering');
                     container.style.transform = '';
@@ -525,6 +571,47 @@
         } else {
             content.appendChild(container);
         }
+    }
+
+    function updateEdgePan(clientX, clientY) {
+        edgePanPointer = { clientX, clientY };
+        if (!edgePanFrame) edgePanFrame = requestAnimationFrame(runEdgePan);
+    }
+
+    function runEdgePan() {
+        if (!edgePanPointer) {
+            edgePanFrame = 0;
+            return;
+        }
+        const moved = autoPanNearViewportEdge(edgePanPointer.clientX, edgePanPointer.clientY);
+        edgePanFrame = moved ? requestAnimationFrame(runEdgePan) : 0;
+    }
+
+    function stopEdgePan() {
+        edgePanPointer = null;
+        if (edgePanFrame) cancelAnimationFrame(edgePanFrame);
+        edgePanFrame = 0;
+    }
+
+    function autoPanNearViewportEdge(clientX, clientY) {
+        const rect = viewport.getBoundingClientRect();
+        const leftSpeed = edgeSpeed(clientX - rect.left);
+        const rightSpeed = edgeSpeed(rect.right - clientX);
+        const topSpeed = edgeSpeed(clientY - rect.top);
+        const bottomSpeed = edgeSpeed(rect.bottom - clientY);
+        const dx = leftSpeed - rightSpeed;
+        const dy = topSpeed - bottomSpeed;
+        if (!dx && !dy) return false;
+        panX += dx;
+        panY += dy;
+        applyPan();
+        return true;
+    }
+
+    function edgeSpeed(distance) {
+        if (distance >= EDGE_PAN_ZONE) return 0;
+        const ratio = Math.max(0, Math.min(1, (EDGE_PAN_ZONE - distance) / EDGE_PAN_ZONE));
+        return Math.ceil(ratio * EDGE_PAN_MAX_SPEED);
     }
 
     function clearAll() {
@@ -741,6 +828,10 @@
         }
     });
 
+    viewport.addEventListener('mousemove', e => {
+        lastViewportPointer = { clientX: e.clientX, clientY: e.clientY };
+    });
+
     window.addEventListener('mousemove', e => {
         if (!isPanning) return;
         panX = e.clientX - Number(viewport.dataset.startX);
@@ -755,7 +846,7 @@
         }
     });
 
-    addBtn.addEventListener('click', showModal);
+    addBtn.addEventListener('click', () => showModal());
     clearBtn.addEventListener('click', clearAll);
     confirmNodeBtn.addEventListener('click', confirmNode);
     cancelNodeBtn.addEventListener('click', closeModal);
