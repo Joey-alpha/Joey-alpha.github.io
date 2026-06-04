@@ -229,6 +229,24 @@ button.primary {
     box-shadow: inset 0 0 0 1px var(--accent), 0 0 0 4px rgba(0, 113, 227, .12);
 }
 
+@media (prefers-color-scheme: dark) {
+    .space-select {
+        background-color: rgba(15, 23, 42, .78);
+        color: var(--text);
+        color-scheme: dark;
+    }
+
+    .space-select option {
+        background-color: #111827;
+        color: #eef2ff;
+    }
+
+    .space-select option:checked {
+        background-color: #263b66;
+        color: #ffffff;
+    }
+}
+
 .space-status {
     flex-basis: 100%;
     padding: 0 6px;
@@ -611,6 +629,13 @@ button.primary {
     min-height: 42px;
     font-size: 14px;
     background-color: rgba(255, 255, 255, .58);
+}
+
+@media (prefers-color-scheme: dark) {
+    #settingsBackdrop .space-select {
+        background-color: rgba(15, 23, 42, .78);
+        color: var(--text);
+    }
 }
 
 #settingsBackdrop button,
