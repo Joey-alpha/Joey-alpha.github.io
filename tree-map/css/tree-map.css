@@ -150,10 +150,6 @@ button:hover,
         background: rgba(0, 0, 0, .58);
     }
 
-    .modal .stats {
-        background: rgba(255, 255, 255, .06);
-    }
-
     .impact-chip.benefit {
         background: rgba(4, 120, 87, .22);
     }
@@ -543,6 +539,20 @@ button.primary {
     box-shadow: 0 0 0 4px rgba(0, 113, 227, .12);
 }
 
+@media (prefers-color-scheme: dark) {
+    .modal input[type="text"] {
+        background: rgba(15, 23, 42, .72);
+        border-color: rgba(122, 162, 255, .20);
+        color: var(--text);
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .03);
+    }
+
+    .modal input[type="text"]:focus {
+        border-color: rgba(122, 162, 255, .72);
+        box-shadow: 0 0 0 4px rgba(122, 162, 255, .16), inset 0 0 0 1px rgba(255, 255, 255, .04);
+    }
+}
+
 .modal .row {
     display: flex;
     gap: 8px;
@@ -655,6 +665,14 @@ button.primary {
     border: 1px solid var(--line);
     border-radius: 14px;
     padding: 10px 12px;
+}
+
+@media (prefers-color-scheme: dark) {
+    .modal .stats {
+        background: linear-gradient(180deg, rgba(122, 162, 255, .10), rgba(15, 23, 42, .44));
+        border-color: rgba(122, 162, 255, .16);
+        color: #d7e1ff;
+    }
 }
 
 #settingsBackdrop .stats,
