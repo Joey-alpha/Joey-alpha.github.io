@@ -1079,6 +1079,20 @@
         background: rgba(148, 163, 184, 0.10);
     }
 
+    body.night .move-task-list .btn.secondary,
+    body.late .move-task-list .btn.secondary {
+        background: transparent;
+        border-color: rgba(148, 163, 184, 0.28);
+        color: #eef2ff;
+        box-shadow: none;
+    }
+
+    body.night .move-task-list .btn.secondary:hover,
+    body.late .move-task-list .btn.secondary:hover {
+        background: rgba(148, 163, 184, 0.10);
+        border-color: rgba(148, 163, 184, 0.40);
+    }
+
     @media (prefers-color-scheme: dark) {
         .settings-inline .btn.secondary {
             background: transparent;
@@ -1089,5 +1103,17 @@
 
         .settings-inline .btn.secondary:hover {
             background: rgba(148, 163, 184, 0.10);
+        }
+
+        .move-task-list .btn.secondary {
+            background: transparent;
+            border-color: rgba(148, 163, 184, 0.28);
+            color: #eef2ff;
+            box-shadow: none;
+        }
+
+        .move-task-list .btn.secondary:hover {
+            background: rgba(148, 163, 184, 0.10);
+            border-color: rgba(148, 163, 184, 0.40);
         }
     }
