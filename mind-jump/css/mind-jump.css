@@ -476,3 +476,29 @@ button:disabled {
         grid-template-columns: 1fr;
     }
 }
+
+@media (prefers-color-scheme: dark) {
+    html {
+        color-scheme: dark;
+    }
+
+    select.space-select {
+        background-color: rgba(15, 23, 42, 0.86);
+        color: #eef2ff;
+        color-scheme: dark;
+    }
+
+    select.space-select option {
+        background: #111827 !important;
+        background-color: #111827 !important;
+        color: #eef2ff !important;
+    }
+
+    select.space-select option:checked,
+    select.space-select option:hover,
+    select.space-select option:focus {
+        background: #263b66 !important;
+        background-color: #263b66 !important;
+        color: #ffffff !important;
+    }
+}

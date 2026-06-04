@@ -1014,3 +1014,80 @@
             transform: none;
         }
     }
+
+    body.night select.settings-select,
+    body.late select.settings-select {
+        background-color: rgba(15, 23, 42, 0.86);
+        color: #eef2ff;
+        color-scheme: dark;
+    }
+
+    body.night select.settings-select option,
+    body.late select.settings-select option {
+        background: #111827 !important;
+        background-color: #111827 !important;
+        color: #eef2ff !important;
+    }
+
+    body.night select.settings-select option:checked,
+    body.night select.settings-select option:hover,
+    body.night select.settings-select option:focus,
+    body.late select.settings-select option:checked,
+    body.late select.settings-select option:hover,
+    body.late select.settings-select option:focus {
+        background: #263b66 !important;
+        background-color: #263b66 !important;
+        color: #ffffff !important;
+    }
+
+    @media (prefers-color-scheme: dark) {
+        html {
+            color-scheme: dark;
+        }
+
+        select.settings-select {
+            background-color: rgba(15, 23, 42, 0.86);
+            color: #eef2ff;
+            color-scheme: dark;
+        }
+
+        select.settings-select option {
+            background: #111827 !important;
+            background-color: #111827 !important;
+            color: #eef2ff !important;
+        }
+
+        select.settings-select option:checked,
+        select.settings-select option:hover,
+        select.settings-select option:focus {
+            background: #263b66 !important;
+            background-color: #263b66 !important;
+            color: #ffffff !important;
+        }
+    }
+
+    body.night .settings-inline .btn.secondary,
+    body.late .settings-inline .btn.secondary {
+        background: transparent;
+        border-color: rgba(148, 163, 184, 0.28);
+        color: #eef2ff;
+        box-shadow: none;
+    }
+
+    body.night .settings-inline .btn.secondary:hover,
+    body.late .settings-inline .btn.secondary:hover {
+        background: rgba(148, 163, 184, 0.10);
+    }
+
+    @media (prefers-color-scheme: dark) {
+        .settings-inline .btn.secondary {
+            background: transparent;
+            border-color: rgba(148, 163, 184, 0.28);
+            color: #eef2ff;
+            box-shadow: none;
+        }
+
+        .settings-inline .btn.secondary:hover {
+            background: rgba(148, 163, 184, 0.10);
+        }
+    }
