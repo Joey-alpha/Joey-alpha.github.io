@@ -229,24 +229,6 @@ button.primary {
     box-shadow: inset 0 0 0 1px var(--accent), 0 0 0 4px rgba(0, 113, 227, .12);
 }
 
-@media (prefers-color-scheme: dark) {
-    .space-select {
-        background-color: rgba(15, 23, 42, .78);
-        color: var(--text);
-        color-scheme: dark;
-    }
-
-    .space-select option {
-        background-color: #111827;
-        color: #eef2ff;
-    }
-
-    .space-select option:checked {
-        background-color: #263b66;
-        color: #ffffff;
-    }
-}
-
 .space-status {
     flex-basis: 100%;
     padding: 0 6px;
@@ -631,13 +613,6 @@ button.primary {
     background-color: rgba(255, 255, 255, .58);
 }
 
-@media (prefers-color-scheme: dark) {
-    #settingsBackdrop .space-select {
-        background-color: rgba(15, 23, 42, .78);
-        color: var(--text);
-    }
-}
-
 #settingsBackdrop button,
 #settingsBackdrop .file-label {
     min-height: 40px;
@@ -753,5 +728,36 @@ textarea#importExportArea {
 
     .node {
         width: 168px;
+    }
+}
+
+@media (prefers-color-scheme: dark) {
+    html {
+        color-scheme: dark;
+    }
+
+    select.space-select,
+    #settingsBackdrop select.space-select {
+        background-color: rgba(15, 23, 42, .86);
+        color: #eef2ff;
+        color-scheme: dark;
+    }
+
+    select.space-select option,
+    #settingsBackdrop select.space-select option {
+        background: #111827 !important;
+        background-color: #111827 !important;
+        color: #eef2ff !important;
+    }
+
+    select.space-select option:checked,
+    select.space-select option:hover,
+    select.space-select option:focus,
+    #settingsBackdrop select.space-select option:checked,
+    #settingsBackdrop select.space-select option:hover,
+    #settingsBackdrop select.space-select option:focus {
+        background: #263b66 !important;
+        background-color: #263b66 !important;
+        color: #ffffff !important;
     }
 }
