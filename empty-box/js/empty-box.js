@@ -111,6 +111,7 @@ const reflectionOverlay = document.getElementById('reflectionOverlay');
 const settingsOverlay = document.getElementById('settingsOverlay');
 const criterionOverlay = document.getElementById('criterionOverlay');
 const moveTaskOverlay = document.getElementById('moveTaskOverlay');
+const homeTaskActionOverlay = document.getElementById('homeTaskActionOverlay');
 const migrationOverlay = document.getElementById('migrationOverlay');
 const spaceNameOverlay = document.getElementById('spaceNameOverlay');
 const confirmOverlay = document.getElementById('confirmOverlay');
@@ -132,6 +133,8 @@ const mustDoSummary = document.getElementById('mustDoSummary');
 const confirmMustDoBtn = document.getElementById('confirmMustDoBtn');
 const mustDoPanel = document.getElementById('mustDoPanel');
 const mustDoList = document.getElementById('mustDoList');
+const dailyPanel = document.getElementById('dailyPanel');
+const dailyList = document.getElementById('dailyList');
 
 const criterionDialogTitle = document.getElementById('criterionDialogTitle');
 const criterionDialogInput = document.getElementById('criterionDialogInput');
@@ -142,6 +145,8 @@ const criterionDialogCancelBtn = document.getElementById('criterionDialogCancelB
 const moveTaskTitle = document.getElementById('moveTaskTitle');
 const moveTaskList = document.getElementById('moveTaskList');
 const moveTaskCancelBtn = document.getElementById('moveTaskCancelBtn');
+const homeTaskActionTitle = document.getElementById('homeTaskActionTitle');
+const homeTaskActionList = document.getElementById('homeTaskActionList');
 
 const exportJsonBtn = document.getElementById('exportJsonBtn');
 const importJsonInput = document.getElementById('importJsonInput');
@@ -224,9 +229,22 @@ function normalizeMustDoHiddenByDate(value) {
     return hiddenByDate;
 }
 
+function normalizeDailyCompletedByDate(value) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+    const completedByDate = {};
+    Object.entries(value).forEach(([dateKey, tasks]) => {
+        const normalizedTasks = normalizeTaskList(tasks);
+        if (normalizedTasks.length) {
+            completedByDate[dateKey] = normalizedTasks;
+        }
+    });
+    return completedByDate;
+}
+
 function getStateTaskPool(source) {
     return normalizeTaskList([
         ...(Array.isArray(source.boxTasks) ? source.boxTasks : []),
+        ...(Array.isArray(source.dailyTasks) ? source.dailyTasks : []),
         typeof source.nowTask === 'string' ? source.nowTask : ''
     ]);
 }
@@ -314,6 +332,8 @@ function normalizeState(parsed) {
         blindboxRejectCount: Number.isFinite(source.blindboxRejectCount) ? source.blindboxRejectCount : 0,
         blindboxCooldownUntil: Number.isFinite(source.blindboxCooldownUntil) ? source.blindboxCooldownUntil : 0,
         mustDoTasks: normalizeTaskList(source.mustDoTasks),
+        dailyTasks: normalizeTaskList(source.dailyTasks),
+        dailyCompletedByDate: normalizeDailyCompletedByDate(source.dailyCompletedByDate),
         mustDoCriteria,
         activeMustDoCriterionId,
         mustDoHiddenByDate,
@@ -331,6 +351,8 @@ let state = {
     blindboxRejectCount: 0,
     blindboxCooldownUntil: 0,
     mustDoTasks: [],
+    dailyTasks: [],
+    dailyCompletedByDate: {},
     mustDoCriteria: cloneDefaultMustDoCriteria(),
     activeMustDoCriterionId: MUST_DO_INBOX_CRITERION.id,
     mustDoHiddenByDate: {},
@@ -823,6 +845,8 @@ function mergeStates(target, source) {
         blindboxRejectCount: Math.max(base.blindboxRejectCount, incoming.blindboxRejectCount),
         blindboxCooldownUntil: Math.max(base.blindboxCooldownUntil, incoming.blindboxCooldownUntil),
         mustDoTasks: mergeUnique(base.mustDoTasks, incoming.mustDoTasks).slice(0, MUST_DO_TASK_LIMIT),
+        dailyTasks: mergeUnique(base.dailyTasks, incoming.dailyTasks),
+        dailyCompletedByDate: { ...incoming.dailyCompletedByDate, ...base.dailyCompletedByDate },
         mustDoCriteria: mergeCriteria(base.mustDoCriteria, incoming.mustDoCriteria),
         activeMustDoCriterionId: base.activeMustDoCriterionId || incoming.activeMustDoCriterionId,
         mustDoHiddenByDate: { ...incoming.mustDoHiddenByDate, ...base.mustDoHiddenByDate },
@@ -844,6 +868,8 @@ function mergeTransferStates(target, source) {
         blindboxRejectCount: Math.max(base.blindboxRejectCount, incoming.blindboxRejectCount),
         blindboxCooldownUntil: Math.max(base.blindboxCooldownUntil, incoming.blindboxCooldownUntil),
         mustDoTasks: base.mustDoTasks,
+        dailyTasks: mergeUnique(base.dailyTasks, incoming.dailyTasks),
+        dailyCompletedByDate: { ...incoming.dailyCompletedByDate, ...base.dailyCompletedByDate },
         mustDoCriteria: base.mustDoCriteria,
         activeMustDoCriterionId: base.activeMustDoCriterionId,
         mustDoHiddenByDate: base.mustDoHiddenByDate,
@@ -889,6 +915,7 @@ function renderNow() {
     completeNowBtn.style.visibility = state.nowTask ? 'visible' : 'hidden';
     undoFab.style.display = lastCompletedTask ? 'inline-flex' : 'none';
     renderFabState();
+    renderDailyList();
     renderMustDoList();
     saveState();
 }
@@ -937,6 +964,115 @@ function reorderSelectedMustDoTask(draggedTask, targetTask) {
     renderMustDoList();
     saveState();
     return true;
+}
+
+function selectHomeTask(task) {
+    if (state.nowTask && state.nowTask !== task && !state.boxTasks.includes(state.nowTask)) {
+        prependTaskToBox(state.nowTask, getTaskGroupIdRaw(state.nowTask));
+    }
+    state.boxTasks = state.boxTasks.filter(item => item !== task);
+    state.nowTask = task;
+    state.nowTaskStartedAt = Date.now();
+    renderNow();
+}
+
+function closeHomeTaskActionDialog() {
+    homeTaskActionList.innerHTML = '';
+    closeOverlay(homeTaskActionOverlay);
+}
+
+function createHomeTaskActionButton(label, className, onClick) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = className;
+    button.textContent = label;
+    button.addEventListener('click', () => {
+        onClick();
+        closeHomeTaskActionDialog();
+    });
+    return button;
+}
+
+function openHomeTaskActionDialog(task) {
+    if (!task) return;
+    homeTaskActionTitle.textContent = task;
+    homeTaskActionList.innerHTML = '';
+
+    if (state.mustDoTasks.includes(task)) {
+        homeTaskActionList.appendChild(createHomeTaskActionButton('Unstar', 'btn secondary', () => {
+            state.mustDoTasks = state.mustDoTasks.filter(item => item !== task);
+            renderNow();
+        }));
+    }
+
+    if (isDailyTask(task)) {
+        homeTaskActionList.appendChild(createHomeTaskActionButton('Remove Daily', 'btn secondary', () => {
+            toggleDailyTask(task);
+            renderNow();
+        }));
+    }
+
+    if (!homeTaskActionList.children.length) {
+        const empty = document.createElement('div');
+        empty.className = 'reflection-empty';
+        empty.textContent = '没有可移除的标记';
+        homeTaskActionList.appendChild(empty);
+    }
+
+    openOverlay(homeTaskActionOverlay);
+}
+
+function bindHomeTaskActionInteractions(item, task) {
+    let pressTimer = null;
+    let pointerId = null;
+    let startX = 0;
+    let startY = 0;
+
+    const clearPressTimer = () => {
+        if (!pressTimer) return;
+        clearTimeout(pressTimer);
+        pressTimer = null;
+    };
+
+    item.addEventListener('pointerdown', event => {
+        if (event.button && event.button !== 0) return;
+        if (event.target.closest('button, input, textarea')) return;
+        pointerId = event.pointerId;
+        startX = event.clientX;
+        startY = event.clientY;
+        clearPressTimer();
+        pressTimer = setTimeout(() => {
+            pressTimer = null;
+            item.dataset.suppressClickUntil = String(Date.now() + 500);
+            openHomeTaskActionDialog(task);
+        }, 420);
+    });
+
+    item.addEventListener('pointermove', event => {
+        if (pointerId !== event.pointerId) return;
+        const moved = Math.hypot(event.clientX - startX, event.clientY - startY);
+        if (moved > MUST_DO_CRITERION_TAP_MOVE_PX) {
+            clearPressTimer();
+        }
+    });
+
+    item.addEventListener('pointerup', event => {
+        if (pointerId !== event.pointerId) return;
+        pointerId = null;
+        clearPressTimer();
+    });
+
+    item.addEventListener('pointercancel', event => {
+        if (pointerId !== event.pointerId) return;
+        pointerId = null;
+        clearPressTimer();
+    });
+
+    item.addEventListener('contextmenu', event => {
+        event.preventDefault();
+        item.dataset.suppressClickUntil = String(Date.now() + 500);
+        openHomeTaskActionDialog(task);
+    });
 }
 
 function bindMustDoListItemDragInteractions(item, task) {
@@ -1027,21 +1163,58 @@ function renderMustDoList() {
         orderText.textContent = String(index + 1);
         item.append(taskText, orderText);
         bindMustDoListItemDragInteractions(item, task);
+        bindHomeTaskActionInteractions(item, task);
         item.addEventListener('click', event => {
             if (Date.now() < Number(item.dataset.suppressClickUntil || 0)) {
                 event.preventDefault();
                 event.stopPropagation();
                 return;
             }
-            if (state.nowTask && state.nowTask !== task && !state.boxTasks.includes(state.nowTask)) {
-                prependTaskToBox(state.nowTask, getTaskGroupIdRaw(state.nowTask));
-            }
-            state.boxTasks = state.boxTasks.filter(item => item !== task);
-            state.nowTask = task;
-            state.nowTaskStartedAt = Date.now();
-            renderNow();
+            selectHomeTask(task);
         });
         mustDoList.appendChild(item);
+    });
+}
+
+function isDailyTaskDoneToday(task) {
+    const todayCompleted = state.dailyCompletedByDate?.[getTodayKey()] || [];
+    return todayCompleted.includes(task);
+}
+
+function getActiveDailyTasks() {
+    return normalizeTaskList(state.dailyTasks).filter(task => !isDailyTaskDoneToday(task));
+}
+
+function renderDailyList() {
+    dailyList.innerHTML = '';
+    if (!state.dailyTasks.length) {
+        dailyPanel.classList.remove('active');
+        return;
+    }
+
+    dailyPanel.classList.add('active');
+    const activeDailyTasks = getActiveDailyTasks();
+    if (!activeDailyTasks.length) {
+        dailyList.innerHTML = '<div class="reflection-empty">今日 Daily 已完成</div>';
+        return;
+    }
+
+    activeDailyTasks.forEach(task => {
+        const item = document.createElement('div');
+        item.className = `daily-item${state.nowTask === task ? ' is-current' : ''}`;
+        const taskText = document.createElement('span');
+        taskText.textContent = task;
+        item.appendChild(taskText);
+        bindHomeTaskActionInteractions(item, task);
+        item.addEventListener('click', event => {
+            if (Date.now() < Number(item.dataset.suppressClickUntil || 0)) {
+                event.preventDefault();
+                event.stopPropagation();
+                return;
+            }
+            selectHomeTask(task);
+        });
+        dailyList.appendChild(item);
     });
 }
 
@@ -1076,6 +1249,25 @@ function pruneMustDoHiddenByDate() {
     });
 }
 
+function pruneDailyCompletedByDate() {
+    if (!state.dailyCompletedByDate || typeof state.dailyCompletedByDate !== 'object' || Array.isArray(state.dailyCompletedByDate)) {
+        state.dailyCompletedByDate = {};
+        return;
+    }
+    const retainedKeys = new Set(getMustDoHiddenRetentionKeys());
+    Object.keys(state.dailyCompletedByDate).forEach(dateKey => {
+        if (!retainedKeys.has(dateKey)) {
+            delete state.dailyCompletedByDate[dateKey];
+            return;
+        }
+        state.dailyCompletedByDate[dateKey] = normalizeTaskList(state.dailyCompletedByDate[dateKey])
+            .filter(task => state.dailyTasks.includes(task));
+        if (!state.dailyCompletedByDate[dateKey].length) {
+            delete state.dailyCompletedByDate[dateKey];
+        }
+    });
+}
+
 function ensureMustDoCriteria() {
     if (!Array.isArray(state.mustDoCriteria) || !state.mustDoCriteria.length) {
         state.mustDoCriteria = cloneDefaultMustDoCriteria();
@@ -1093,6 +1285,8 @@ function ensureMustDoCriteria() {
     if (!state.mustDoTaskOrder || typeof state.mustDoTaskOrder !== 'object' || Array.isArray(state.mustDoTaskOrder)) {
         state.mustDoTaskOrder = {};
     }
+    state.dailyTasks = normalizeTaskList(state.dailyTasks);
+    pruneDailyCompletedByDate();
     const validCriterionIds = new Set(state.mustDoCriteria.map(criterion => criterion.id));
     const validGroupIds = new Set([MUST_DO_INBOX_CRITERION.id, ...validCriterionIds]);
     const taskPool = getMustDoCandidatePool();
@@ -1114,7 +1308,7 @@ function ensureMustDoCriteria() {
 }
 
 function getMustDoCandidatePool() {
-    return [...new Set([...state.boxTasks, state.nowTask].filter(Boolean))];
+    return [...new Set([...state.boxTasks, ...state.dailyTasks, state.nowTask].filter(Boolean))];
 }
 
 function getTaskGroupIdRaw(task) {
@@ -1594,10 +1788,47 @@ function replaceTaskTextInList(list, previousText, nextText) {
     return normalizeTaskList((Array.isArray(list) ? list : []).map(task => task === previousText ? nextText : task));
 }
 
+function isDailyTask(task) {
+    return state.dailyTasks.includes(task);
+}
+
+function markDailyTaskDoneToday(task) {
+    if (!isDailyTask(task)) return;
+    const todayKey = getTodayKey();
+    if (!state.dailyCompletedByDate || typeof state.dailyCompletedByDate !== 'object' || Array.isArray(state.dailyCompletedByDate)) {
+        state.dailyCompletedByDate = {};
+    }
+    state.dailyCompletedByDate[todayKey] = normalizeTaskList([
+        ...(state.dailyCompletedByDate[todayKey] || []),
+        task
+    ]);
+}
+
+function removeDailyCompletion(task, dateKey = getTodayKey()) {
+    if (!state.dailyCompletedByDate?.[dateKey]) return;
+    state.dailyCompletedByDate[dateKey] = normalizeTaskList(state.dailyCompletedByDate[dateKey]).filter(item => item !== task);
+    if (!state.dailyCompletedByDate[dateKey].length) {
+        delete state.dailyCompletedByDate[dateKey];
+    }
+}
+
+function toggleDailyTask(task) {
+    if (!task) return false;
+    if (isDailyTask(task)) {
+        state.dailyTasks = state.dailyTasks.filter(item => item !== task);
+        Object.keys(state.dailyCompletedByDate || {}).forEach(dateKey => removeDailyCompletion(task, dateKey));
+        return false;
+    }
+    state.dailyTasks = [...new Set([...state.dailyTasks, task])];
+    removeDailyCompletion(task);
+    return true;
+}
+
 function taskTextExists(text, previousText) {
     if (!text || text === previousText) return false;
     return state.boxTasks.includes(text) ||
         state.mustDoTasks.includes(text) ||
+        state.dailyTasks.includes(text) ||
         state.nowTask === text ||
         state.completedTasks.includes(text);
 }
@@ -1610,6 +1841,7 @@ function renameTaskText(previousText, nextText) {
 
     state.boxTasks = replaceTaskTextInList(state.boxTasks, previousText, trimmedText);
     state.mustDoTasks = replaceTaskTextInList(state.mustDoTasks, previousText, trimmedText);
+    state.dailyTasks = replaceTaskTextInList(state.dailyTasks, previousText, trimmedText);
     if (state.nowTask === previousText) state.nowTask = trimmedText;
     if (blindboxTask === previousText) {
         blindboxTask = trimmedText;
@@ -1629,6 +1861,9 @@ function renameTaskText(previousText, nextText) {
         Object.keys(hiddenByCriterion).forEach(criterionId => {
             hiddenByCriterion[criterionId] = replaceTaskTextInList(hiddenByCriterion[criterionId], previousText, trimmedText);
         });
+    });
+    Object.keys(state.dailyCompletedByDate).forEach(dateKey => {
+        state.dailyCompletedByDate[dateKey] = replaceTaskTextInList(state.dailyCompletedByDate[dateKey], previousText, trimmedText);
     });
     return { ok: true };
 }
@@ -1913,13 +2148,23 @@ function buildMustDoCandidates() {
     }
     tasks.forEach(task => {
         const selected = state.mustDoTasks.includes(task);
+        const daily = isDailyTask(task);
+        const dailyDoneToday = daily && isDailyTaskDoneToday(task);
         const row = document.createElement('div');
-        row.className = `candidate-item${selected ? ' is-selected' : ''}`;
+        row.className = `candidate-item${selected ? ' is-selected' : ''}${daily ? ' is-daily' : ''}${dailyDoneToday ? ' is-daily-done' : ''}`;
         row.setAttribute('aria-selected', selected ? 'true' : 'false');
         row.title = '拖动排序，点击 ⋯ 查看操作';
         const label = document.createElement('span');
         label.className = 'candidate-text';
         label.textContent = task;
+        const starBadge = document.createElement('span');
+        starBadge.className = 'candidate-status-badge candidate-star-badge';
+        starBadge.textContent = 'Star';
+        starBadge.hidden = !selected;
+        const dailyBadge = document.createElement('span');
+        dailyBadge.className = 'candidate-status-badge candidate-daily-badge';
+        dailyBadge.textContent = 'Daily';
+        dailyBadge.hidden = !daily;
         const moreButton = document.createElement('button');
         moreButton.type = 'button';
         moreButton.className = 'candidate-more-btn';
@@ -1938,13 +2183,18 @@ function buildMustDoCandidates() {
         const completeButton = document.createElement('button');
         completeButton.type = 'button';
         completeButton.className = 'btn secondary compact';
-        completeButton.textContent = '完成';
+        completeButton.textContent = dailyDoneToday ? '今日完成' : '完成';
+        completeButton.disabled = dailyDoneToday;
         const selectButton = document.createElement('button');
         selectButton.type = 'button';
         selectButton.className = `btn ${selected ? 'primary' : 'secondary'} compact`;
-        selectButton.textContent = selected ? '取消' : '选中';
-        actions.append(editButton, moveButton, completeButton, selectButton);
-        row.append(label, moreButton, actions);
+        selectButton.textContent = selected ? 'Unstar' : 'Star';
+        const dailyButton = document.createElement('button');
+        dailyButton.type = 'button';
+        dailyButton.className = `btn ${daily ? 'primary' : 'secondary'} compact`;
+        dailyButton.textContent = daily ? 'Daily✓' : 'Daily';
+        actions.append(editButton, moveButton, completeButton, selectButton, dailyButton);
+        row.append(label, starBadge, dailyBadge, moreButton, actions);
         bindMustDoItemMoveInteractions(row, task);
         bindMustDoItemDragInteractions(row, task);
 
@@ -1971,6 +2221,7 @@ function buildMustDoCandidates() {
 
         completeButton.addEventListener('click', (e) => {
             e.stopPropagation();
+            if (dailyDoneToday) return;
             row.classList.remove('is-menu-open');
             completeTask(task);
             buildMustDoCandidates();
@@ -1999,6 +2250,16 @@ function buildMustDoCandidates() {
             }
         });
 
+        dailyButton.addEventListener('click', (e) => {
+            e.stopPropagation();
+            row.classList.remove('is-menu-open');
+            toggleDailyTask(task);
+            buildMustDoCandidates();
+            updateMustDoSummary();
+            renderDailyList();
+            saveState();
+        });
+
         mustDoSelection.appendChild(row);
     });
     mustDoSelection.appendChild(createMustDoAddItemRow());
@@ -2020,13 +2281,22 @@ function updateMustDoState() {
 function completeTask(task) {
     if (!task) return;
     const isMustDo = state.mustDoTasks.includes(task);
+    const isDaily = isDailyTask(task);
     lastCompletedTask = task;
-    state.completedTasks.push(isMustDo ? `${task}【必做】` : task);
+    const completionTags = [
+        isMustDo ? '必做' : '',
+        isDaily ? 'Daily' : ''
+    ].filter(Boolean);
+    state.completedTasks.push(completionTags.length ? `${task}【${completionTags.join(' · ')}】` : task);
     state.boxTasks = state.boxTasks.filter(item => item !== task);
-    delete state.mustDoTaskGroups[task];
-    Object.keys(state.mustDoTaskOrder).forEach(groupId => {
-        state.mustDoTaskOrder[groupId] = state.mustDoTaskOrder[groupId].filter(item => item !== task);
-    });
+    if (isDaily) {
+        markDailyTaskDoneToday(task);
+    } else {
+        delete state.mustDoTaskGroups[task];
+        Object.keys(state.mustDoTaskOrder).forEach(groupId => {
+            state.mustDoTaskOrder[groupId] = state.mustDoTaskOrder[groupId].filter(item => item !== task);
+        });
+    }
     if (isMustDo) {
         state.mustDoTasks = state.mustDoTasks.filter(item => item !== task);
     }
@@ -2132,11 +2402,23 @@ function finishInlineEdit() {
     const nextText = nowTaskText.textContent.trim();
     const wasEmpty = !state.nowTask;
     const wasMustDo = state.mustDoTasks.includes(previousText);
+    const wasDaily = state.dailyTasks.includes(previousText);
     if (wasMustDo && previousText !== nextText) {
         if (nextText) {
             state.mustDoTasks = [...new Set(state.mustDoTasks.map(task => task === previousText ? nextText : task))];
         } else {
             state.mustDoTasks = state.mustDoTasks.filter(task => task !== previousText);
+        }
+    }
+    if (wasDaily && previousText !== nextText) {
+        if (nextText) {
+            state.dailyTasks = replaceTaskTextInList(state.dailyTasks, previousText, nextText);
+            Object.keys(state.dailyCompletedByDate).forEach(dateKey => {
+                state.dailyCompletedByDate[dateKey] = replaceTaskTextInList(state.dailyCompletedByDate[dateKey], previousText, nextText);
+            });
+        } else {
+            state.dailyTasks = state.dailyTasks.filter(task => task !== previousText);
+            Object.keys(state.dailyCompletedByDate).forEach(dateKey => removeDailyCompletion(previousText, dateKey));
         }
     }
     if (previousText && previousText !== nextText && state.mustDoTaskGroups[previousText]) {
@@ -2429,10 +2711,17 @@ completeNowBtn.addEventListener('click', () => {
 
 function undoLastComplete() {
     if (!lastCompletedTask) return;
-    const index = state.completedTasks.lastIndexOf(lastCompletedTask);
+    const possibleRecords = [
+        lastCompletedTask,
+        `${lastCompletedTask}【必做】`,
+        `${lastCompletedTask}【Daily】`,
+        `${lastCompletedTask}【必做 · Daily】`
+    ];
+    const index = state.completedTasks.findLastIndex(record => possibleRecords.includes(record));
     if (index > -1) {
         state.completedTasks.splice(index, 1);
     }
+    removeDailyCompletion(lastCompletedTask);
     state.nowTask = lastCompletedTask;
     state.nowTaskStartedAt = Date.now();
     lastCompletedTask = null;
@@ -2681,6 +2970,8 @@ document.querySelectorAll('[data-close]').forEach(btn => {
             closeCriterionDialog();
         } else if (target === moveTaskOverlay) {
             closeMoveTaskDialog();
+        } else if (target === homeTaskActionOverlay) {
+            closeHomeTaskActionDialog();
         } else if (target === spaceNameOverlay) {
             closeSpaceNameDialog();
         } else if (target === confirmOverlay) {
@@ -2691,13 +2982,15 @@ document.querySelectorAll('[data-close]').forEach(btn => {
     });
 });
 
-[searchOverlay, addOverlay, blindboxOverlay, reflectionOverlay, settingsOverlay, criterionOverlay, moveTaskOverlay, migrationOverlay, spaceNameOverlay, confirmOverlay].forEach(overlay => {
+[searchOverlay, addOverlay, blindboxOverlay, reflectionOverlay, settingsOverlay, criterionOverlay, moveTaskOverlay, homeTaskActionOverlay, migrationOverlay, spaceNameOverlay, confirmOverlay].forEach(overlay => {
     overlay.addEventListener('click', e => {
         if (e.target !== overlay) return;
         if (overlay === criterionOverlay) {
             closeCriterionDialog();
         } else if (overlay === moveTaskOverlay) {
             closeMoveTaskDialog();
+        } else if (overlay === homeTaskActionOverlay) {
+            closeHomeTaskActionDialog();
         } else if (overlay === spaceNameOverlay) {
             closeSpaceNameDialog();
         } else if (overlay === confirmOverlay) {
