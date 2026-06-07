@@ -80,6 +80,10 @@
     const settingsBtn = document.getElementById('settingsBtn');
     const settingsBackdrop = document.getElementById('settingsBackdrop');
     const closeSettingsBtn = document.getElementById('closeSettingsBtn');
+    const nodeSearchInput = document.getElementById('nodeSearchInput');
+    const nodeSearchPrevBtn = document.getElementById('nodeSearchPrevBtn');
+    const nodeSearchNextBtn = document.getElementById('nodeSearchNextBtn');
+    const nodeSearchStatus = document.getElementById('nodeSearchStatus');
     const currentSpaceName = document.getElementById('currentSpaceName');
     const spaceSelect = document.getElementById('spaceSelect');
     const newLocalSpaceBtn = document.getElementById('newLocalSpaceBtn');
@@ -111,6 +115,7 @@
     let recentNodeSingleToggle = null;
     let ignoreNodeClickUntil = 0;
     let pinchState = null;
+    let searchState = { query: '', matches: [], index: -1, focused: false };
     let dragAutoPanFrame = 0;
     let dragAutoPanLastTs = 0;
     let activeLegacyMode = false;
@@ -696,9 +701,130 @@
         persistAndRender();
     }
 
+    function getNodeTraversalIds() {
+        const ids = [];
+        const seen = new Set();
+        const walk = id => {
+            if (!id || seen.has(id) || !getNode(id)) return;
+            seen.add(id);
+            ids.push(id);
+            getNode(id).children.forEach(walk);
+        };
+        state.rootIds.forEach(walk);
+        Object.keys(state.nodes).forEach(walk);
+        return ids;
+    }
+
+    function findAncestorIds(targetId) {
+        const ancestors = [];
+        let parentId = findParentId(targetId);
+        while (parentId) {
+            ancestors.unshift(parentId);
+            parentId = findParentId(parentId);
+        }
+        return ancestors;
+    }
+
+    function expandAncestorsForNode(nodeId) {
+        let changed = false;
+        findAncestorIds(nodeId).forEach(id => {
+            const node = getNode(id);
+            if (node && node.collapsed) {
+                node.collapsed = false;
+                changed = true;
+            }
+        });
+        return changed;
+    }
+
+    function centerViewOnNode(nodeId) {
+        if (!layoutMap.has(nodeId)) return false;
+        const pos = layoutMap.get(nodeId);
+        const rect = viewport.getBoundingClientRect();
+        view.x = Math.round(rect.width / 2 - (pos.x + pos.width / 2) * view.scale);
+        view.y = Math.round(rect.height / 2 - (pos.y + pos.height / 2) * view.scale);
+        applyView();
+        return true;
+    }
+
+    function setSearchStatus(text) {
+        if (nodeSearchStatus) nodeSearchStatus.textContent = text || '';
+    }
+
+    function updateSearchControls() {
+        if (!nodeSearchPrevBtn || !nodeSearchNextBtn) return;
+        const disabled = searchState.matches.length < 2;
+        nodeSearchPrevBtn.disabled = disabled;
+        nodeSearchNextBtn.disabled = disabled;
+    }
+
+    function runNodeSearch(preferredId = selectedId) {
+        const query = nodeSearchInput ? nodeSearchInput.value.trim().toLowerCase() : '';
+        searchState.query = query;
+        searchState.matches = [];
+        searchState.index = -1;
+        searchState.focused = false;
+
+        if (!query) {
+            setSearchStatus('');
+            updateSearchControls();
+            return;
+        }
+
+        searchState.matches = getNodeTraversalIds().filter(id => {
+            const node = getNode(id);
+            return node && node.title.toLowerCase().includes(query);
+        });
+
+        if (!searchState.matches.length) {
+            setSearchStatus('0');
+            updateSearchControls();
+            return;
+        }
+
+        const preferredIndex = searchState.matches.indexOf(preferredId);
+        searchState.index = preferredIndex >= 0 ? preferredIndex : 0;
+        setSearchStatus(`${searchState.index + 1}/${searchState.matches.length}`);
+        updateSearchControls();
+    }
+
+    function focusSearchResult(index) {
+        if (!searchState.matches.length) return;
+        const count = searchState.matches.length;
+        searchState.index = ((index % count) + count) % count;
+        const nodeId = searchState.matches[searchState.index];
+
+        if (expandAncestorsForNode(nodeId)) {
+            saveState();
+            render();
+        }
+
+        selectNode(nodeId);
+        centerViewOnNode(nodeId);
+        searchState.focused = true;
+        setSearchStatus(`${searchState.index + 1}/${count}`);
+        updateSearchControls();
+    }
+
+    function stepSearchResult(delta) {
+        const wasFocused = searchState.focused;
+        runNodeSearch(selectedId);
+        if (!searchState.matches.length) return;
+        const nextIndex = wasFocused && searchState.index >= 0
+            ? searchState.index + delta
+            : searchState.index;
+        focusSearchResult(nextIndex);
+    }
+
+    function refreshSearchAfterTreeChange() {
+        if (!nodeSearchInput || !nodeSearchInput.value.trim()) return;
+        runNodeSearch(selectedId);
+    }
+
     function persistAndRender() {
         saveState();
         render();
+        refreshSearchAfterTreeChange();
     }
 
     function clearPendingNodeClick() {
@@ -1952,6 +2078,7 @@
         renderSpaceSettings();
         render();
         resetView();
+        updateSearchControls();
     }
 
     async function deleteCurrentSpace() {
@@ -2111,6 +2238,27 @@
     });
     document.getElementById('exportBtn').addEventListener('click', exportJson);
     document.getElementById('resetViewBtn').addEventListener('click', resetView);
+    nodeSearchInput.addEventListener('input', function () {
+        runNodeSearch(selectedId);
+    });
+    nodeSearchInput.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            stepSearchResult(e.shiftKey ? -1 : 1);
+        } else if (e.key === 'Escape') {
+            e.preventDefault();
+            nodeSearchInput.value = '';
+            runNodeSearch();
+        }
+    });
+    nodeSearchPrevBtn.addEventListener('click', function () {
+        stepSearchResult(-1);
+        nodeSearchInput.focus();
+    });
+    nodeSearchNextBtn.addEventListener('click', function () {
+        stepSearchResult(1);
+        nodeSearchInput.focus();
+    });
     document.getElementById('copyJsonBtn').addEventListener('click', async function () {
         try {
             await navigator.clipboard.writeText(importExportArea.value);

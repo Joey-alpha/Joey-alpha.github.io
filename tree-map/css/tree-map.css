@@ -134,6 +134,15 @@ button:hover,
         color: var(--text);
     }
 
+    .node-search-input {
+        background: rgba(15, 23, 42, .78);
+        color: var(--text);
+    }
+
+    .node-search-input::placeholder {
+        color: rgba(198, 208, 231, .68);
+    }
+
     button:hover,
     .file-label:hover {
         background: rgba(255, 255, 255, .16);
@@ -161,6 +170,12 @@ button:hover,
 
 button:active {
     transform: translateY(1px);
+}
+
+button:disabled {
+    cursor: default;
+    opacity: .42;
+    transform: none;
 }
 
 button.danger {
@@ -196,6 +211,51 @@ button.primary {
     text-overflow: ellipsis;
     white-space: nowrap;
     user-select: none;
+}
+
+.search-group {
+    min-width: 300px;
+    max-width: min(460px, calc(100vw - 24px));
+}
+
+.node-search-input {
+    width: 180px;
+    min-width: 130px;
+    height: 36px;
+    border: 0;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, .62);
+    color: var(--text);
+    box-shadow: inset 0 0 0 1px var(--line);
+    font: inherit;
+    font-size: 13px;
+    line-height: 1.2;
+    outline: none;
+    padding: 9px 12px;
+}
+
+.node-search-input:focus {
+    box-shadow: inset 0 0 0 1px var(--accent), 0 0 0 4px rgba(0, 113, 227, .12);
+}
+
+.search-step-btn {
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    padding: 0;
+    font-size: 18px;
+    line-height: 1;
+}
+
+.search-status {
+    min-width: 42px;
+    max-width: 76px;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.2;
+    text-align: center;
+    user-select: none;
+    white-space: nowrap;
 }
 
 .space-select {
@@ -715,6 +775,16 @@ textarea#importExportArea {
 
     .settings-grid {
         grid-template-columns: 1fr;
+    }
+
+    .search-group {
+        flex: 1 1 100%;
+        min-width: 0;
+    }
+
+    .node-search-input {
+        flex: 1 1 120px;
+        width: auto;
     }
 
     #settingsBackdrop .modal {

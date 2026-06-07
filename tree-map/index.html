@@ -22,6 +22,13 @@
                 <button id="resetViewBtn">Reset View</button>
                 <button id="settingsBtn">Settings</button>
             </div>
+            <div class="group search-group" role="search">
+                <input id="nodeSearchInput" class="node-search-input" type="search" placeholder="Search nodes"
+                    aria-label="Search nodes" autocomplete="off" />
+                <button id="nodeSearchPrevBtn" class="search-step-btn" aria-label="Previous search result">‹</button>
+                <button id="nodeSearchNextBtn" class="search-step-btn" aria-label="Next search result">›</button>
+                <div class="search-status" id="nodeSearchStatus"></div>
+            </div>
             <div class="group">
                 <div class="space-name" id="currentSpaceName"></div>
                 <div class="status" id="statusText">No selection</div>
