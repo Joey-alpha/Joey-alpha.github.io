@@ -16,7 +16,7 @@ const MUST_DO_TASK_LIMIT = 6;
 const MUST_DO_INBOX_CRITERION = { id: '__inbox__', name: 'Inbox' };
 const MUST_DO_CRITERION_DOUBLE_TAP_MS = 360;
 const MUST_DO_CRITERION_TAP_MOVE_PX = 12;
-const MUST_DO_HIDDEN_RETENTION_DAYS = 14;
+const MUST_DO_HIDDEN_RETENTION_DAYS = 30;
 const MUST_DO_ITEM_SWIPE_PX = 58;
 const MUST_DO_AUTO_SCROLL_EDGE_PX = 72;
 const MUST_DO_AUTO_SCROLL_MAX_PX = 22;
@@ -1019,7 +1019,7 @@ function renderMustDoList() {
     mustDoPanel.classList.add('active');
     state.mustDoTasks.forEach((task, index) => {
         const item = document.createElement('div');
-        item.className = 'must-do-item';
+        item.className = `must-do-item${state.nowTask === task ? ' is-current' : ''}`;
         const taskText = document.createElement('span');
         taskText.textContent = task;
         const orderText = document.createElement('span');
@@ -1816,6 +1816,91 @@ function startMustDoItemTextEdit(row, label, task) {
     input.addEventListener('blur', () => finish(true, 'blur'));
 }
 
+function addTaskToActiveMustDoGroup(value) {
+    const text = value.trim();
+    if (!text) return { ok: false, message: '任务内容不能为空' };
+    if (taskTextExists(text)) return { ok: false, message: '已存在同名任务' };
+    const groupId = state.activeMustDoCriterionId || MUST_DO_INBOX_CRITERION.id;
+    prependTaskToBox(text, groupId);
+    saveState();
+    renderFabState();
+    return { ok: true };
+}
+
+function createMustDoAddItemRow() {
+    const row = document.createElement('div');
+    row.className = 'must-do-add-item';
+    row.tabIndex = 0;
+    row.setAttribute('role', 'button');
+    row.setAttribute('aria-label', '添加新 item');
+
+    const renderPrompt = () => {
+        row.classList.remove('is-editing');
+        row.innerHTML = '<span class="must-do-add-plus">+</span><span>新建 item</span>';
+    };
+
+    const startEdit = () => {
+        if (row.classList.contains('is-editing')) return;
+        row.classList.add('is-editing');
+        row.innerHTML = '';
+        const input = document.createElement('input');
+        input.className = 'must-do-inline-input';
+        input.placeholder = '输入新 item…';
+        input.setAttribute('aria-label', '新 item 内容');
+        row.appendChild(input);
+        input.focus();
+
+        let finished = false;
+        const finish = shouldSave => {
+            if (finished) return;
+            const value = input.value.trim();
+            if (!shouldSave || !value) {
+                finished = true;
+                renderPrompt();
+                return;
+            }
+            const result = addTaskToActiveMustDoGroup(value);
+            if (!result.ok) {
+                finished = false;
+                input.setCustomValidity(result.message);
+                input.reportValidity();
+                input.focus();
+                return;
+            }
+            finished = true;
+            renderMustDoCriteria();
+            buildMustDoCandidates();
+            updateMustDoSummary();
+        };
+
+        input.addEventListener('pointerdown', event => event.stopPropagation());
+        input.addEventListener('click', event => event.stopPropagation());
+        input.addEventListener('keydown', event => {
+            if (isTextCompositionEvent(event)) return;
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                finish(true);
+            }
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                finish(false);
+            }
+        });
+        input.addEventListener('input', () => input.setCustomValidity(''));
+        input.addEventListener('blur', () => finish(true));
+    };
+
+    row.addEventListener('click', startEdit);
+    row.addEventListener('keydown', event => {
+        if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            startEdit();
+        }
+    });
+    renderPrompt();
+    return row;
+}
+
 function buildMustDoCandidates() {
     mustDoSelection.innerHTML = '';
     const isInbox = isInboxMustDoCriterion(state.activeMustDoCriterionId);
@@ -1825,12 +1910,12 @@ function buildMustDoCandidates() {
         empty.className = 'reflection-empty';
         empty.textContent = isInbox ? 'Inbox 为空' : '这个分组还没有任务';
         mustDoSelection.appendChild(empty);
-        return;
     }
     tasks.forEach(task => {
         const selected = state.mustDoTasks.includes(task);
         const row = document.createElement('div');
-        row.className = 'candidate-item';
+        row.className = `candidate-item${selected ? ' is-selected' : ''}`;
+        row.setAttribute('aria-selected', selected ? 'true' : 'false');
         row.title = '拖动排序，点击 ⋯ 查看操作';
         const label = document.createElement('span');
         label.className = 'candidate-text';
@@ -1916,6 +2001,7 @@ function buildMustDoCandidates() {
 
         mustDoSelection.appendChild(row);
     });
+    mustDoSelection.appendChild(createMustDoAddItemRow());
 }
 
 function openMustDoOverlay() {
