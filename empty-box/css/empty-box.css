@@ -77,7 +77,8 @@
     }
 
     body.night .candidate-more-btn,
-    body.night .must-do-selection .candidate-actions {
+    body.night .must-do-selection .candidate-actions,
+    body.night .candidate-list .candidate-actions {
         background: rgba(31, 39, 58, 0.98);
         color: #eef2ff;
         border-color: rgba(255, 255, 255, 0.10);
@@ -145,7 +146,8 @@
         }
 
         body .candidate-more-btn,
-        body .must-do-selection .candidate-actions {
+        body .must-do-selection .candidate-actions,
+        body .candidate-list .candidate-actions {
             background: rgba(31, 39, 58, 0.98);
             color: #eef2ff;
             border-color: rgba(255, 255, 255, 0.10);
@@ -180,7 +182,8 @@
             box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.16);
         }
 
-        body .must-do-selection .candidate-actions .btn.secondary {
+        body .must-do-selection .candidate-actions .btn.secondary,
+        body .candidate-list .candidate-actions .btn.secondary {
             background: rgba(51, 65, 85, 0.92);
             border-color: rgba(148, 163, 184, 0.26);
             color: #eef2ff;
@@ -683,7 +686,8 @@
         padding-right: 4px;
     }
 
-    .must-do-selection .candidate-item {
+    .must-do-selection .candidate-item,
+    .candidate-list .candidate-item.has-actions {
         position: relative;
         width: 100%;
         align-items: flex-start;
@@ -694,21 +698,25 @@
         overflow: visible;
     }
 
-    .must-do-selection .candidate-item.is-selected {
+    .must-do-selection .candidate-item.is-selected,
+    .candidate-list .candidate-item.is-selected {
         background: rgba(245, 158, 11, 0.10);
         border-color: rgba(245, 158, 11, 0.34);
     }
 
-    .must-do-selection .candidate-item.is-daily {
+    .must-do-selection .candidate-item.is-daily,
+    .candidate-list .candidate-item.is-daily {
         border-color: rgba(0, 113, 227, 0.28);
         background: rgba(0, 113, 227, 0.08);
     }
 
-    .must-do-selection .candidate-item.is-selected.is-daily {
+    .must-do-selection .candidate-item.is-selected.is-daily,
+    .candidate-list .candidate-item.is-selected.is-daily {
         border-color: rgba(94, 119, 255, 0.34);
     }
 
-    .must-do-selection .candidate-text {
+    .must-do-selection .candidate-text,
+    .candidate-list .candidate-text {
         min-width: 0;
         flex: 1 1 auto;
         display: block;
@@ -758,7 +766,8 @@
         flex: 0 0 auto;
     }
 
-    .must-do-selection .candidate-actions {
+    .must-do-selection .candidate-actions,
+    .candidate-list .candidate-actions {
         position: absolute;
         right: 56px;
         top: 50%;
@@ -780,20 +789,23 @@
         z-index: 4;
     }
 
-    .must-do-selection .candidate-item.is-menu-open .candidate-actions {
+    .must-do-selection .candidate-item.is-menu-open .candidate-actions,
+    .candidate-list .candidate-item.is-menu-open .candidate-actions {
         opacity: 1;
         pointer-events: auto;
         transform: translateY(-50%) translateX(0);
     }
 
-    .must-do-selection .candidate-actions .btn {
+    .must-do-selection .candidate-actions .btn,
+    .candidate-list .candidate-actions .btn {
         min-width: 44px;
         padding: 8px 10px;
         font-size: 13px;
         width: 100%;
     }
 
-    .must-do-selection .candidate-item.is-editing .candidate-actions {
+    .must-do-selection .candidate-item.is-editing .candidate-actions,
+    .candidate-list .candidate-item.is-editing .candidate-actions {
         display: none;
     }
 
@@ -882,19 +894,25 @@
     }
 
     body.night .must-do-selection .candidate-item.is-selected,
-    body.late .must-do-selection .candidate-item.is-selected {
+    body.late .must-do-selection .candidate-item.is-selected,
+    body.night .candidate-list .candidate-item.is-selected,
+    body.late .candidate-list .candidate-item.is-selected {
         background: rgba(245, 158, 11, 0.14);
         border-color: rgba(251, 191, 36, 0.32);
     }
 
     body.night .must-do-selection .candidate-item.is-daily,
-    body.late .must-do-selection .candidate-item.is-daily {
+    body.late .must-do-selection .candidate-item.is-daily,
+    body.night .candidate-list .candidate-item.is-daily,
+    body.late .candidate-list .candidate-item.is-daily {
         background: rgba(122, 162, 255, 0.13);
         border-color: rgba(122, 162, 255, 0.30);
     }
 
     body.night .must-do-selection .candidate-item.is-selected.is-daily,
-    body.late .must-do-selection .candidate-item.is-selected.is-daily {
+    body.late .must-do-selection .candidate-item.is-selected.is-daily,
+    body.night .candidate-list .candidate-item.is-selected.is-daily,
+    body.late .candidate-list .candidate-item.is-selected.is-daily {
         border-color: rgba(122, 162, 255, 0.36);
     }
 
@@ -928,7 +946,8 @@
         box-shadow: inset 0 0 0 1px rgba(94, 119, 255, 0.20);
     }
 
-    .must-do-selection .candidate-item button {
+    .must-do-selection .candidate-item button,
+    .candidate-list .candidate-item.has-actions button {
         min-width: 56px;
     }
 
@@ -1153,7 +1172,8 @@
             min-height: 34vh;
         }
 
-        .must-do-selection .candidate-item {
+        .must-do-selection .candidate-item,
+        .candidate-list .candidate-item.has-actions {
             position: relative;
             flex-wrap: nowrap;
             min-height: auto;
@@ -1161,32 +1181,38 @@
             padding-right: 16px;
         }
 
-        .must-do-selection .candidate-text {
+        .must-do-selection .candidate-text,
+        .candidate-list .candidate-text {
             transition: transform 0.2s ease;
         }
 
-        .must-do-selection .candidate-actions {
+        .must-do-selection .candidate-actions,
+        .candidate-list .candidate-actions {
             right: 52px;
             width: 176px;
         }
 
-        .must-do-selection .candidate-actions .btn {
+        .must-do-selection .candidate-actions .btn,
+        .candidate-list .candidate-actions .btn {
             min-width: 40px;
             padding: 7px 8px;
             font-size: 13px;
         }
 
-        body.night .must-do-selection .candidate-actions .btn.secondary {
+        body.night .must-do-selection .candidate-actions .btn.secondary,
+        body.night .candidate-list .candidate-actions .btn.secondary {
             background: rgba(51, 65, 85, 0.92);
             border-color: rgba(148, 163, 184, 0.26);
             color: #eef2ff;
         }
 
-        .must-do-selection .candidate-item.is-editing {
+        .must-do-selection .candidate-item.is-editing,
+        .candidate-list .candidate-item.is-editing {
             padding-right: 16px;
         }
 
-        .must-do-selection .candidate-item.is-editing .candidate-text {
+        .must-do-selection .candidate-item.is-editing .candidate-text,
+        .candidate-list .candidate-item.is-editing .candidate-text {
             transform: none;
         }
     }

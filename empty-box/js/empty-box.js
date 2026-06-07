@@ -2051,6 +2051,65 @@ function startMustDoItemTextEdit(row, label, task) {
     input.addEventListener('blur', () => finish(true, 'blur'));
 }
 
+function startSearchItemTextEdit(row, label, task) {
+    row.classList.remove('is-menu-open');
+    row.classList.add('is-editing');
+    const input = document.createElement('input');
+    input.className = 'must-do-inline-input';
+    input.value = task;
+    input.setAttribute('aria-label', '编辑任务内容');
+    label.replaceWith(input);
+    input.focus();
+    input.select();
+
+    let finished = false;
+    const finish = (shouldSave, source = 'commit') => {
+        if (finished) return;
+        finished = true;
+        if (!shouldSave) {
+            row.classList.remove('is-editing');
+            renderSearchResults(searchInput.value);
+            return;
+        }
+        const result = renameTaskText(task, input.value);
+        if (!result.ok) {
+            if (source === 'blur') {
+                row.classList.remove('is-editing');
+                renderSearchResults(searchInput.value);
+                return;
+            }
+            finished = false;
+            input.setCustomValidity(result.message);
+            input.reportValidity();
+            input.focus();
+            input.select();
+            return;
+        }
+        input.setCustomValidity('');
+        row.classList.remove('is-editing');
+        renderSearchResults(searchInput.value);
+        updateMustDoSummary();
+        renderNow();
+    };
+
+    input.addEventListener('pointerdown', event => event.stopPropagation());
+    input.addEventListener('click', event => event.stopPropagation());
+    input.addEventListener('dblclick', event => event.stopPropagation());
+    input.addEventListener('keydown', event => {
+        if (isTextCompositionEvent(event)) return;
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            finish(true);
+        }
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            finish(false);
+        }
+    });
+    input.addEventListener('input', () => input.setCustomValidity(''));
+    input.addEventListener('blur', () => finish(true, 'blur'));
+}
+
 function addTaskToActiveMustDoGroup(value) {
     const text = value.trim();
     if (!text) return { ok: false, message: '任务内容不能为空' };
@@ -2324,14 +2383,65 @@ function renderSearchResults(keyword) {
     if (!text) return;
     const matched = state.boxTasks.filter(task => task !== state.nowTask && task.toLowerCase().includes(text));
     matched.forEach(task => {
+        const selected = state.mustDoTasks.includes(task);
+        const daily = isDailyTask(task);
+        const dailyDoneToday = daily && isDailyTaskDoneToday(task);
         const row = document.createElement('div');
-        row.className = 'candidate-item';
+        row.className = `candidate-item has-actions${selected ? ' is-selected' : ''}${daily ? ' is-daily' : ''}${dailyDoneToday ? ' is-daily-done' : ''}`;
         const taskText = document.createElement('span');
+        taskText.className = 'candidate-text';
         taskText.textContent = task;
+        const starBadge = document.createElement('span');
+        starBadge.className = 'candidate-status-badge candidate-star-badge';
+        starBadge.textContent = 'Star';
+        starBadge.hidden = !selected;
+        const dailyBadge = document.createElement('span');
+        dailyBadge.className = 'candidate-status-badge candidate-daily-badge';
+        dailyBadge.textContent = 'Daily';
+        dailyBadge.hidden = !daily;
         const selectButton = document.createElement('button');
         selectButton.className = 'btn primary';
         selectButton.textContent = '选择';
-        row.append(taskText, selectButton);
+        const moreButton = document.createElement('button');
+        moreButton.type = 'button';
+        moreButton.className = 'candidate-more-btn';
+        moreButton.setAttribute('aria-label', '更多操作');
+        moreButton.textContent = '⋯';
+        const actions = document.createElement('div');
+        actions.className = 'candidate-actions';
+        const editButton = document.createElement('button');
+        editButton.type = 'button';
+        editButton.className = 'btn secondary compact';
+        editButton.textContent = '编辑';
+        const moveButton = document.createElement('button');
+        moveButton.type = 'button';
+        moveButton.className = 'btn secondary compact';
+        moveButton.textContent = '移动';
+        const completeButton = document.createElement('button');
+        completeButton.type = 'button';
+        completeButton.className = 'btn secondary compact';
+        completeButton.textContent = dailyDoneToday ? '今日完成' : '完成';
+        completeButton.disabled = dailyDoneToday;
+        const starButton = document.createElement('button');
+        starButton.type = 'button';
+        starButton.className = `btn ${selected ? 'primary' : 'secondary'} compact`;
+        starButton.textContent = selected ? 'Unstar' : 'Star';
+        const dailyButton = document.createElement('button');
+        dailyButton.type = 'button';
+        dailyButton.className = `btn ${daily ? 'primary' : 'secondary'} compact`;
+        dailyButton.textContent = daily ? 'Daily✓' : 'Daily';
+        actions.append(editButton, moveButton, completeButton, starButton, dailyButton);
+        row.append(taskText, starBadge, dailyBadge, selectButton, moreButton, actions);
+
+        moreButton.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const shouldOpen = !row.classList.contains('is-menu-open');
+            searchResults.querySelectorAll('.candidate-item.is-menu-open').forEach(item => {
+                item.classList.remove('is-menu-open');
+            });
+            row.classList.toggle('is-menu-open', shouldOpen);
+        });
+
         selectButton.addEventListener('click', () => {
             if (state.nowTask && !state.boxTasks.includes(state.nowTask)) {
                 prependTaskToBox(state.nowTask, getTaskGroupIdRaw(state.nowTask));
@@ -2343,6 +2453,47 @@ function renderSearchResults(keyword) {
             searchResults.innerHTML = '';
             closeOverlay(searchOverlay);
             renderNow();
+        });
+        editButton.addEventListener('click', (e) => {
+            e.stopPropagation();
+            startSearchItemTextEdit(row, taskText, task);
+        });
+        moveButton.addEventListener('click', (e) => {
+            e.stopPropagation();
+            row.classList.remove('is-menu-open');
+            openMoveTaskDialog(task);
+        });
+        completeButton.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (dailyDoneToday) return;
+            row.classList.remove('is-menu-open');
+            completeTask(task);
+            renderSearchResults(searchInput.value);
+            updateMustDoSummary();
+            renderMustDoList();
+            renderNow();
+        });
+        starButton.addEventListener('click', (e) => {
+            e.stopPropagation();
+            row.classList.remove('is-menu-open');
+            if (selected) {
+                state.mustDoTasks = state.mustDoTasks.filter(t => t !== task);
+            } else if (state.mustDoTasks.length < MUST_DO_TASK_LIMIT) {
+                state.mustDoTasks.push(task);
+            }
+            renderSearchResults(searchInput.value);
+            updateMustDoSummary();
+            renderMustDoList();
+            saveState();
+        });
+        dailyButton.addEventListener('click', (e) => {
+            e.stopPropagation();
+            row.classList.remove('is-menu-open');
+            toggleDailyTask(task);
+            renderSearchResults(searchInput.value);
+            updateMustDoSummary();
+            renderDailyList();
+            saveState();
         });
         searchResults.appendChild(row);
     });
@@ -2756,6 +2907,13 @@ searchFab.addEventListener('click', () => {
 
 searchInput.addEventListener('input', e => {
     renderSearchResults(e.target.value);
+});
+
+searchResults.addEventListener('click', event => {
+    if (event.target.closest('.candidate-more-btn, .candidate-actions')) return;
+    searchResults.querySelectorAll('.candidate-item.is-menu-open').forEach(item => {
+        item.classList.remove('is-menu-open');
+    });
 });
 
 ambientHint.addEventListener('dblclick', openMustDoOverlay);
