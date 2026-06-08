@@ -1788,6 +1788,20 @@ function replaceTaskTextInList(list, previousText, nextText) {
     return normalizeTaskList((Array.isArray(list) ? list : []).map(task => task === previousText ? nextText : task));
 }
 
+function placeInputCursorAtEnd(input) {
+    const end = input.value.length;
+    input.setSelectionRange(end, end);
+}
+
+function placeContentEditableCursorAtEnd(element) {
+    const range = document.createRange();
+    range.selectNodeContents(element);
+    range.collapse(false);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+}
+
 function isDailyTask(task) {
     return state.dailyTasks.includes(task);
 }
@@ -2001,7 +2015,7 @@ function startMustDoItemTextEdit(row, label, task) {
     input.setAttribute('aria-label', '编辑任务内容');
     label.replaceWith(input);
     input.focus();
-    input.select();
+    placeInputCursorAtEnd(input);
 
     let finished = false;
     const finish = (shouldSave, source = 'commit') => {
@@ -2023,7 +2037,7 @@ function startMustDoItemTextEdit(row, label, task) {
             input.setCustomValidity(result.message);
             input.reportValidity();
             input.focus();
-            input.select();
+            placeInputCursorAtEnd(input);
             return;
         }
         input.setCustomValidity('');
@@ -2060,7 +2074,7 @@ function startSearchItemTextEdit(row, label, task) {
     input.setAttribute('aria-label', '编辑任务内容');
     label.replaceWith(input);
     input.focus();
-    input.select();
+    placeInputCursorAtEnd(input);
 
     let finished = false;
     const finish = (shouldSave, source = 'commit') => {
@@ -2082,7 +2096,7 @@ function startSearchItemTextEdit(row, label, task) {
             input.setCustomValidity(result.message);
             input.reportValidity();
             input.focus();
-            input.select();
+            placeInputCursorAtEnd(input);
             return;
         }
         input.setCustomValidity('');
@@ -2537,11 +2551,7 @@ function startInlineEdit() {
     nowTaskText.contentEditable = 'true';
     nowTaskText.focus();
 
-    const range = document.createRange();
-    range.selectNodeContents(nowTaskText);
-    const sel = window.getSelection();
-    sel.removeAllRanges();
-    sel.addRange(range);
+    placeContentEditableCursorAtEnd(nowTaskText);
 }
 
 function finishInlineEdit() {
