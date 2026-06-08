@@ -1886,6 +1886,14 @@
         closeEditor();
     }
 
+    function shouldSaveEditorOnTitleBlur() {
+        if (!editorBackdrop.classList.contains('open')) return false;
+        if (!editingId) return false;
+        if (!window.matchMedia('(pointer: coarse)').matches && !('ontouchstart' in window)) return false;
+        const active = document.activeElement;
+        return !active || !editorForm.contains(active);
+    }
+
     function pushActivity(id, count, minutes) {
         const node = getNode(id);
         if (!node) return;
@@ -2461,6 +2469,11 @@
             e.preventDefault();
             saveEditor();
         }
+    });
+    titleInput.addEventListener('blur', function () {
+        window.setTimeout(() => {
+            if (shouldSaveEditorOnTitleBlur()) saveEditor();
+        }, 0);
     });
 
     window.addEventListener('keydown', function (e) {
