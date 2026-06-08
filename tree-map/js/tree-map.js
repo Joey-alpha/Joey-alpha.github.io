@@ -812,11 +812,12 @@
             return node && node.children.length ? node.children[0] : null;
         }
 
-        const visibleIds = getVisibleTraversalIds();
-        const index = visibleIds.indexOf(selectedId);
+        const parentId = findParentId(selectedId);
+        const siblings = parentId ? getNode(parentId).children : state.rootIds;
+        const index = siblings.indexOf(selectedId);
         if (index < 0) return null;
-        if (direction === 'left') return visibleIds[index - 1] || null;
-        if (direction === 'right') return visibleIds[index + 1] || null;
+        if (direction === 'left') return siblings[index - 1] || null;
+        if (direction === 'right') return siblings[index + 1] || null;
         return null;
     }
 
@@ -824,12 +825,14 @@
         const targetId = getNavigationTarget(direction);
         if (!targetId) return false;
 
-        if (direction === 'right') {
+        if (direction === 'down') {
             const current = getNode(selectedId);
             if (current && current.collapsed && current.children.length) {
                 current.collapsed = false;
                 saveState();
                 render();
+                centerViewOnNode(selectedId);
+                return true;
             }
         }
 

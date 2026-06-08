@@ -151,7 +151,34 @@ body {
     line-height: 1;
 }
 
-.node-quick-actions .quick-nav-row button {
+.quick-nav-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 30px);
+    grid-template-rows: repeat(2, 30px);
+    gap: 5px;
+}
+
+.quick-nav-grid .nav-up {
+    grid-column: 2;
+    grid-row: 1;
+}
+
+.quick-nav-grid .nav-left {
+    grid-column: 1;
+    grid-row: 2;
+}
+
+.quick-nav-grid .nav-down {
+    grid-column: 2;
+    grid-row: 2;
+}
+
+.quick-nav-grid .nav-right {
+    grid-column: 3;
+    grid-row: 2;
+}
+
+.node-quick-actions .quick-nav-grid button {
     font-size: 15px;
 }
 
