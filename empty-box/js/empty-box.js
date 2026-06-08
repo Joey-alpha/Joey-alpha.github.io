@@ -411,6 +411,20 @@ function createEmptyState() {
     return normalizeState({});
 }
 
+({
+    cloneDefaultMustDoCriteria,
+    isInboxMustDoCriterion,
+    normalizeTaskList,
+    normalizeMustDoCriteria,
+    normalizeMustDoHiddenByDate,
+    normalizeDailyCompletedByDate,
+    getStateTaskPool,
+    deriveMustDoTaskGroups,
+    normalizeMustDoTaskOrder,
+    normalizeState,
+    createEmptyState
+} = window.EmptyBoxState);
+
 function readJson(key, fallback = null) {
     try {
         const raw = localStorage.getItem(key);

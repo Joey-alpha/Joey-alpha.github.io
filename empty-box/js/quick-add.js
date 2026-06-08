@@ -7,56 +7,12 @@ const CURRENT_SPACE_ID_KEY = 'current_space_id';
 const CURRENT_STORAGE_MODE_KEY = 'current_storage_mode';
 const CLOUD_STATE_SOURCE = 'empty_box_state';
 const MUST_DO_INBOX_CRITERION_ID = '__inbox__';
+const { createEmptyState, normalizeState } = window.EmptyBoxState;
 
 const taskInput = document.getElementById('taskInput');
 const addBtn = document.getElementById('addBtn');
 const closeBtn = document.getElementById('closeBtn');
 const message = document.getElementById('message');
-
-function createEmptyState() {
-  return {
-    boxTasks: [],
-    completedTasks: [],
-    nowTask: '',
-    nowTaskStartedAt: 0,
-    reflectionNote: '',
-    blindboxRejectCount: 0,
-    blindboxCooldownUntil: 0,
-    mustDoTasks: [],
-    mustDoCriteria: [
-      { id: 'urgent', name: '紧急' },
-      { id: 'important', name: '重要' }
-    ],
-    activeMustDoCriterionId: 'urgent',
-    mustDoHiddenByDate: {},
-    mustDoTaskGroups: {},
-    mustDoTaskOrder: {}
-  };
-}
-
-function normalizeObjectMap(value) {
-  return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
-}
-
-function normalizeState(parsed) {
-  const source = parsed && typeof parsed === 'object' ? parsed : {};
-  const fallback = createEmptyState();
-  return {
-    boxTasks: Array.isArray(source.boxTasks) ? source.boxTasks.filter(Boolean) : [],
-    completedTasks: Array.isArray(source.completedTasks) ? source.completedTasks.filter(Boolean) : [],
-    nowTask: typeof source.nowTask === 'string' ? source.nowTask : '',
-    nowTaskStartedAt: Number.isFinite(source.nowTaskStartedAt) ? source.nowTaskStartedAt : 0,
-    reflectionNote: typeof source.reflectionNote === 'string' ? source.reflectionNote : '',
-    blindboxRejectCount: Number.isFinite(source.blindboxRejectCount) ? source.blindboxRejectCount : 0,
-    blindboxCooldownUntil: Number.isFinite(source.blindboxCooldownUntil) ? source.blindboxCooldownUntil : 0,
-    mustDoTasks: Array.isArray(source.mustDoTasks) ? source.mustDoTasks.filter(Boolean) : [],
-    mustDoCriteria: Array.isArray(source.mustDoCriteria) && source.mustDoCriteria.length ? source.mustDoCriteria : fallback.mustDoCriteria,
-    activeMustDoCriterionId: typeof source.activeMustDoCriterionId === 'string' ? source.activeMustDoCriterionId : fallback.activeMustDoCriterionId,
-    mustDoHiddenByDate: normalizeObjectMap(source.mustDoHiddenByDate),
-    mustDoTaskGroups: normalizeObjectMap(source.mustDoTaskGroups),
-    mustDoTaskOrder: normalizeObjectMap(source.mustDoTaskOrder)
-  };
-}
 
 function readJson(key, fallback = null) {
   try {
@@ -175,6 +131,8 @@ async function addToBoxQuick(value) {
 
   if (
     state.boxTasks.includes(text) ||
+    state.mustDoTasks.includes(text) ||
+    state.dailyTasks.includes(text) ||
     state.completedTasks.includes(text) ||
     text === state.nowTask
   ) {
@@ -249,6 +207,7 @@ addBtn.addEventListener('click', submit);
 closeBtn.addEventListener('click', () => window.close());
 
 taskInput.addEventListener('keydown', e => {
+  if (e.isComposing) return;
   if (e.key === 'Enter') {
     e.preventDefault();
     submit();
