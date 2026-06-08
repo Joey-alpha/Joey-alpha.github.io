@@ -1802,6 +1802,40 @@ function placeContentEditableCursorAtEnd(element) {
     sel.addRange(range);
 }
 
+async function copyTaskText(task) {
+    if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(task);
+        return;
+    }
+    const textarea = document.createElement('textarea');
+    textarea.value = task;
+    textarea.setAttribute('readonly', '');
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    textarea.style.pointerEvents = 'none';
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand('copy');
+    textarea.remove();
+}
+
+async function handleCopyTask(button, task) {
+    const previousText = button.textContent;
+    try {
+        await copyTaskText(task);
+        button.textContent = '已复制';
+        setTimeout(() => {
+            button.textContent = previousText;
+        }, 900);
+    } catch (error) {
+        console.error(error);
+        button.textContent = '复制失败';
+        setTimeout(() => {
+            button.textContent = previousText;
+        }, 1200);
+    }
+}
+
 function isDailyTask(task) {
     return state.dailyTasks.includes(task);
 }
@@ -2249,6 +2283,10 @@ function buildMustDoCandidates() {
         editButton.type = 'button';
         editButton.className = 'btn secondary compact';
         editButton.textContent = '编辑';
+        const copyButton = document.createElement('button');
+        copyButton.type = 'button';
+        copyButton.className = 'btn secondary compact';
+        copyButton.textContent = '复制';
         const moveButton = document.createElement('button');
         moveButton.type = 'button';
         moveButton.className = 'btn secondary compact';
@@ -2266,7 +2304,7 @@ function buildMustDoCandidates() {
         dailyButton.type = 'button';
         dailyButton.className = `btn ${daily ? 'primary' : 'secondary'} compact`;
         dailyButton.textContent = daily ? 'Daily✓' : 'Daily';
-        actions.append(editButton, moveButton, completeButton, selectButton, dailyButton);
+        actions.append(editButton, copyButton, moveButton, completeButton, selectButton, dailyButton);
         row.append(label, starBadge, dailyBadge, moreButton, actions);
         bindMustDoItemMoveInteractions(row, task);
         bindMustDoItemDragInteractions(row, task);
@@ -2284,6 +2322,11 @@ function buildMustDoCandidates() {
             e.stopPropagation();
             row.classList.remove('is-menu-open');
             startMustDoItemTextEdit(row, label, task);
+        });
+
+        copyButton.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            await handleCopyTask(copyButton, task);
         });
 
         moveButton.addEventListener('click', (e) => {
@@ -2427,6 +2470,10 @@ function renderSearchResults(keyword) {
         editButton.type = 'button';
         editButton.className = 'btn secondary compact';
         editButton.textContent = '编辑';
+        const copyButton = document.createElement('button');
+        copyButton.type = 'button';
+        copyButton.className = 'btn secondary compact';
+        copyButton.textContent = '复制';
         const moveButton = document.createElement('button');
         moveButton.type = 'button';
         moveButton.className = 'btn secondary compact';
@@ -2444,7 +2491,7 @@ function renderSearchResults(keyword) {
         dailyButton.type = 'button';
         dailyButton.className = `btn ${daily ? 'primary' : 'secondary'} compact`;
         dailyButton.textContent = daily ? 'Daily✓' : 'Daily';
-        actions.append(editButton, moveButton, completeButton, starButton, dailyButton);
+        actions.append(editButton, copyButton, moveButton, completeButton, starButton, dailyButton);
         row.append(taskText, starBadge, dailyBadge, selectButton, moreButton, actions);
 
         moreButton.addEventListener('click', (e) => {
@@ -2471,6 +2518,10 @@ function renderSearchResults(keyword) {
         editButton.addEventListener('click', (e) => {
             e.stopPropagation();
             startSearchItemTextEdit(row, taskText, task);
+        });
+        copyButton.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            await handleCopyTask(copyButton, task);
         });
         moveButton.addEventListener('click', (e) => {
             e.stopPropagation();

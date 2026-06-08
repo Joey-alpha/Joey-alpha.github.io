@@ -16,7 +16,6 @@
                         <p id="timeText"></p>
                         <p class="quote-strip" id="quoteStrip"></p>
                     </div>
-                    <div class="ambient-hint" id="ambientHint">💧</div>
                 </header>
 
                 <section id="view-home">
@@ -46,15 +45,6 @@
                     <div class="daily-list" id="dailyList"></div>
                 </section>
 
-                <div class="fab-group">
-                    <button class="fab" id="addFab" title="添加">＋</button>
-                    <button class="fab" id="searchFab" title="搜索">⌕</button>
-                    <button class="fab" id="blindboxFab" title="盲盒">🎲</button>
-                    <button class="fab" id="settingsFab" title="设置">⚙</button>
-                    <button class="fab" id="reflectionFab" title="反思">✎</button>
-                    <button class="fab" id="undoFab" title="撤销">↶</button>
-                </div>
-
                 <div class="overlay" id="searchOverlay">
                     <div class="overlay-card">
                         <div class="overlay-head">
@@ -75,20 +65,6 @@
                         <input class="search-input" id="addInput" placeholder="输入任务…" />
                         <div class="actions">
                             <button class="btn primary" id="confirmAddBtn">放进 box</button>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="overlay must-do-overlay" id="mustDoOverlay">
-                    <div class="overlay-card">
-                        <div class="overlay-head">
-                            <h3 class="overlay-title">今日必做</h3>
-                            <button class="close-btn" data-close="mustDoOverlay">×</button>
-                        </div>
-                        <div class="must-do-criteria" id="mustDoCriteriaBar"></div>
-                        <div class="must-do-selection" id="mustDoSelection"></div>
-                        <div class="actions">
-                            <button class="btn primary" id="confirmMustDoBtn">确定</button>
                         </div>
                     </div>
                 </div>
@@ -252,6 +228,28 @@
                 </div>
             </main>
         </div>
+        <div class="overlay must-do-overlay" id="mustDoOverlay">
+            <div class="overlay-card">
+                <div class="overlay-head">
+                    <h3 class="overlay-title">今日必做</h3>
+                    <button class="close-btn" data-close="mustDoOverlay">×</button>
+                </div>
+                <div class="must-do-criteria" id="mustDoCriteriaBar"></div>
+                <div class="must-do-selection" id="mustDoSelection"></div>
+                <div class="actions">
+                    <button class="btn primary" id="confirmMustDoBtn">确定</button>
+                </div>
+            </div>
+        </div>
+        <div class="fab-group">
+            <button class="fab" id="addFab" title="添加">＋</button>
+            <button class="fab" id="searchFab" title="搜索">⌕</button>
+            <button class="fab" id="blindboxFab" title="盲盒">🎲</button>
+            <button class="fab" id="settingsFab" title="设置">⚙</button>
+            <button class="fab" id="reflectionFab" title="反思">✎</button>
+            <button class="fab" id="undoFab" title="撤销">↶</button>
+        </div>
+        <div class="ambient-hint" id="ambientHint">💧</div>
     </div>
     <script src="js/empty-box.js"></script>
 </body>
