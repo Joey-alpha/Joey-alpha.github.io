@@ -79,7 +79,9 @@
 
     body.night .candidate-more-btn,
     body.night .must-do-selection .candidate-actions,
-    body.night .candidate-list .candidate-actions {
+    body.night .candidate-list .candidate-actions,
+    body.night .must-do-list .candidate-actions,
+    body.night .daily-list .candidate-actions {
         background: rgba(31, 39, 58, 0.98);
         color: #eef2ff;
         border-color: rgba(255, 255, 255, 0.10);
@@ -148,7 +150,9 @@
 
         body .candidate-more-btn,
         body .must-do-selection .candidate-actions,
-        body .candidate-list .candidate-actions {
+        body .candidate-list .candidate-actions,
+        body .must-do-list .candidate-actions,
+        body .daily-list .candidate-actions {
             background: rgba(31, 39, 58, 0.98);
             color: #eef2ff;
             border-color: rgba(255, 255, 255, 0.10);
@@ -184,7 +188,9 @@
         }
 
         body .must-do-selection .candidate-actions .btn.secondary,
-        body .candidate-list .candidate-actions .btn.secondary {
+        body .candidate-list .candidate-actions .btn.secondary,
+        body .must-do-list .candidate-actions .btn.secondary,
+        body .daily-list .candidate-actions .btn.secondary {
             background: rgba(51, 65, 85, 0.92);
             border-color: rgba(148, 163, 184, 0.26);
             color: #eef2ff;
@@ -693,7 +699,9 @@
     }
 
     .must-do-selection .candidate-item,
-    .candidate-list .candidate-item.has-actions {
+    .candidate-list .candidate-item.has-actions,
+    .must-do-list .candidate-item.has-actions,
+    .daily-list .candidate-item.has-actions {
         position: relative;
         width: 100%;
         align-items: flex-start;
@@ -722,7 +730,9 @@
     }
 
     .must-do-selection .candidate-text,
-    .candidate-list .candidate-text {
+    .candidate-list .candidate-text,
+    .must-do-list .candidate-text,
+    .daily-list .candidate-text {
         min-width: 0;
         flex: 1 1 auto;
         display: block;
@@ -773,7 +783,9 @@
     }
 
     .must-do-selection .candidate-actions,
-    .candidate-list .candidate-actions {
+    .candidate-list .candidate-actions,
+    .must-do-list .candidate-actions,
+    .daily-list .candidate-actions {
         position: absolute;
         right: 56px;
         top: 50%;
@@ -796,14 +808,18 @@
     }
 
     .must-do-selection .candidate-item.is-menu-open .candidate-actions,
-    .candidate-list .candidate-item.is-menu-open .candidate-actions {
+    .candidate-list .candidate-item.is-menu-open .candidate-actions,
+    .must-do-list .candidate-item.is-menu-open .candidate-actions,
+    .daily-list .candidate-item.is-menu-open .candidate-actions {
         opacity: 1;
         pointer-events: auto;
         transform: translateY(-50%) translateX(0);
     }
 
     .must-do-selection .candidate-actions .btn,
-    .candidate-list .candidate-actions .btn {
+    .candidate-list .candidate-actions .btn,
+    .must-do-list .candidate-actions .btn,
+    .daily-list .candidate-actions .btn {
         min-width: 44px;
         padding: 8px 10px;
         font-size: 13px;
@@ -811,7 +827,9 @@
     }
 
     .must-do-selection .candidate-item.is-editing .candidate-actions,
-    .candidate-list .candidate-item.is-editing .candidate-actions {
+    .candidate-list .candidate-item.is-editing .candidate-actions,
+    .must-do-list .candidate-item.is-editing .candidate-actions,
+    .daily-list .candidate-item.is-editing .candidate-actions {
         display: none;
     }
 
@@ -953,7 +971,9 @@
     }
 
     .must-do-selection .candidate-item button,
-    .candidate-list .candidate-item.has-actions button {
+    .candidate-list .candidate-item.has-actions button,
+    .must-do-list .candidate-item.has-actions button,
+    .daily-list .candidate-item.has-actions button {
         min-width: 56px;
     }
 
@@ -1029,7 +1049,6 @@
 
     .overlay#criterionOverlay,
     .overlay#moveTaskOverlay,
-    .overlay#homeTaskActionOverlay,
     .overlay#spaceNameOverlay,
     .overlay#confirmOverlay {
         z-index: 60;
@@ -1057,21 +1076,6 @@
         overflow: hidden;
         position: relative;
         z-index: 1;
-    }
-
-    .home-task-action-card {
-        width: min(420px, 100%);
-        border-radius: 22px;
-    }
-
-    .home-task-action-list {
-        display: grid;
-        gap: 10px;
-    }
-
-    .home-task-action-list .btn {
-        width: 100%;
-        text-align: left;
     }
 
     .overlay-head {
@@ -1169,22 +1173,14 @@
             grid-template-columns: 1fr;
         }
 
-        .overlay#homeTaskActionOverlay {
-            align-items: flex-end;
-            padding: 12px;
-        }
-
-        .home-task-action-card {
-            width: 100%;
-            border-radius: 22px 22px 18px 18px;
-        }
-
         .must-do-selection {
             min-height: 34vh;
         }
 
         .must-do-selection .candidate-item,
-        .candidate-list .candidate-item.has-actions {
+        .candidate-list .candidate-item.has-actions,
+        .must-do-list .candidate-item.has-actions,
+        .daily-list .candidate-item.has-actions {
             position: relative;
             flex-wrap: nowrap;
             min-height: auto;
@@ -1193,37 +1189,49 @@
         }
 
         .must-do-selection .candidate-text,
-        .candidate-list .candidate-text {
+        .candidate-list .candidate-text,
+        .must-do-list .candidate-text,
+        .daily-list .candidate-text {
             transition: transform 0.2s ease;
         }
 
         .must-do-selection .candidate-actions,
-        .candidate-list .candidate-actions {
+        .candidate-list .candidate-actions,
+        .must-do-list .candidate-actions,
+        .daily-list .candidate-actions {
             right: 52px;
             width: 176px;
         }
 
         .must-do-selection .candidate-actions .btn,
-        .candidate-list .candidate-actions .btn {
+        .candidate-list .candidate-actions .btn,
+        .must-do-list .candidate-actions .btn,
+        .daily-list .candidate-actions .btn {
             min-width: 40px;
             padding: 7px 8px;
             font-size: 13px;
         }
 
         body.night .must-do-selection .candidate-actions .btn.secondary,
-        body.night .candidate-list .candidate-actions .btn.secondary {
+        body.night .candidate-list .candidate-actions .btn.secondary,
+        body.night .must-do-list .candidate-actions .btn.secondary,
+        body.night .daily-list .candidate-actions .btn.secondary {
             background: rgba(51, 65, 85, 0.92);
             border-color: rgba(148, 163, 184, 0.26);
             color: #eef2ff;
         }
 
         .must-do-selection .candidate-item.is-editing,
-        .candidate-list .candidate-item.is-editing {
+        .candidate-list .candidate-item.is-editing,
+        .must-do-list .candidate-item.is-editing,
+        .daily-list .candidate-item.is-editing {
             padding-right: 16px;
         }
 
         .must-do-selection .candidate-item.is-editing .candidate-text,
-        .candidate-list .candidate-item.is-editing .candidate-text {
+        .candidate-list .candidate-item.is-editing .candidate-text,
+        .must-do-list .candidate-item.is-editing .candidate-text,
+        .daily-list .candidate-item.is-editing .candidate-text {
             transform: none;
         }
     }

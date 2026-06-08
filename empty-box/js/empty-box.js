@@ -111,7 +111,6 @@ const reflectionOverlay = document.getElementById('reflectionOverlay');
 const settingsOverlay = document.getElementById('settingsOverlay');
 const criterionOverlay = document.getElementById('criterionOverlay');
 const moveTaskOverlay = document.getElementById('moveTaskOverlay');
-const homeTaskActionOverlay = document.getElementById('homeTaskActionOverlay');
 const migrationOverlay = document.getElementById('migrationOverlay');
 const spaceNameOverlay = document.getElementById('spaceNameOverlay');
 const confirmOverlay = document.getElementById('confirmOverlay');
@@ -145,8 +144,6 @@ const criterionDialogCancelBtn = document.getElementById('criterionDialogCancelB
 const moveTaskTitle = document.getElementById('moveTaskTitle');
 const moveTaskList = document.getElementById('moveTaskList');
 const moveTaskCancelBtn = document.getElementById('moveTaskCancelBtn');
-const homeTaskActionTitle = document.getElementById('homeTaskActionTitle');
-const homeTaskActionList = document.getElementById('homeTaskActionList');
 
 const exportJsonBtn = document.getElementById('exportJsonBtn');
 const importJsonInput = document.getElementById('importJsonInput');
@@ -976,103 +973,108 @@ function selectHomeTask(task) {
     renderNow();
 }
 
-function closeHomeTaskActionDialog() {
-    homeTaskActionList.innerHTML = '';
-    closeOverlay(homeTaskActionOverlay);
-}
+function createTaskActionMenu({ row, label, task, editMode = 'home', rerender }) {
+    const refreshList = rerender || (() => {});
+    const selected = state.mustDoTasks.includes(task);
+    const daily = isDailyTask(task);
+    const dailyDoneToday = daily && isDailyTaskDoneToday(task);
+    const moreButton = document.createElement('button');
+    moreButton.type = 'button';
+    moreButton.className = 'candidate-more-btn';
+    moreButton.setAttribute('aria-label', '更多操作');
+    moreButton.textContent = '⋯';
+    const actions = document.createElement('div');
+    actions.className = 'candidate-actions';
 
-function createHomeTaskActionButton(label, className, onClick) {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = className;
-    button.textContent = label;
-    button.addEventListener('click', () => {
-        onClick();
-        closeHomeTaskActionDialog();
-    });
-    return button;
-}
+    const editButton = document.createElement('button');
+    editButton.type = 'button';
+    editButton.className = 'btn secondary compact';
+    editButton.textContent = '编辑';
+    const copyButton = document.createElement('button');
+    copyButton.type = 'button';
+    copyButton.className = 'btn secondary compact';
+    copyButton.textContent = '复制';
+    const moveButton = document.createElement('button');
+    moveButton.type = 'button';
+    moveButton.className = 'btn secondary compact';
+    moveButton.textContent = '移动';
+    const completeButton = document.createElement('button');
+    completeButton.type = 'button';
+    completeButton.className = 'btn secondary compact';
+    completeButton.textContent = dailyDoneToday ? '今日完成' : '完成';
+    completeButton.disabled = dailyDoneToday;
+    const starButton = document.createElement('button');
+    starButton.type = 'button';
+    starButton.className = `btn ${selected ? 'primary' : 'secondary'} compact`;
+    starButton.textContent = selected ? 'Unstar' : 'Star';
+    starButton.disabled = !selected && state.mustDoTasks.length >= MUST_DO_TASK_LIMIT;
+    const dailyButton = document.createElement('button');
+    dailyButton.type = 'button';
+    dailyButton.className = `btn ${daily ? 'primary' : 'secondary'} compact`;
+    dailyButton.textContent = daily ? 'Daily✓' : 'Daily';
+    actions.append(editButton, copyButton, moveButton, completeButton, starButton, dailyButton);
 
-function openHomeTaskActionDialog(task) {
-    if (!task) return;
-    homeTaskActionTitle.textContent = task;
-    homeTaskActionList.innerHTML = '';
-
-    if (state.mustDoTasks.includes(task)) {
-        homeTaskActionList.appendChild(createHomeTaskActionButton('Unstar', 'btn secondary', () => {
-            state.mustDoTasks = state.mustDoTasks.filter(item => item !== task);
-            renderNow();
-        }));
-    }
-
-    if (isDailyTask(task)) {
-        homeTaskActionList.appendChild(createHomeTaskActionButton('Remove Daily', 'btn secondary', () => {
-            toggleDailyTask(task);
-            renderNow();
-        }));
-    }
-
-    if (!homeTaskActionList.children.length) {
-        const empty = document.createElement('div');
-        empty.className = 'reflection-empty';
-        empty.textContent = '没有可移除的标记';
-        homeTaskActionList.appendChild(empty);
-    }
-
-    openOverlay(homeTaskActionOverlay);
-}
-
-function bindHomeTaskActionInteractions(item, task) {
-    let pressTimer = null;
-    let pointerId = null;
-    let startX = 0;
-    let startY = 0;
-
-    const clearPressTimer = () => {
-        if (!pressTimer) return;
-        clearTimeout(pressTimer);
-        pressTimer = null;
-    };
-
-    item.addEventListener('pointerdown', event => {
-        if (event.button && event.button !== 0) return;
-        if (event.target.closest('button, input, textarea')) return;
-        pointerId = event.pointerId;
-        startX = event.clientX;
-        startY = event.clientY;
-        clearPressTimer();
-        pressTimer = setTimeout(() => {
-            pressTimer = null;
-            item.dataset.suppressClickUntil = String(Date.now() + 500);
-            openHomeTaskActionDialog(task);
-        }, 420);
+    moreButton.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const shouldOpen = !row.classList.contains('is-menu-open');
+        row.parentElement?.querySelectorAll('.candidate-item.is-menu-open').forEach(item => {
+            item.classList.remove('is-menu-open');
+        });
+        row.classList.toggle('is-menu-open', shouldOpen);
     });
 
-    item.addEventListener('pointermove', event => {
-        if (pointerId !== event.pointerId) return;
-        const moved = Math.hypot(event.clientX - startX, event.clientY - startY);
-        if (moved > MUST_DO_CRITERION_TAP_MOVE_PX) {
-            clearPressTimer();
+    editButton.addEventListener('click', (e) => {
+        e.stopPropagation();
+        row.classList.remove('is-menu-open');
+        if (editMode === 'search') {
+            startSearchItemTextEdit(row, label, task);
+        } else {
+            startMustDoItemTextEdit(row, label, task, refreshList);
         }
     });
-
-    item.addEventListener('pointerup', event => {
-        if (pointerId !== event.pointerId) return;
-        pointerId = null;
-        clearPressTimer();
+    copyButton.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        await handleCopyTask(copyButton, task);
+    });
+    moveButton.addEventListener('click', (e) => {
+        e.stopPropagation();
+        row.classList.remove('is-menu-open');
+        openMoveTaskDialog(task);
+    });
+    completeButton.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (dailyDoneToday) return;
+        row.classList.remove('is-menu-open');
+        completeTask(task);
+        refreshList();
+        updateMustDoSummary();
+        renderMustDoList();
+        renderNow();
+    });
+    starButton.addEventListener('click', (e) => {
+        e.stopPropagation();
+        row.classList.remove('is-menu-open');
+        if (selected) {
+            state.mustDoTasks = state.mustDoTasks.filter(t => t !== task);
+        } else if (state.mustDoTasks.length < MUST_DO_TASK_LIMIT) {
+            state.mustDoTasks.push(task);
+        }
+        refreshList();
+        updateMustDoSummary();
+        renderMustDoList();
+        saveState();
+    });
+    dailyButton.addEventListener('click', (e) => {
+        e.stopPropagation();
+        row.classList.remove('is-menu-open');
+        toggleDailyTask(task);
+        refreshList();
+        updateMustDoSummary();
+        renderDailyList();
+        saveState();
     });
 
-    item.addEventListener('pointercancel', event => {
-        if (pointerId !== event.pointerId) return;
-        pointerId = null;
-        clearPressTimer();
-    });
-
-    item.addEventListener('contextmenu', event => {
-        event.preventDefault();
-        item.dataset.suppressClickUntil = String(Date.now() + 500);
-        openHomeTaskActionDialog(task);
-    });
+    return { moreButton, actions };
 }
 
 function bindMustDoListItemDragInteractions(item, task) {
@@ -1155,21 +1157,28 @@ function renderMustDoList() {
     mustDoPanel.classList.add('active');
     state.mustDoTasks.forEach((task, index) => {
         const item = document.createElement('div');
-        item.className = `must-do-item${state.nowTask === task ? ' is-current' : ''}`;
+        item.className = `must-do-item candidate-item has-actions${state.nowTask === task ? ' is-current' : ''}`;
         const taskText = document.createElement('span');
+        taskText.className = 'candidate-text';
         taskText.textContent = task;
         const orderText = document.createElement('span');
         orderText.className = 'must-do-order';
         orderText.textContent = String(index + 1);
-        item.append(taskText, orderText);
+        const { moreButton, actions } = createTaskActionMenu({
+            row: item,
+            label: taskText,
+            task,
+            rerender: renderMustDoList
+        });
+        item.append(taskText, orderText, moreButton, actions);
         bindMustDoListItemDragInteractions(item, task);
-        bindHomeTaskActionInteractions(item, task);
         item.addEventListener('click', event => {
             if (Date.now() < Number(item.dataset.suppressClickUntil || 0)) {
                 event.preventDefault();
                 event.stopPropagation();
                 return;
             }
+            if (event.target.closest('.candidate-more-btn, .candidate-actions')) return;
             selectHomeTask(task);
         });
         mustDoList.appendChild(item);
@@ -1201,17 +1210,24 @@ function renderDailyList() {
 
     activeDailyTasks.forEach(task => {
         const item = document.createElement('div');
-        item.className = `daily-item${state.nowTask === task ? ' is-current' : ''}`;
+        item.className = `daily-item candidate-item has-actions${state.nowTask === task ? ' is-current' : ''}`;
         const taskText = document.createElement('span');
+        taskText.className = 'candidate-text';
         taskText.textContent = task;
-        item.appendChild(taskText);
-        bindHomeTaskActionInteractions(item, task);
+        const { moreButton, actions } = createTaskActionMenu({
+            row: item,
+            label: taskText,
+            task,
+            rerender: renderDailyList
+        });
+        item.append(taskText, moreButton, actions);
         item.addEventListener('click', event => {
             if (Date.now() < Number(item.dataset.suppressClickUntil || 0)) {
                 event.preventDefault();
                 event.stopPropagation();
                 return;
             }
+            if (event.target.closest('.candidate-more-btn, .candidate-actions')) return;
             selectHomeTask(task);
         });
         dailyList.appendChild(item);
@@ -2039,7 +2055,7 @@ function autoScrollMustDoSelection(clientY) {
     if (delta) mustDoSelection.scrollTop += delta;
 }
 
-function startMustDoItemTextEdit(row, label, task) {
+function startMustDoItemTextEdit(row, label, task, rerender = buildMustDoCandidates) {
     row.draggable = false;
     row.classList.remove('is-actions-revealed');
     row.classList.add('is-editing');
@@ -2057,14 +2073,14 @@ function startMustDoItemTextEdit(row, label, task) {
         finished = true;
         if (!shouldSave) {
             row.classList.remove('is-editing');
-            buildMustDoCandidates();
+            rerender();
             return;
         }
         const result = renameTaskText(task, input.value);
         if (!result.ok) {
             if (source === 'blur') {
                 row.classList.remove('is-editing');
-                buildMustDoCandidates();
+                rerender();
                 return;
             }
             finished = false;
@@ -2076,7 +2092,7 @@ function startMustDoItemTextEdit(row, label, task) {
         }
         input.setCustomValidity('');
         row.classList.remove('is-editing');
-        buildMustDoCandidates();
+        rerender();
         updateMustDoSummary();
         renderNow();
     };
@@ -2272,109 +2288,15 @@ function buildMustDoCandidates() {
         dailyBadge.className = 'candidate-status-badge candidate-daily-badge';
         dailyBadge.textContent = 'Daily';
         dailyBadge.hidden = !daily;
-        const moreButton = document.createElement('button');
-        moreButton.type = 'button';
-        moreButton.className = 'candidate-more-btn';
-        moreButton.setAttribute('aria-label', '更多操作');
-        moreButton.textContent = '⋯';
-        const actions = document.createElement('div');
-        actions.className = 'candidate-actions';
-        const editButton = document.createElement('button');
-        editButton.type = 'button';
-        editButton.className = 'btn secondary compact';
-        editButton.textContent = '编辑';
-        const copyButton = document.createElement('button');
-        copyButton.type = 'button';
-        copyButton.className = 'btn secondary compact';
-        copyButton.textContent = '复制';
-        const moveButton = document.createElement('button');
-        moveButton.type = 'button';
-        moveButton.className = 'btn secondary compact';
-        moveButton.textContent = '移动';
-        const completeButton = document.createElement('button');
-        completeButton.type = 'button';
-        completeButton.className = 'btn secondary compact';
-        completeButton.textContent = dailyDoneToday ? '今日完成' : '完成';
-        completeButton.disabled = dailyDoneToday;
-        const selectButton = document.createElement('button');
-        selectButton.type = 'button';
-        selectButton.className = `btn ${selected ? 'primary' : 'secondary'} compact`;
-        selectButton.textContent = selected ? 'Unstar' : 'Star';
-        const dailyButton = document.createElement('button');
-        dailyButton.type = 'button';
-        dailyButton.className = `btn ${daily ? 'primary' : 'secondary'} compact`;
-        dailyButton.textContent = daily ? 'Daily✓' : 'Daily';
-        actions.append(editButton, copyButton, moveButton, completeButton, selectButton, dailyButton);
+        const { moreButton, actions } = createTaskActionMenu({
+            row,
+            label,
+            task,
+            rerender: buildMustDoCandidates
+        });
         row.append(label, starBadge, dailyBadge, moreButton, actions);
         bindMustDoItemMoveInteractions(row, task);
         bindMustDoItemDragInteractions(row, task);
-
-        moreButton.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const shouldOpen = !row.classList.contains('is-menu-open');
-            mustDoSelection.querySelectorAll('.candidate-item.is-menu-open').forEach(item => {
-                item.classList.remove('is-menu-open');
-            });
-            row.classList.toggle('is-menu-open', shouldOpen);
-        });
-
-        editButton.addEventListener('click', (e) => {
-            e.stopPropagation();
-            row.classList.remove('is-menu-open');
-            startMustDoItemTextEdit(row, label, task);
-        });
-
-        copyButton.addEventListener('click', async (e) => {
-            e.stopPropagation();
-            await handleCopyTask(copyButton, task);
-        });
-
-        moveButton.addEventListener('click', (e) => {
-            e.stopPropagation();
-            row.classList.remove('is-menu-open');
-            openMoveTaskDialog(task);
-        });
-
-        completeButton.addEventListener('click', (e) => {
-            e.stopPropagation();
-            if (dailyDoneToday) return;
-            row.classList.remove('is-menu-open');
-            completeTask(task);
-            buildMustDoCandidates();
-            updateMustDoSummary();
-            renderMustDoList();
-            renderNow();
-        });
-
-        selectButton.addEventListener('click', (e) => {
-            e.stopPropagation();
-            row.classList.remove('is-menu-open');
-            if (selected) {
-                state.mustDoTasks = state.mustDoTasks.filter(t => t !== task);
-                buildMustDoCandidates();
-                updateMustDoSummary();
-                renderMustDoList();
-                saveState();
-                return;
-            }
-            if (state.mustDoTasks.length < MUST_DO_TASK_LIMIT) {
-                state.mustDoTasks.push(task);
-                buildMustDoCandidates();
-                updateMustDoSummary();
-                renderMustDoList();
-                saveState();
-            }
-        });
-
-        dailyButton.addEventListener('click', (e) => {
-            e.stopPropagation();
-            row.classList.remove('is-menu-open');
-            toggleDailyTask(task);
-            buildMustDoCandidates();
-            updateMustDoSummary();
-            renderDailyList();
-            saveState();
-        });
 
         mustDoSelection.appendChild(row);
     });
@@ -2459,49 +2381,14 @@ function renderSearchResults(keyword) {
         const selectButton = document.createElement('button');
         selectButton.className = 'btn primary';
         selectButton.textContent = '选择';
-        const moreButton = document.createElement('button');
-        moreButton.type = 'button';
-        moreButton.className = 'candidate-more-btn';
-        moreButton.setAttribute('aria-label', '更多操作');
-        moreButton.textContent = '⋯';
-        const actions = document.createElement('div');
-        actions.className = 'candidate-actions';
-        const editButton = document.createElement('button');
-        editButton.type = 'button';
-        editButton.className = 'btn secondary compact';
-        editButton.textContent = '编辑';
-        const copyButton = document.createElement('button');
-        copyButton.type = 'button';
-        copyButton.className = 'btn secondary compact';
-        copyButton.textContent = '复制';
-        const moveButton = document.createElement('button');
-        moveButton.type = 'button';
-        moveButton.className = 'btn secondary compact';
-        moveButton.textContent = '移动';
-        const completeButton = document.createElement('button');
-        completeButton.type = 'button';
-        completeButton.className = 'btn secondary compact';
-        completeButton.textContent = dailyDoneToday ? '今日完成' : '完成';
-        completeButton.disabled = dailyDoneToday;
-        const starButton = document.createElement('button');
-        starButton.type = 'button';
-        starButton.className = `btn ${selected ? 'primary' : 'secondary'} compact`;
-        starButton.textContent = selected ? 'Unstar' : 'Star';
-        const dailyButton = document.createElement('button');
-        dailyButton.type = 'button';
-        dailyButton.className = `btn ${daily ? 'primary' : 'secondary'} compact`;
-        dailyButton.textContent = daily ? 'Daily✓' : 'Daily';
-        actions.append(editButton, copyButton, moveButton, completeButton, starButton, dailyButton);
-        row.append(taskText, starBadge, dailyBadge, selectButton, moreButton, actions);
-
-        moreButton.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const shouldOpen = !row.classList.contains('is-menu-open');
-            searchResults.querySelectorAll('.candidate-item.is-menu-open').forEach(item => {
-                item.classList.remove('is-menu-open');
-            });
-            row.classList.toggle('is-menu-open', shouldOpen);
+        const { moreButton, actions } = createTaskActionMenu({
+            row,
+            label: taskText,
+            task,
+            editMode: 'search',
+            rerender: () => renderSearchResults(searchInput.value)
         });
+        row.append(taskText, starBadge, dailyBadge, selectButton, moreButton, actions);
 
         selectButton.addEventListener('click', () => {
             if (state.nowTask && !state.boxTasks.includes(state.nowTask)) {
@@ -2514,51 +2401,6 @@ function renderSearchResults(keyword) {
             searchResults.innerHTML = '';
             closeOverlay(searchOverlay);
             renderNow();
-        });
-        editButton.addEventListener('click', (e) => {
-            e.stopPropagation();
-            startSearchItemTextEdit(row, taskText, task);
-        });
-        copyButton.addEventListener('click', async (e) => {
-            e.stopPropagation();
-            await handleCopyTask(copyButton, task);
-        });
-        moveButton.addEventListener('click', (e) => {
-            e.stopPropagation();
-            row.classList.remove('is-menu-open');
-            openMoveTaskDialog(task);
-        });
-        completeButton.addEventListener('click', (e) => {
-            e.stopPropagation();
-            if (dailyDoneToday) return;
-            row.classList.remove('is-menu-open');
-            completeTask(task);
-            renderSearchResults(searchInput.value);
-            updateMustDoSummary();
-            renderMustDoList();
-            renderNow();
-        });
-        starButton.addEventListener('click', (e) => {
-            e.stopPropagation();
-            row.classList.remove('is-menu-open');
-            if (selected) {
-                state.mustDoTasks = state.mustDoTasks.filter(t => t !== task);
-            } else if (state.mustDoTasks.length < MUST_DO_TASK_LIMIT) {
-                state.mustDoTasks.push(task);
-            }
-            renderSearchResults(searchInput.value);
-            updateMustDoSummary();
-            renderMustDoList();
-            saveState();
-        });
-        dailyButton.addEventListener('click', (e) => {
-            e.stopPropagation();
-            row.classList.remove('is-menu-open');
-            toggleDailyTask(task);
-            renderSearchResults(searchInput.value);
-            updateMustDoSummary();
-            renderDailyList();
-            saveState();
         });
         searchResults.appendChild(row);
     });
@@ -3189,8 +3031,6 @@ document.querySelectorAll('[data-close]').forEach(btn => {
             closeCriterionDialog();
         } else if (target === moveTaskOverlay) {
             closeMoveTaskDialog();
-        } else if (target === homeTaskActionOverlay) {
-            closeHomeTaskActionDialog();
         } else if (target === spaceNameOverlay) {
             closeSpaceNameDialog();
         } else if (target === confirmOverlay) {
@@ -3201,15 +3041,13 @@ document.querySelectorAll('[data-close]').forEach(btn => {
     });
 });
 
-[searchOverlay, addOverlay, blindboxOverlay, reflectionOverlay, settingsOverlay, criterionOverlay, moveTaskOverlay, homeTaskActionOverlay, migrationOverlay, spaceNameOverlay, confirmOverlay].forEach(overlay => {
+[searchOverlay, addOverlay, blindboxOverlay, reflectionOverlay, settingsOverlay, criterionOverlay, moveTaskOverlay, migrationOverlay, spaceNameOverlay, confirmOverlay].forEach(overlay => {
     overlay.addEventListener('click', e => {
         if (e.target !== overlay) return;
         if (overlay === criterionOverlay) {
             closeCriterionDialog();
         } else if (overlay === moveTaskOverlay) {
             closeMoveTaskDialog();
-        } else if (overlay === homeTaskActionOverlay) {
-            closeHomeTaskActionDialog();
         } else if (overlay === spaceNameOverlay) {
             closeSpaceNameDialog();
         } else if (overlay === confirmOverlay) {
