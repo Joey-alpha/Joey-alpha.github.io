@@ -11,6 +11,10 @@
         --shadow: 0 22px 60px rgba(0, 0, 0, 0.10);
         --radius-xl: 24px;
         --max: 960px;
+        --layer-controls: 20;
+        --layer-overlay: 100;
+        --layer-dialog: 120;
+        --layer-priority: 140;
     }
 
     * {
@@ -254,7 +258,7 @@
         position: fixed;
         top: 28px;
         right: 28px;
-        z-index: 20;
+        z-index: var(--layer-controls);
         background: var(--panel);
         border: 1px solid var(--line);
         border-radius: 18px;
@@ -1010,7 +1014,7 @@
         display: flex;
         flex-direction: column;
         gap: 12px;
-        z-index: 20;
+        z-index: var(--layer-controls);
     }
 
     .fab {
@@ -1043,7 +1047,7 @@
         align-items: center;
         justify-content: center;
         padding: 20px;
-        z-index: 30;
+        z-index: var(--layer-overlay);
         isolation: isolate;
     }
 
@@ -1051,12 +1055,12 @@
     .overlay#moveTaskOverlay,
     .overlay#spaceNameOverlay,
     .overlay#confirmOverlay {
-        z-index: 60;
+        z-index: var(--layer-dialog);
         background: rgba(10, 14, 24, 0.42);
     }
 
     .overlay#migrationOverlay {
-        z-index: 70;
+        z-index: var(--layer-priority);
     }
 
     .overlay.active {
@@ -1075,7 +1079,7 @@
         flex-direction: column;
         overflow: hidden;
         position: relative;
-        z-index: 1;
+        z-index: 100;
     }
 
     .overlay-head {

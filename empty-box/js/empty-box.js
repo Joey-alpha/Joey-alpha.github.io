@@ -173,6 +173,32 @@ const confirmMessage = document.getElementById('confirmMessage');
 const confirmAcceptBtn = document.getElementById('confirmAcceptBtn');
 const confirmCancelBtn = document.getElementById('confirmCancelBtn');
 
+const overlayStack = [
+    searchOverlay,
+    addOverlay,
+    blindboxOverlay,
+    reflectionOverlay,
+    settingsOverlay,
+    mustDoOverlay,
+    criterionOverlay,
+    moveTaskOverlay,
+    migrationOverlay,
+    spaceNameOverlay,
+    confirmOverlay
+];
+
+function hoistOverlaysToViewportLayer() {
+    const appRoot = document.querySelector('.app');
+    if (!appRoot) return;
+    overlayStack.forEach(overlay => {
+        if (overlay && overlay.parentElement !== appRoot) {
+            appRoot.appendChild(overlay);
+        }
+    });
+}
+
+hoistOverlaysToViewportLayer();
+
 function cloneDefaultMustDoCriteria() {
     return DEFAULT_MUST_DO_CRITERIA.map(criterion => ({ ...criterion }));
 }
@@ -3041,7 +3067,7 @@ document.querySelectorAll('[data-close]').forEach(btn => {
     });
 });
 
-[searchOverlay, addOverlay, blindboxOverlay, reflectionOverlay, settingsOverlay, criterionOverlay, moveTaskOverlay, migrationOverlay, spaceNameOverlay, confirmOverlay].forEach(overlay => {
+overlayStack.forEach(overlay => {
     overlay.addEventListener('click', e => {
         if (e.target !== overlay) return;
         if (overlay === criterionOverlay) {
