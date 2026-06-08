@@ -108,6 +108,53 @@ body {
     flex-direction: column;
 }
 
+.node-quick-actions {
+    position: fixed;
+    left: 0;
+    top: 0;
+    z-index: 35;
+    display: grid;
+    gap: 5px;
+    padding: 6px;
+    border: 1px solid rgba(255, 255, 255, .58);
+    border-radius: 16px;
+    background: var(--panel);
+    box-shadow: var(--soft-shadow);
+    pointer-events: auto;
+    opacity: 1;
+    transform: translate3d(var(--quick-x, 0), var(--quick-y, 0), 0);
+    transition: opacity .16s ease, transform .16s ease;
+    backdrop-filter: saturate(180%) blur(20px);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+}
+
+.node-quick-actions.hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.quick-action-row {
+    display: flex;
+    gap: 5px;
+}
+
+.node-quick-actions button {
+    width: 30px;
+    height: 30px;
+    min-width: 30px;
+    padding: 0;
+    display: grid;
+    place-items: center;
+    border-radius: 999px;
+    font-size: 16px;
+    font-weight: 650;
+    line-height: 1;
+}
+
+.node-quick-actions .quick-nav-row button {
+    font-size: 15px;
+}
+
 .status-strip {
     position: fixed;
     top: 12px;
@@ -143,10 +190,6 @@ body {
     font-size: 20px;
     line-height: 1;
     font-weight: 650;
-}
-
-#deleteBtn[data-icon]::before {
-    font-size: 23px;
 }
 
 button,
@@ -195,6 +238,7 @@ button:hover,
 
     .toolbar .group,
     .status-strip,
+    .node-quick-actions,
     .node,
     .modal {
         border-color: rgba(255, 255, 255, .10);
@@ -855,10 +899,6 @@ textarea#importExportArea {
 
     .toolbar button[data-icon]::before {
         font-size: 19px;
-    }
-
-    #deleteBtn[data-icon]::before {
-        font-size: 22px;
     }
 
     .settings-grid {

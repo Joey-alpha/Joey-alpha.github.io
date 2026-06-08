@@ -62,7 +62,7 @@
     const edges = document.getElementById('edges');
     const nodesLayer = document.getElementById('nodesLayer');
     const statusText = document.getElementById('statusText');
-    const makeRootBtn = document.getElementById('makeRootBtn');
+    const nodeQuickActions = document.getElementById('nodeQuickActions');
 
     const editorBackdrop = document.getElementById('editorBackdrop');
     const editorForm = document.getElementById('editorForm');
@@ -742,6 +742,20 @@
         persistAndRender();
     }
 
+    function getVisibleTraversalIds() {
+        const ids = [];
+        const seen = new Set();
+        const walk = id => {
+            const node = getNode(id);
+            if (!node || seen.has(id)) return;
+            seen.add(id);
+            ids.push(id);
+            if (!node.collapsed) node.children.forEach(walk);
+        };
+        state.rootIds.forEach(walk);
+        return ids;
+    }
+
     function getNodeTraversalIds() {
         const ids = [];
         const seen = new Set();
@@ -786,6 +800,82 @@
         view.y = Math.round(rect.height / 2 - (pos.y + pos.height / 2) * view.scale);
         applyView();
         return true;
+    }
+
+    function getNavigationTarget(direction) {
+        if (!selectedId || !getNode(selectedId)) return null;
+
+        if (direction === 'up') return findParentId(selectedId);
+
+        if (direction === 'down') {
+            const node = getNode(selectedId);
+            return node && node.children.length ? node.children[0] : null;
+        }
+
+        const visibleIds = getVisibleTraversalIds();
+        const index = visibleIds.indexOf(selectedId);
+        if (index < 0) return null;
+        if (direction === 'left') return visibleIds[index - 1] || null;
+        if (direction === 'right') return visibleIds[index + 1] || null;
+        return null;
+    }
+
+    function moveSelection(direction) {
+        const targetId = getNavigationTarget(direction);
+        if (!targetId) return false;
+
+        if (direction === 'right') {
+            const current = getNode(selectedId);
+            if (current && current.collapsed && current.children.length) {
+                current.collapsed = false;
+                saveState();
+                render();
+            }
+        }
+
+        selectNode(targetId);
+        centerViewOnNode(targetId);
+        return true;
+    }
+
+    function updateNodeQuickActions() {
+        if (!nodeQuickActions) return;
+        const node = selectedId ? getNode(selectedId) : null;
+        const pos = selectedId ? layoutMap.get(selectedId) : null;
+        const shouldHide = !node || !pos || editorBackdrop.classList.contains('open') ||
+            exportBackdrop.classList.contains('open') || settingsBackdrop.classList.contains('open') ||
+            spaceNameBackdrop.classList.contains('open');
+
+        if (shouldHide) {
+            nodeQuickActions.classList.add('hidden');
+            return;
+        }
+
+        nodeQuickActions.classList.remove('hidden');
+        const viewportRect = viewport.getBoundingClientRect();
+        const scaledLeft = viewportRect.left + view.x + pos.x * view.scale;
+        const scaledTop = viewportRect.top + view.y + pos.y * view.scale;
+        const scaledWidth = pos.width * view.scale;
+        const scaledHeight = pos.height * view.scale;
+        const gap = 8;
+        const menuWidth = nodeQuickActions.offsetWidth || 148;
+        const menuHeight = nodeQuickActions.offsetHeight || 72;
+        const viewportPadding = 8;
+        let left = scaledLeft + scaledWidth + gap;
+        if (left + menuWidth > window.innerWidth - viewportPadding) {
+            left = scaledLeft - menuWidth - gap;
+        }
+        let top = scaledTop + scaledHeight / 2 - menuHeight / 2;
+        left = clamp(left, viewportPadding, window.innerWidth - menuWidth - viewportPadding);
+        top = clamp(top, viewportPadding, window.innerHeight - menuHeight - viewportPadding);
+
+        nodeQuickActions.style.setProperty('--quick-x', `${Math.round(left)}px`);
+        nodeQuickActions.style.setProperty('--quick-y', `${Math.round(top)}px`);
+        nodeQuickActions.querySelector('[data-node-action="make-root"]').disabled = state.rootIds.includes(selectedId);
+        ['left', 'up', 'down', 'right'].forEach(direction => {
+            const button = nodeQuickActions.querySelector(`[data-node-action="move-${direction}"]`);
+            if (button) button.disabled = !getNavigationTarget(direction);
+        });
     }
 
     function setSearchStatus(text) {
@@ -1184,6 +1274,7 @@
 
     function applyView() {
         scene.style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.scale})`;
+        updateNodeQuickActions();
     }
 
     function resetView() {
@@ -1784,6 +1875,7 @@
         selectedId = id;
         nodeEls.forEach((el, nid) => el.classList.toggle('selected', nid === id));
         updateStatus();
+        updateNodeQuickActions();
     }
 
     function setParentImpact(id, impact) {
@@ -1836,6 +1928,7 @@
         editingId = id;
         titleInput.value = node.title;
         editorBackdrop.classList.add('open');
+        updateNodeQuickActions();
         setEditorStatsOpen(false);
         updateParentImpactUI();
         updateEditorStats();
@@ -1849,6 +1942,7 @@
         }
         editingId = null;
         editorBackdrop.classList.remove('open');
+        updateNodeQuickActions();
     }
 
     function updateEditorStats() {
@@ -1905,6 +1999,7 @@
     function exportJson() {
         importExportArea.value = JSON.stringify(state, null, 2);
         exportBackdrop.classList.add('open');
+        updateNodeQuickActions();
         importExportArea.focus();
         importExportArea.select();
     }
@@ -1966,6 +2061,7 @@
 
     function closeExport() {
         exportBackdrop.classList.remove('open');
+        updateNodeQuickActions();
     }
 
     function loadJsonString(text) {
@@ -2101,11 +2197,13 @@
     function openSettings() {
         renderSpaceSettings();
         settingsBackdrop.classList.add('open');
+        updateNodeQuickActions();
         refreshCloudSpaces();
     }
 
     function closeSettings() {
         settingsBackdrop.classList.remove('open');
+        updateNodeQuickActions();
     }
 
     function openSpaceNameDialog(storageMode, space = null) {
@@ -2117,6 +2215,7 @@
         spaceNameMessage.textContent = '';
         spaceNameSaveBtn.textContent = isRename ? 'Save' : 'Create';
         spaceNameBackdrop.classList.add('open');
+        updateNodeQuickActions();
         setTimeout(() => {
             spaceNameInput.focus();
             if (isRename) spaceNameInput.select();
@@ -2128,6 +2227,7 @@
         spaceNameMessage.textContent = '';
         pendingRenameSpaceId = null;
         spaceNameSaveBtn.textContent = 'Create';
+        updateNodeQuickActions();
     }
 
     async function saveNamedSpace() {
@@ -2320,17 +2420,26 @@
     }
 
     document.getElementById('addRootBtn').addEventListener('click', addRoot);
-    document.getElementById('addChildBtn').addEventListener('click', function () {
-        if (selectedId) addChild(selectedId); else addRoot();
+    nodeQuickActions.addEventListener('pointerdown', function (e) {
+        e.stopPropagation();
     });
-    document.getElementById('addSiblingBtn').addEventListener('click', function () {
-        if (selectedId) addSibling(selectedId); else addRoot();
-    });
-    makeRootBtn.addEventListener('click', function () {
-        if (selectedId) promoteToRoot(selectedId);
-    });
-    document.getElementById('deleteBtn').addEventListener('click', function () {
-        if (selectedId) deleteNode(selectedId);
+    nodeQuickActions.addEventListener('click', function (e) {
+        const button = closestElement(e.target, '[data-node-action]');
+        if (!button || button.disabled) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const action = button.dataset.nodeAction;
+        if (action === 'add-child') {
+            if (selectedId) addChild(selectedId); else addRoot();
+        } else if (action === 'add-sibling') {
+            if (selectedId) addSibling(selectedId); else addRoot();
+        } else if (action === 'make-root') {
+            if (selectedId) promoteToRoot(selectedId);
+        } else if (action === 'delete') {
+            if (selectedId) deleteNode(selectedId);
+        } else if (action.startsWith('move-')) {
+            moveSelection(action.replace('move-', ''));
+        }
     });
     document.getElementById('exportBtn').addEventListener('click', exportJson);
     document.getElementById('resetViewBtn').addEventListener('click', resetView);
@@ -2496,7 +2605,17 @@
             return;
         }
         if (inInput) return;
-        if (!selectedId) return;
+        if (!selectedId) {
+            if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+                const firstId = getVisibleTraversalIds()[0];
+                if (firstId) {
+                    e.preventDefault();
+                    selectNode(firstId);
+                    centerViewOnNode(firstId);
+                }
+            }
+            return;
+        }
 
         if (e.key === 'Enter') {
             e.preventDefault();
@@ -2510,6 +2629,18 @@
         } else if (e.key === ' ') {
             e.preventDefault();
             toggleNodeCollapse(selectedId);
+        } else if (e.key === 'ArrowLeft') {
+            e.preventDefault();
+            moveSelection('left');
+        } else if (e.key === 'ArrowRight') {
+            e.preventDefault();
+            moveSelection('right');
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            moveSelection('up');
+        } else if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            moveSelection('down');
         }
     });
 
