@@ -65,12 +65,14 @@
     const makeRootBtn = document.getElementById('makeRootBtn');
 
     const editorBackdrop = document.getElementById('editorBackdrop');
+    const editorForm = document.getElementById('editorForm');
     const titleInput = document.getElementById('titleInput');
     const parentImpactPanel = document.getElementById('parentImpactPanel');
     const parentImpactButtons = Array.from(document.querySelectorAll('[data-impact]'));
     const editorStats = document.getElementById('editorStats');
     const plusCountBtn = document.getElementById('plusCountBtn');
     const plusTimeBtn = document.getElementById('plusTimeBtn');
+    const toggleStatsBtn = document.getElementById('toggleStatsBtn');
     const saveNodeBtn = document.getElementById('saveNodeBtn');
     const cancelNodeBtn = document.getElementById('cancelNodeBtn');
 
@@ -80,6 +82,8 @@
     const settingsBtn = document.getElementById('settingsBtn');
     const settingsBackdrop = document.getElementById('settingsBackdrop');
     const closeSettingsBtn = document.getElementById('closeSettingsBtn');
+    const nodeSearchGroup = document.querySelector('.search-group');
+    const nodeSearchToggleBtn = document.getElementById('nodeSearchToggleBtn');
     const nodeSearchInput = document.getElementById('nodeSearchInput');
     const nodeSearchPrevBtn = document.getElementById('nodeSearchPrevBtn');
     const nodeSearchNextBtn = document.getElementById('nodeSearchNextBtn');
@@ -114,8 +118,11 @@
     let pendingNodeClick = null;
     let recentNodeSingleToggle = null;
     let ignoreNodeClickUntil = 0;
+    let pendingNewNodeId = null;
+    let pendingNewNodePreviousSelectedId = null;
     let pinchState = null;
     let searchState = { query: '', matches: [], index: -1, focused: false };
+    let searchCollapseTimer = 0;
     let dragAutoPanFrame = 0;
     let dragAutoPanLastTs = 0;
     let activeLegacyMode = false;
@@ -125,6 +132,7 @@
     const CHIP_TAP_MOVE_PX = 12;
     const NODE_EDIT_TAP_MS = 420;
     const NODE_SINGLE_CLICK_DELAY_MS = 260;
+    const SEARCH_EMPTY_COLLAPSE_MS = 4000;
     const DRAG_AUTO_PAN_EDGE_PX = 72;
     const DRAG_AUTO_PAN_MAX_SPEED = 520;
 
@@ -569,11 +577,11 @@
         return false;
     }
 
-    function addNode(title) {
+    function addNode(title = TITLE_DEFAULT) {
         const id = uid();
         state.nodes[id] = {
             id,
-            title: title || TITLE_DEFAULT,
+            title,
             activityLog: [],
             children: [],
             parentImpact: PARENT_IMPACT_BENEFIT,
@@ -583,27 +591,30 @@
     }
 
     function addRoot() {
-        const id = addNode(TITLE_DEFAULT);
+        const previousSelectedId = selectedId;
+        const id = addNode('');
         state.rootIds.push(id);
         selectedId = id;
-        persistAndRender();
-        openEditor(id);
+        render();
+        openEditor(id, { isNew: true, previousSelectedId });
     }
 
     function addChild(parentId) {
         if (!getNode(parentId)) return addRoot();
-        const id = addNode(TITLE_DEFAULT);
+        const previousSelectedId = selectedId;
+        const id = addNode('');
         getNode(parentId).children.push(id);
         getNode(parentId).collapsed = false;
         selectedId = id;
-        persistAndRender();
+        render();
         adjustViewAfterLayoutChange();
-        openEditor(id);
+        openEditor(id, { isNew: true, previousSelectedId });
     }
 
     function addSibling(nodeId) {
         const parentId = findParentId(nodeId);
-        const id = addNode(TITLE_DEFAULT);
+        const previousSelectedId = selectedId;
+        const id = addNode('');
         if (parentId) {
             const siblings = getNode(parentId).children;
             const idx = siblings.indexOf(nodeId);
@@ -613,9 +624,9 @@
             state.rootIds.splice(Math.max(0, idx) + 1, 0, id);
         }
         selectedId = id;
-        persistAndRender();
+        render();
         adjustViewAfterLayoutChange();
-        openEditor(id);
+        openEditor(id, { isNew: true, previousSelectedId });
     }
 
     function promoteToRoot(nodeId) {
@@ -669,6 +680,36 @@
         if (!node) return;
         node.children.forEach(removeSubtree);
         delete state.nodes[id];
+    }
+
+    function removeNodeReference(nodeId) {
+        const parentId = findParentId(nodeId);
+        if (parentId) {
+            const parent = getNode(parentId);
+            if (parent) parent.children = parent.children.filter(id => id !== nodeId);
+        } else {
+            state.rootIds = state.rootIds.filter(id => id !== nodeId);
+        }
+    }
+
+    function discardPendingNewNode() {
+        const nodeId = pendingNewNodeId;
+        if (!nodeId) return false;
+        pendingNewNodeId = null;
+        const previousSelectedId = pendingNewNodePreviousSelectedId;
+        pendingNewNodePreviousSelectedId = null;
+
+        if (getNode(nodeId)) {
+            removeNodeReference(nodeId);
+            removeSubtree(nodeId);
+        }
+
+        selectedId = previousSelectedId && getNode(previousSelectedId)
+            ? previousSelectedId
+            : state.rootIds[0] || Object.keys(state.nodes)[0] || null;
+        saveState();
+        render();
+        return true;
     }
 
     function moveNode(dragId, targetId, mode) {
@@ -749,6 +790,32 @@
 
     function setSearchStatus(text) {
         if (nodeSearchStatus) nodeSearchStatus.textContent = text || '';
+    }
+
+    function clearSearchCollapseTimer() {
+        if (!searchCollapseTimer) return;
+        window.clearTimeout(searchCollapseTimer);
+        searchCollapseTimer = 0;
+    }
+
+    function scheduleEmptySearchCollapse() {
+        clearSearchCollapseTimer();
+        if (!nodeSearchInput || nodeSearchInput.value.trim()) return;
+        searchCollapseTimer = window.setTimeout(() => {
+            if (nodeSearchInput.value.trim()) return;
+            setSearchOpen(false);
+        }, SEARCH_EMPTY_COLLAPSE_MS);
+    }
+
+    function setSearchOpen(isOpen) {
+        if (!nodeSearchGroup || !nodeSearchToggleBtn) return;
+        clearSearchCollapseTimer();
+        nodeSearchGroup.classList.toggle('collapsed', !isOpen);
+        nodeSearchToggleBtn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+        if (isOpen) {
+            setTimeout(() => nodeSearchInput.focus({ preventScroll: true }), 0);
+            scheduleEmptySearchCollapse();
+        }
     }
 
     function updateSearchControls() {
@@ -1751,21 +1818,35 @@
         });
     }
 
-    function openEditor(id) {
+    function setEditorStatsOpen(isOpen) {
+        editorStats.hidden = !isOpen;
+        toggleStatsBtn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    }
+
+    function openEditor(id, options = {}) {
         const node = getNode(id);
         if (!node) return;
+        if (options.isNew) {
+            pendingNewNodeId = id;
+            pendingNewNodePreviousSelectedId = options.previousSelectedId || null;
+        } else {
+            pendingNewNodeId = null;
+            pendingNewNodePreviousSelectedId = null;
+        }
         editingId = id;
         titleInput.value = node.title;
         editorBackdrop.classList.add('open');
+        setEditorStatsOpen(false);
         updateParentImpactUI();
         updateEditorStats();
-        setTimeout(() => {
-            titleInput.focus();
-            titleInput.select();
-        }, 0);
+        titleInput.focus({ preventScroll: true });
+        titleInput.setSelectionRange(titleInput.value.length, titleInput.value.length);
     }
 
     function closeEditor() {
+        if (pendingNewNodeId) {
+            discardPendingNewNode();
+        }
         editingId = null;
         editorBackdrop.classList.remove('open');
     }
@@ -1793,7 +1874,14 @@
     function saveEditor() {
         const node = editingId ? getNode(editingId) : null;
         if (!node) return;
-        node.title = titleInput.value.trim() || TITLE_DEFAULT;
+        const nextTitle = titleInput.value.trim();
+        if (pendingNewNodeId === editingId && !nextTitle) {
+            closeEditor();
+            return;
+        }
+        pendingNewNodeId = null;
+        pendingNewNodePreviousSelectedId = null;
+        node.title = nextTitle || TITLE_DEFAULT;
         persistAndRender();
         closeEditor();
     }
@@ -2238,24 +2326,43 @@
     });
     document.getElementById('exportBtn').addEventListener('click', exportJson);
     document.getElementById('resetViewBtn').addEventListener('click', resetView);
+    nodeSearchToggleBtn.addEventListener('click', function () {
+        setSearchOpen(nodeSearchGroup.classList.contains('collapsed'));
+    });
     nodeSearchInput.addEventListener('input', function () {
         runNodeSearch(selectedId);
+        if (nodeSearchInput.value.trim()) {
+            clearSearchCollapseTimer();
+        } else {
+            scheduleEmptySearchCollapse();
+        }
+    });
+    nodeSearchInput.addEventListener('focus', function () {
+        scheduleEmptySearchCollapse();
     });
     nodeSearchInput.addEventListener('keydown', function (e) {
         if (e.key === 'Enter') {
             e.preventDefault();
+            clearSearchCollapseTimer();
             stepSearchResult(e.shiftKey ? -1 : 1);
         } else if (e.key === 'Escape') {
             e.preventDefault();
-            nodeSearchInput.value = '';
-            runNodeSearch();
+            if (nodeSearchInput.value) {
+                nodeSearchInput.value = '';
+                runNodeSearch();
+                scheduleEmptySearchCollapse();
+            } else {
+                setSearchOpen(false);
+            }
         }
     });
     nodeSearchPrevBtn.addEventListener('click', function () {
+        clearSearchCollapseTimer();
         stepSearchResult(-1);
         nodeSearchInput.focus();
     });
     nodeSearchNextBtn.addEventListener('click', function () {
+        clearSearchCollapseTimer();
         stepSearchResult(1);
         nodeSearchInput.focus();
     });
@@ -2323,12 +2430,18 @@
     plusTimeBtn.addEventListener('click', function () {
         if (editingId) pushActivity(editingId, 0, 20);
     });
+    toggleStatsBtn.addEventListener('click', function () {
+        setEditorStatsOpen(editorStats.hidden);
+    });
     parentImpactButtons.forEach(btn => {
         btn.addEventListener('click', function () {
             if (editingId) setParentImpact(editingId, btn.dataset.impact);
         });
     });
-    saveNodeBtn.addEventListener('click', saveEditor);
+    editorForm.addEventListener('submit', function (e) {
+        e.preventDefault();
+        saveEditor();
+    });
     cancelNodeBtn.addEventListener('click', closeEditor);
     editorBackdrop.addEventListener('click', function (e) {
         if (e.target === editorBackdrop) closeEditor();

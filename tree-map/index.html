@@ -10,28 +10,31 @@
 
 <body>
     <div id="app">
+        <div class="status-strip">
+            <div class="space-name" id="currentSpaceName"></div>
+            <div class="status" id="statusText">No selection</div>
+        </div>
+
         <div class="toolbar">
-            <div class="group">
-                <button id="addRootBtn">Add Root</button>
-                <button id="addChildBtn">Add Child</button>
-                <button id="addSiblingBtn">Add Sibling</button>
-                <button id="makeRootBtn">Make Root</button>
-                <button id="deleteBtn" class="danger">Delete</button>
+            <div class="group node-action-group">
+                <button id="addRootBtn" title="Add Root" aria-label="Add Root" data-icon="+">Add Root</button>
+                <button id="addChildBtn" title="Add Child" aria-label="Add Child" data-icon="↳">Add Child</button>
+                <button id="addSiblingBtn" title="Add Sibling" aria-label="Add Sibling" data-icon="⇥">Add Sibling</button>
+                <button id="makeRootBtn" title="Make Root" aria-label="Make Root" data-icon="↑">Make Root</button>
+                <button id="deleteBtn" class="danger" title="Delete" aria-label="Delete" data-icon="×">Delete</button>
             </div>
-            <div class="group">
-                <button id="resetViewBtn">Reset View</button>
-                <button id="settingsBtn">Settings</button>
+            <div class="group view-action-group">
+                <button id="resetViewBtn" title="Reset View" aria-label="Reset View" data-icon="⟳">Reset View</button>
+                <button id="settingsBtn" title="Settings" aria-label="Settings" data-icon="⚙">Settings</button>
             </div>
-            <div class="group search-group" role="search">
-                <input id="nodeSearchInput" class="node-search-input" type="search" placeholder="Search nodes"
+            <div class="group search-group collapsed" role="search">
+                <button id="nodeSearchToggleBtn" class="search-toggle-btn" type="button" aria-label="Search nodes"
+                    aria-expanded="false" data-icon="⌕">Search</button>
+                <input id="nodeSearchInput" class="node-search-input" type="search" placeholder="Search"
                     aria-label="Search nodes" autocomplete="off" />
                 <button id="nodeSearchPrevBtn" class="search-step-btn" aria-label="Previous search result">‹</button>
                 <button id="nodeSearchNextBtn" class="search-step-btn" aria-label="Next search result">›</button>
                 <div class="search-status" id="nodeSearchStatus"></div>
-            </div>
-            <div class="group">
-                <div class="space-name" id="currentSpaceName"></div>
-                <div class="status" id="statusText">No selection</div>
             </div>
         </div>
 
@@ -42,17 +45,11 @@
             </div>
         </div>
 
-        <div class="hint">
-            Click card to collapse / expand. Double click or second tap to edit. Enter edit · Tab child · Delete
-            remove · Space collapse. Drag
-            nodes to re-parent or reorder. Wheel / pinch to zoom, drag background to pan.
-        </div>
-
         <div class="modal-backdrop" id="editorBackdrop">
-            <div class="modal">
+            <form class="modal" id="editorForm">
                 <h3>Edit Node</h3>
                 <label for="titleInput">Title</label>
-                <input id="titleInput" type="text" maxlength="120" />
+                <input id="titleInput" type="text" maxlength="120" enterkeyhint="done" autocomplete="off" />
                 <div class="impact-panel" id="parentImpactPanel" hidden>
                     <label>Parent impact</label>
                     <div class="impact-toggle" role="group" aria-label="Parent impact">
@@ -61,15 +58,16 @@
                     </div>
                 </div>
                 <div class="row">
-                    <button id="plusCountBtn">+1 count</button>
-                    <button id="plusTimeBtn">+20 minutes</button>
+                    <button id="plusCountBtn" type="button">+1 count</button>
+                    <button id="plusTimeBtn" type="button">+20 minutes</button>
+                    <button id="toggleStatsBtn" type="button" aria-expanded="false" aria-controls="editorStats">Stats</button>
                 </div>
-                <div class="stats" id="editorStats"></div>
+                <div class="stats" id="editorStats" hidden></div>
                 <div class="row">
-                    <button id="saveNodeBtn" class="primary">Save</button>
-                    <button id="cancelNodeBtn">Close</button>
+                    <button id="saveNodeBtn" class="primary" type="submit">Save</button>
+                    <button id="cancelNodeBtn" type="button">Close</button>
                 </div>
-            </div>
+            </form>
         </div>
 
         <div class="modal-backdrop" id="exportBackdrop">
