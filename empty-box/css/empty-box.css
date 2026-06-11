@@ -59,6 +59,7 @@
     }
 
     body.night .must-do-item,
+    body.night .pinned-item,
     body.night .daily-item {
         background: rgba(24, 30, 46, 0.50);
         border-color: rgba(255, 255, 255, 0.08);
@@ -131,6 +132,7 @@
         }
 
         body .must-do-item,
+        body .pinned-item,
         body .daily-item {
             background: rgba(24, 30, 46, 0.50);
             border-color: rgba(255, 255, 255, 0.08);
