@@ -911,9 +911,6 @@ textarea#importExportArea {
     .toolbar {
         right: 12px;
         bottom: calc(12px + env(safe-area-inset-bottom));
-        display: grid;
-        grid-template-columns: auto auto;
-        grid-template-rows: auto auto;
         align-items: end;
         gap: 8px;
         max-height: calc(100vh - 96px);
@@ -938,22 +935,7 @@ textarea#importExportArea {
         grid-template-columns: 1fr;
     }
 
-    .node-action-group {
-        grid-column: 2;
-        grid-row: 1 / span 2;
-        justify-self: end;
-    }
-
-    .view-action-group {
-        grid-column: 1;
-        grid-row: 2;
-        justify-self: end;
-    }
-
     .search-group {
-        grid-column: 1;
-        grid-row: 1;
-        justify-self: end;
         max-width: 218px;
         border-radius: 16px;
     }
