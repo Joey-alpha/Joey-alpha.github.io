@@ -13,6 +13,7 @@ const taskInput = document.getElementById('taskInput');
 const addBtn = document.getElementById('addBtn');
 const closeBtn = document.getElementById('closeBtn');
 const message = document.getElementById('message');
+let isSubmitting = false;
 
 function readJson(key, fallback = null) {
   try {
@@ -161,6 +162,13 @@ function setMessage(text, type) {
   message.className = 'message' + (type ? ' ' + type : '');
 }
 
+function setSubmitting(nextSubmitting) {
+  isSubmitting = nextSubmitting;
+  taskInput.disabled = nextSubmitting;
+  addBtn.disabled = nextSubmitting;
+  addBtn.textContent = nextSubmitting ? '添加中…' : '放进 box';
+}
+
 function tryCloseWindow() {
   window.close();
 
@@ -170,9 +178,22 @@ function tryCloseWindow() {
 }
 
 async function submit() {
-  const result = await addToBoxQuick(taskInput.value);
+  if (isSubmitting) return;
+  setSubmitting(true);
+  setMessage('添加中…', '');
+
+  let result;
+  try {
+    result = await addToBoxQuick(taskInput.value);
+  } catch (error) {
+    console.error(error);
+    setSubmitting(false);
+    setMessage('添加失败。', 'error');
+    return;
+  }
 
   if (!result.ok) {
+    setSubmitting(false);
     if (result.reason === 'empty') {
       setMessage('任务不能为空。', 'error');
     } else if (result.reason === 'duplicate') {
@@ -185,6 +206,7 @@ async function submit() {
 
   setMessage('已添加。', 'success');
   taskInput.value = '';
+  setSubmitting(false);
   tryCloseWindow();
 }
 

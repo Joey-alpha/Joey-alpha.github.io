@@ -98,6 +98,12 @@ p.desc {
   transition: 0.2s ease;
 }
 
+.btn:disabled,
+.input:disabled {
+  cursor: wait;
+  opacity: 0.68;
+}
+
 .btn.primary {
   background: var(--accent);
   color: #fff;
