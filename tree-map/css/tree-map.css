@@ -133,6 +133,12 @@ body {
     pointer-events: none;
 }
 
+.node-quick-actions.viewport-moving {
+    opacity: 0;
+    pointer-events: none;
+    transition-duration: .08s;
+}
+
 .quick-action-row {
     display: flex;
     gap: 5px;

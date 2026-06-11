@@ -123,6 +123,7 @@
     let pinchState = null;
     let searchState = { query: '', matches: [], index: -1, focused: false };
     let searchCollapseTimer = 0;
+    let quickActionsRestoreTimer = 0;
     let dragAutoPanFrame = 0;
     let dragAutoPanLastTs = 0;
     let activeLegacyMode = false;
@@ -133,6 +134,7 @@
     const NODE_EDIT_TAP_MS = 420;
     const NODE_SINGLE_CLICK_DELAY_MS = 260;
     const SEARCH_EMPTY_COLLAPSE_MS = 4000;
+    const QUICK_ACTIONS_RESTORE_MS = 140;
     const DRAG_AUTO_PAN_EDGE_PX = 72;
     const DRAG_AUTO_PAN_MAX_SPEED = 520;
 
@@ -841,6 +843,25 @@
         return true;
     }
 
+    function suspendNodeQuickActions() {
+        if (!nodeQuickActions) return;
+        if (quickActionsRestoreTimer) {
+            window.clearTimeout(quickActionsRestoreTimer);
+            quickActionsRestoreTimer = 0;
+        }
+        nodeQuickActions.classList.add('viewport-moving');
+    }
+
+    function restoreNodeQuickActions(delay = QUICK_ACTIONS_RESTORE_MS) {
+        if (!nodeQuickActions) return;
+        if (quickActionsRestoreTimer) window.clearTimeout(quickActionsRestoreTimer);
+        quickActionsRestoreTimer = window.setTimeout(() => {
+            quickActionsRestoreTimer = 0;
+            nodeQuickActions.classList.remove('viewport-moving');
+            updateNodeQuickActions();
+        }, delay);
+    }
+
     function updateNodeQuickActions() {
         if (!nodeQuickActions) return;
         const node = selectedId ? getNode(selectedId) : null;
@@ -855,6 +876,11 @@
         }
 
         nodeQuickActions.classList.remove('hidden');
+        if (quickActionsRestoreTimer) {
+            window.clearTimeout(quickActionsRestoreTimer);
+            quickActionsRestoreTimer = 0;
+        }
+        nodeQuickActions.classList.remove('viewport-moving');
         const viewportRect = viewport.getBoundingClientRect();
         const scaledLeft = viewportRect.left + view.x + pos.x * view.scale;
         const scaledTop = viewportRect.top + view.y + pos.y * view.scale;
@@ -1275,8 +1301,13 @@
         scale: 1,
     };
 
-    function applyView() {
+    function applyView(options = {}) {
         scene.style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.scale})`;
+        if (options.deferQuickActions) {
+            suspendNodeQuickActions();
+            restoreNodeQuickActions();
+            return;
+        }
         updateNodeQuickActions();
     }
 
@@ -1390,7 +1421,7 @@
         const rect = viewport.getBoundingClientRect();
         view.x = clientX - rect.left - before.x * view.scale;
         view.y = clientY - rect.top - before.y * view.scale;
-        applyView();
+        applyView({ deferQuickActions: true });
     }
 
     function updateDraggedNodePosition() {
@@ -1448,7 +1479,7 @@
         if (velocity.x || velocity.y) {
             view.x += velocity.x * dt / 1000;
             view.y += velocity.y * dt / 1000;
-            applyView();
+            applyView({ deferQuickActions: true });
             updateDraggedNodePosition();
 
             const target = detectDropTarget(dragState.lastClientX, dragState.lastClientY, dragState.id);
@@ -2358,6 +2389,7 @@
             viewX: view.x,
             viewY: view.y,
         };
+        suspendNodeQuickActions();
         viewport.classList.add('panning');
     });
 
@@ -2365,7 +2397,7 @@
         if (panState && panState.pointerId === e.pointerId) {
             view.x = panState.viewX + (e.clientX - panState.startX);
             view.y = panState.viewY + (e.clientY - panState.startY);
-            applyView();
+            applyView({ deferQuickActions: true });
         }
     });
 
@@ -2374,11 +2406,13 @@
             viewport.releasePointerCapture(e.pointerId);
             panState = null;
             viewport.classList.remove('panning');
+            restoreNodeQuickActions(70);
         }
     });
     viewport.addEventListener('pointercancel', function () {
         panState = null;
         viewport.classList.remove('panning');
+        restoreNodeQuickActions(70);
     });
 
     viewport.addEventListener('wheel', function (e) {
@@ -2389,6 +2423,7 @@
 
     viewport.addEventListener('touchstart', function (e) {
         if (e.touches.length === 2) {
+            suspendNodeQuickActions();
             pinchState = {
                 dist: touchDistance(e.touches[0], e.touches[1]),
                 center: touchCenter(e.touches[0], e.touches[1]),
@@ -2407,12 +2442,15 @@
             const rect = viewport.getBoundingClientRect();
             view.x = center.x - rect.left - ((center.x - rect.left - view.x) / Math.max(0.0001, factor));
             view.y = center.y - rect.top - ((center.y - rect.top - view.y) / Math.max(0.0001, factor));
-            applyView();
+            applyView({ deferQuickActions: true });
         }
     }, { passive: false });
 
     viewport.addEventListener('touchend', function (e) {
-        if (e.touches.length < 2) pinchState = null;
+        if (e.touches.length < 2) {
+            pinchState = null;
+            restoreNodeQuickActions(70);
+        }
     });
 
     function touchDistance(a, b) {
