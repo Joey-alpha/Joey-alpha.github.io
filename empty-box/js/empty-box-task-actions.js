@@ -30,6 +30,17 @@
         });
     }
 
+    function closeAllMenus() {
+        document.querySelectorAll('.candidate-item.is-menu-open').forEach(item => {
+            item.classList.remove('is-menu-open');
+        });
+    }
+
+    document.addEventListener('click', event => {
+        if (event.target.closest('.candidate-more-btn, .candidate-actions')) return;
+        closeAllMenus();
+    });
+
     function createButton(text, className = 'btn secondary compact') {
         const button = document.createElement('button');
         button.type = 'button';
