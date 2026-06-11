@@ -186,6 +186,7 @@
         DEFAULT_MUST_DO_CRITERIA,
         MUST_DO_INBOX_CRITERION,
         cloneDefaultMustDoCriteria,
+        createMustDoCriterionId,
         isInboxMustDoCriterion,
         normalizeTaskList,
         normalizeMustDoCriteria,
