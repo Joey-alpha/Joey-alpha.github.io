@@ -208,6 +208,7 @@ body {
 }
 
 .toolbar button[data-icon] {
+    position: relative;
     width: 42px;
     height: 42px;
     min-width: 42px;
@@ -220,6 +221,10 @@ body {
 
 .toolbar button[data-icon]::before {
     content: attr(data-icon);
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
     font-size: 20px;
     line-height: 1;
     font-weight: 650;
