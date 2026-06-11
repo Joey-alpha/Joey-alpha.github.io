@@ -114,9 +114,6 @@
     let dragState = null;
     let panState = null;
     let tapInfo = { id: null, ts: 0 };
-    let nodeClickTimer = 0;
-    let pendingNodeClick = null;
-    let recentNodeSingleToggle = null;
     let ignoreNodeClickUntil = 0;
     let pendingNewNodeId = null;
     let pendingNewNodePreviousSelectedId = null;
@@ -132,7 +129,6 @@
     const CHIP_DOUBLE_TAP_MS = 360;
     const CHIP_TAP_MOVE_PX = 12;
     const NODE_EDIT_TAP_MS = 420;
-    const NODE_SINGLE_CLICK_DELAY_MS = 260;
     const SEARCH_EMPTY_COLLAPSE_MS = 4000;
     const QUICK_ACTIONS_RESTORE_MS = 140;
     const DRAG_AUTO_PAN_EDGE_PX = 72;
@@ -1013,14 +1009,6 @@
         refreshSearchAfterTreeChange();
     }
 
-    function clearPendingNodeClick() {
-        if (nodeClickTimer) {
-            window.clearTimeout(nodeClickTimer);
-            nodeClickTimer = 0;
-        }
-        pendingNodeClick = null;
-    }
-
     function toggleNodeCollapse(id) {
         const node = getNode(id);
         if (!node || !node.children.length) return false;
@@ -1031,48 +1019,7 @@
         return true;
     }
 
-    function scheduleNodeSingleClick(id, clickedAt) {
-        clearPendingNodeClick();
-        pendingNodeClick = { id, clickedAt };
-        nodeClickTimer = window.setTimeout(() => {
-            const pending = pendingNodeClick;
-            nodeClickTimer = 0;
-            pendingNodeClick = null;
-            if (!pending || pending.id !== id) return;
-
-            const node = getNode(id);
-            const previousCollapsed = !!(node && node.collapsed);
-            const toggled = toggleNodeCollapse(id);
-            recentNodeSingleToggle = toggled
-                ? { id, clickedAt, previousCollapsed }
-                : null;
-        }, NODE_SINGLE_CLICK_DELAY_MS);
-    }
-
-    function restoreRecentNodeSingleToggle(id, now) {
-        if (
-            !recentNodeSingleToggle ||
-            recentNodeSingleToggle.id !== id ||
-            now - recentNodeSingleToggle.clickedAt > NODE_EDIT_TAP_MS
-        ) {
-            recentNodeSingleToggle = null;
-            return;
-        }
-
-        const node = getNode(id);
-        if (node && node.children.length) {
-            trackNodePosition(id);
-            node.collapsed = recentNodeSingleToggle.previousCollapsed;
-            persistAndRender();
-            adjustViewAfterLayoutChange();
-        }
-        recentNodeSingleToggle = null;
-    }
-
     function openEditorFromNodeGesture(id) {
-        const now = Date.now();
-        clearPendingNodeClick();
-        restoreRecentNodeSingleToggle(id, now);
         tapInfo = { id: null, ts: 0 };
         openEditor(id);
     }
@@ -1644,7 +1591,6 @@
                 return;
             }
             tapInfo = { id, ts: now };
-            scheduleNodeSingleClick(id, now);
         });
 
         el.addEventListener('dblclick', function (e) {
@@ -1713,7 +1659,6 @@
             const wasDragging = dragState.dragging;
             if (wasDragging) {
                 ignoreNodeClickUntil = Date.now() + 500;
-                clearPendingNodeClick();
                 tapInfo = { id: null, ts: 0 };
                 stopDragAutoPan();
             }
@@ -1734,7 +1679,6 @@
             el.style.zIndex = '';
             if (dragState && dragState.dragging) {
                 ignoreNodeClickUntil = Date.now() + 500;
-                clearPendingNodeClick();
                 tapInfo = { id: null, ts: 0 };
                 stopDragAutoPan();
             }
