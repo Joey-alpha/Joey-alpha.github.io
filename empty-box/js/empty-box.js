@@ -1,4 +1,5 @@
 const StorageService = window.EmptyBoxStorage;
+const TaskActions = window.EmptyBoxTaskActions;
 const { STORAGE_KEY, UPDATE_PING_KEY, MIGRATION_DONE_KEY, MIGRATION_DISMISSED_KEY } = StorageService.keys;
 const { formatErrorMessage } = StorageService;
 const {
@@ -342,109 +343,7 @@ function selectHomeTask(task) {
     renderNow();
 }
 
-function createTaskActionMenu({ row, label, task, editMode = 'home', rerender }) {
-    const refreshList = rerender || (() => {});
-    const selected = state.mustDoTasks.includes(task);
-    const daily = isDailyTask(task);
-    const dailyDoneToday = daily && isDailyTaskDoneToday(task);
-    const moreButton = document.createElement('button');
-    moreButton.type = 'button';
-    moreButton.className = 'candidate-more-btn';
-    moreButton.setAttribute('aria-label', '更多操作');
-    moreButton.textContent = '⋯';
-    const actions = document.createElement('div');
-    actions.className = 'candidate-actions';
-
-    const editButton = document.createElement('button');
-    editButton.type = 'button';
-    editButton.className = 'btn secondary compact';
-    editButton.textContent = '编辑';
-    const copyButton = document.createElement('button');
-    copyButton.type = 'button';
-    copyButton.className = 'btn secondary compact';
-    copyButton.textContent = '复制';
-    const moveButton = document.createElement('button');
-    moveButton.type = 'button';
-    moveButton.className = 'btn secondary compact';
-    moveButton.textContent = '移动';
-    const completeButton = document.createElement('button');
-    completeButton.type = 'button';
-    completeButton.className = 'btn secondary compact';
-    completeButton.textContent = dailyDoneToday ? '今日完成' : '完成';
-    completeButton.disabled = dailyDoneToday;
-    const starButton = document.createElement('button');
-    starButton.type = 'button';
-    starButton.className = `btn ${selected ? 'primary' : 'secondary'} compact`;
-    starButton.textContent = selected ? 'Unstar' : 'Star';
-    starButton.disabled = !selected && state.mustDoTasks.length >= MUST_DO_TASK_LIMIT;
-    const dailyButton = document.createElement('button');
-    dailyButton.type = 'button';
-    dailyButton.className = `btn ${daily ? 'primary' : 'secondary'} compact`;
-    dailyButton.textContent = daily ? 'Daily✓' : 'Daily';
-    actions.append(editButton, copyButton, moveButton, completeButton, starButton, dailyButton);
-
-    moreButton.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const shouldOpen = !row.classList.contains('is-menu-open');
-        row.parentElement?.querySelectorAll('.candidate-item.is-menu-open').forEach(item => {
-            item.classList.remove('is-menu-open');
-        });
-        row.classList.toggle('is-menu-open', shouldOpen);
-    });
-
-    editButton.addEventListener('click', (e) => {
-        e.stopPropagation();
-        row.classList.remove('is-menu-open');
-        if (editMode === 'search') {
-            startSearchItemTextEdit(row, label, task);
-        } else {
-            startMustDoItemTextEdit(row, label, task, refreshList);
-        }
-    });
-    copyButton.addEventListener('click', async (e) => {
-        e.stopPropagation();
-        await handleCopyTask(copyButton, task);
-    });
-    moveButton.addEventListener('click', (e) => {
-        e.stopPropagation();
-        row.classList.remove('is-menu-open');
-        openMoveTaskDialog(task);
-    });
-    completeButton.addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (dailyDoneToday) return;
-        row.classList.remove('is-menu-open');
-        completeTask(task);
-        refreshList();
-        updateMustDoSummary();
-        renderMustDoList();
-        renderNow();
-    });
-    starButton.addEventListener('click', (e) => {
-        e.stopPropagation();
-        row.classList.remove('is-menu-open');
-        if (selected) {
-            state.mustDoTasks = state.mustDoTasks.filter(t => t !== task);
-        } else if (state.mustDoTasks.length < MUST_DO_TASK_LIMIT) {
-            state.mustDoTasks.push(task);
-        }
-        refreshList();
-        updateMustDoSummary();
-        renderMustDoList();
-        saveState();
-    });
-    dailyButton.addEventListener('click', (e) => {
-        e.stopPropagation();
-        row.classList.remove('is-menu-open');
-        toggleDailyTask(task);
-        refreshList();
-        updateMustDoSummary();
-        renderDailyList();
-        saveState();
-    });
-
-    return { moreButton, actions };
-}
+const createTaskActionMenu = options => TaskActions.createMenu(options);
 
 function bindMustDoListItemDragInteractions(item, task) {
     item.draggable = true;
@@ -1409,6 +1308,52 @@ function openMoveTaskDialog(task) {
     });
     openOverlay(moveTaskOverlay);
 }
+
+TaskActions.configure({
+    getTaskState: task => {
+        const daily = isDailyTask(task);
+        return {
+            selected: state.mustDoTasks.includes(task),
+            daily,
+            dailyDoneToday: daily && isDailyTaskDoneToday(task),
+            canStar: state.mustDoTasks.length < MUST_DO_TASK_LIMIT
+        };
+    },
+    editTask: ({ row, label, task, editMode, rerender }) => {
+        if (editMode === 'search') {
+            startSearchItemTextEdit(row, label, task);
+            return;
+        }
+        startMustDoItemTextEdit(row, label, task, rerender);
+    },
+    copyTask: ({ button, task }) => handleCopyTask(button, task),
+    moveTask: task => openMoveTaskDialog(task),
+    completeTask: ({ task, rerender }) => {
+        completeTask(task);
+        rerender();
+        updateMustDoSummary();
+        renderMustDoList();
+        renderNow();
+    },
+    toggleStar: ({ task, selected, rerender }) => {
+        if (selected) {
+            state.mustDoTasks = state.mustDoTasks.filter(t => t !== task);
+        } else if (state.mustDoTasks.length < MUST_DO_TASK_LIMIT) {
+            state.mustDoTasks.push(task);
+        }
+        rerender();
+        updateMustDoSummary();
+        renderMustDoList();
+        saveState();
+    },
+    toggleDaily: ({ task, rerender }) => {
+        toggleDailyTask(task);
+        rerender();
+        updateMustDoSummary();
+        renderDailyList();
+        saveState();
+    }
+});
 
 function bindMustDoItemMoveInteractions(row, task) {
     let pointerId = null;
