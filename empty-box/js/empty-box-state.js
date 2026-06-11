@@ -151,6 +151,11 @@
                 mustDoCriteria.some(criterion => criterion.id === source.activeMustDoCriterionId))
             ? source.activeMustDoCriterionId
             : MUST_DO_INBOX_CRITERION.id;
+        const pinnedMustDoCriterionId = typeof source.pinnedMustDoCriterionId === 'string' &&
+            !isInboxMustDoCriterion(source.pinnedMustDoCriterionId) &&
+            mustDoCriteria.some(criterion => criterion.id === source.pinnedMustDoCriterionId)
+            ? source.pinnedMustDoCriterionId
+            : '';
 
         return {
             ...source,
@@ -166,6 +171,7 @@
             dailyCompletedByDate: normalizeDailyCompletedByDate(source.dailyCompletedByDate),
             mustDoCriteria,
             activeMustDoCriterionId,
+            pinnedMustDoCriterionId,
             mustDoHiddenByDate,
             mustDoTaskGroups,
             mustDoTaskOrder: normalizeMustDoTaskOrder(source.mustDoTaskOrder, mustDoTaskGroups, taskPool)

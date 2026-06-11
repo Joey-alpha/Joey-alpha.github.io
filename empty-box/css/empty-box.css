@@ -85,6 +85,7 @@
     body.night .must-do-selection .candidate-actions,
     body.night .candidate-list .candidate-actions,
     body.night .must-do-list .candidate-actions,
+    body.night .pinned-list .candidate-actions,
     body.night .daily-list .candidate-actions {
         background: rgba(31, 39, 58, 0.98);
         color: #eef2ff;
@@ -156,6 +157,7 @@
         body .must-do-selection .candidate-actions,
         body .candidate-list .candidate-actions,
         body .must-do-list .candidate-actions,
+        body .pinned-list .candidate-actions,
         body .daily-list .candidate-actions {
             background: rgba(31, 39, 58, 0.98);
             color: #eef2ff;
@@ -194,6 +196,7 @@
         body .must-do-selection .candidate-actions .btn.secondary,
         body .candidate-list .candidate-actions .btn.secondary,
         body .must-do-list .candidate-actions .btn.secondary,
+        body .pinned-list .candidate-actions .btn.secondary,
         body .daily-list .candidate-actions .btn.secondary {
             background: rgba(51, 65, 85, 0.92);
             border-color: rgba(148, 163, 184, 0.26);
@@ -506,6 +509,7 @@
     }
 
     .daily-panel,
+    .pinned-panel,
     .must-do-panel {
         display: none;
         gap: 12px;
@@ -518,16 +522,26 @@
         padding-bottom: 100px;
     }
 
+    body:has(.pinned-panel.active) .daily-panel {
+        padding-bottom: 0;
+    }
+
     .must-do-panel {
         padding-bottom: 0;
     }
 
+    .pinned-panel {
+        padding-bottom: 100px;
+    }
+
     .daily-panel.active,
+    .pinned-panel.active,
     .must-do-panel.active {
         display: grid;
     }
 
     .daily-head,
+    .pinned-head,
     .must-do-head {
         display: flex;
         justify-content: flex-start;
@@ -536,6 +550,7 @@
     }
 
     .daily-head h3,
+    .pinned-head h3,
     .must-do-head h3 {
         margin: 0;
         font-size: 18px;
@@ -546,12 +561,14 @@
     }
 
     .daily-list,
+    .pinned-list,
     .must-do-list {
         display: grid;
         gap: 10px;
     }
 
     .daily-item,
+    .pinned-item,
     .must-do-item {
         width: 100%;
         padding: 14px 16px;
@@ -580,6 +597,7 @@
     }
 
     .daily-item span,
+    .pinned-item span,
     .must-do-item span {
         flex: 1;
         min-width: 0;
@@ -649,10 +667,20 @@
         color: #4257d8;
     }
 
+    .must-do-criterion.is-pinned:not(.active) {
+        border-color: rgba(245, 158, 11, 0.45);
+        box-shadow: inset 0 0 0 1px rgba(245, 158, 11, 0.12);
+    }
+
     body.night .overlay .must-do-criterion.has-tasks:not(.active) {
         background: rgba(122, 162, 255, 0.18);
         border-color: rgba(122, 162, 255, 0.30);
         color: #d7e1ff;
+    }
+
+    body.night .overlay .must-do-criterion.is-pinned:not(.active) {
+        border-color: rgba(252, 211, 77, 0.45);
+        box-shadow: inset 0 0 0 1px rgba(252, 211, 77, 0.12);
     }
 
     .must-do-criterion.active {
@@ -705,7 +733,8 @@
     .must-do-selection .candidate-item,
     .candidate-list .candidate-item.has-actions,
     .must-do-list .candidate-item.has-actions,
-    .daily-list .candidate-item.has-actions {
+    .daily-list .candidate-item.has-actions,
+    .pinned-list .candidate-item.has-actions {
         position: relative;
         width: 100%;
         align-items: flex-start;
@@ -736,6 +765,7 @@
     .must-do-selection .candidate-text,
     .candidate-list .candidate-text,
     .must-do-list .candidate-text,
+    .pinned-list .candidate-text,
     .daily-list .candidate-text {
         min-width: 0;
         flex: 1 1 auto;
@@ -789,6 +819,7 @@
     .must-do-selection .candidate-actions,
     .candidate-list .candidate-actions,
     .must-do-list .candidate-actions,
+    .pinned-list .candidate-actions,
     .daily-list .candidate-actions {
         position: absolute;
         right: 56px;
@@ -814,6 +845,7 @@
     .must-do-selection .candidate-item.is-menu-open .candidate-actions,
     .candidate-list .candidate-item.is-menu-open .candidate-actions,
     .must-do-list .candidate-item.is-menu-open .candidate-actions,
+    .pinned-list .candidate-item.is-menu-open .candidate-actions,
     .daily-list .candidate-item.is-menu-open .candidate-actions {
         opacity: 1;
         pointer-events: auto;
@@ -823,6 +855,7 @@
     .must-do-selection .candidate-actions .btn,
     .candidate-list .candidate-actions .btn,
     .must-do-list .candidate-actions .btn,
+    .pinned-list .candidate-actions .btn,
     .daily-list .candidate-actions .btn {
         min-width: 44px;
         padding: 8px 10px;
@@ -833,6 +866,7 @@
     .must-do-selection .candidate-item.is-editing .candidate-actions,
     .candidate-list .candidate-item.is-editing .candidate-actions,
     .must-do-list .candidate-item.is-editing .candidate-actions,
+    .pinned-list .candidate-item.is-editing .candidate-actions,
     .daily-list .candidate-item.is-editing .candidate-actions {
         display: none;
     }
@@ -977,6 +1011,7 @@
     .must-do-selection .candidate-item button,
     .candidate-list .candidate-item.has-actions button,
     .must-do-list .candidate-item.has-actions button,
+    .pinned-list .candidate-item.has-actions button,
     .daily-list .candidate-item.has-actions button {
         min-width: 56px;
     }
@@ -1184,6 +1219,7 @@
         .must-do-selection .candidate-item,
         .candidate-list .candidate-item.has-actions,
         .must-do-list .candidate-item.has-actions,
+        .pinned-list .candidate-item.has-actions,
         .daily-list .candidate-item.has-actions {
             position: relative;
             flex-wrap: nowrap;
@@ -1195,6 +1231,7 @@
         .must-do-selection .candidate-text,
         .candidate-list .candidate-text,
         .must-do-list .candidate-text,
+        .pinned-list .candidate-text,
         .daily-list .candidate-text {
             transition: transform 0.2s ease;
         }
@@ -1202,6 +1239,7 @@
         .must-do-selection .candidate-actions,
         .candidate-list .candidate-actions,
         .must-do-list .candidate-actions,
+        .pinned-list .candidate-actions,
         .daily-list .candidate-actions {
             right: 52px;
             width: 176px;
@@ -1210,6 +1248,7 @@
         .must-do-selection .candidate-actions .btn,
         .candidate-list .candidate-actions .btn,
         .must-do-list .candidate-actions .btn,
+        .pinned-list .candidate-actions .btn,
         .daily-list .candidate-actions .btn {
             min-width: 40px;
             padding: 7px 8px;
@@ -1219,6 +1258,7 @@
         body.night .must-do-selection .candidate-actions .btn.secondary,
         body.night .candidate-list .candidate-actions .btn.secondary,
         body.night .must-do-list .candidate-actions .btn.secondary,
+        body.night .pinned-list .candidate-actions .btn.secondary,
         body.night .daily-list .candidate-actions .btn.secondary {
             background: rgba(51, 65, 85, 0.92);
             border-color: rgba(148, 163, 184, 0.26);
@@ -1228,6 +1268,7 @@
         .must-do-selection .candidate-item.is-editing,
         .candidate-list .candidate-item.is-editing,
         .must-do-list .candidate-item.is-editing,
+        .pinned-list .candidate-item.is-editing,
         .daily-list .candidate-item.is-editing {
             padding-right: 16px;
         }
@@ -1235,6 +1276,7 @@
         .must-do-selection .candidate-item.is-editing .candidate-text,
         .candidate-list .candidate-item.is-editing .candidate-text,
         .must-do-list .candidate-item.is-editing .candidate-text,
+        .pinned-list .candidate-item.is-editing .candidate-text,
         .daily-list .candidate-item.is-editing .candidate-text {
             transform: none;
         }

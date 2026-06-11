@@ -134,11 +134,15 @@ const mustDoPanel = document.getElementById('mustDoPanel');
 const mustDoList = document.getElementById('mustDoList');
 const dailyPanel = document.getElementById('dailyPanel');
 const dailyList = document.getElementById('dailyList');
+const pinnedPanel = document.getElementById('pinnedPanel');
+const pinnedTitle = document.getElementById('pinnedTitle');
+const pinnedList = document.getElementById('pinnedList');
 
 const criterionDialogTitle = document.getElementById('criterionDialogTitle');
 const criterionDialogInput = document.getElementById('criterionDialogInput');
 const criterionDialogMessage = document.getElementById('criterionDialogMessage');
 const criterionDialogSaveBtn = document.getElementById('criterionDialogSaveBtn');
+const criterionDialogPinBtn = document.getElementById('criterionDialogPinBtn');
 const criterionDialogDeleteBtn = document.getElementById('criterionDialogDeleteBtn');
 const criterionDialogCancelBtn = document.getElementById('criterionDialogCancelBtn');
 const moveTaskTitle = document.getElementById('moveTaskTitle');
@@ -345,8 +349,14 @@ function normalizeState(parsed) {
             mustDoCriteria.some(criterion => criterion.id === source.activeMustDoCriterionId))
         ? source.activeMustDoCriterionId
         : MUST_DO_INBOX_CRITERION.id;
+    const pinnedMustDoCriterionId = typeof source.pinnedMustDoCriterionId === 'string' &&
+        !isInboxMustDoCriterion(source.pinnedMustDoCriterionId) &&
+        mustDoCriteria.some(criterion => criterion.id === source.pinnedMustDoCriterionId)
+        ? source.pinnedMustDoCriterionId
+        : '';
 
     return {
+        ...source,
         boxTasks: normalizeTaskList(source.boxTasks),
         completedTasks: normalizeTaskList(source.completedTasks, false),
         nowTask: typeof source.nowTask === 'string' ? source.nowTask : '',
@@ -359,6 +369,7 @@ function normalizeState(parsed) {
         dailyCompletedByDate: normalizeDailyCompletedByDate(source.dailyCompletedByDate),
         mustDoCriteria,
         activeMustDoCriterionId,
+        pinnedMustDoCriterionId,
         mustDoHiddenByDate,
         mustDoTaskGroups,
         mustDoTaskOrder: normalizeMustDoTaskOrder(source.mustDoTaskOrder, mustDoTaskGroups, taskPool)
@@ -378,6 +389,7 @@ let state = {
     dailyCompletedByDate: {},
     mustDoCriteria: cloneDefaultMustDoCriteria(),
     activeMustDoCriterionId: MUST_DO_INBOX_CRITERION.id,
+    pinnedMustDoCriterionId: '',
     mustDoHiddenByDate: {},
     mustDoTaskGroups: {},
     mustDoTaskOrder: {}
@@ -953,6 +965,7 @@ function renderNow() {
     undoFab.style.display = lastCompletedTask ? 'inline-flex' : 'none';
     renderFabState();
     renderDailyList();
+    renderPinnedCriterionList();
     renderMustDoList();
     saveState();
 }
@@ -1274,6 +1287,54 @@ function renderDailyList() {
     });
 }
 
+function getPinnedMustDoCriterion() {
+    ensureMustDoCriteria();
+    if (!state.pinnedMustDoCriterionId) return null;
+    return state.mustDoCriteria.find(criterion => criterion.id === state.pinnedMustDoCriterionId) || null;
+}
+
+function renderPinnedCriterionList() {
+    pinnedList.innerHTML = '';
+    const criterion = getPinnedMustDoCriterion();
+    if (!criterion) {
+        pinnedPanel.classList.remove('active');
+        return;
+    }
+
+    const tasks = getTasksForMustDoCriterion(criterion.id);
+    if (!tasks.length) {
+        pinnedPanel.classList.remove('active');
+        return;
+    }
+
+    pinnedTitle.textContent = criterion.name;
+    pinnedPanel.classList.add('active');
+    tasks.forEach(task => {
+        const item = document.createElement('div');
+        item.className = `pinned-item candidate-item has-actions${state.nowTask === task ? ' is-current' : ''}`;
+        const taskText = document.createElement('span');
+        taskText.className = 'candidate-text';
+        taskText.textContent = task;
+        const { moreButton, actions } = createTaskActionMenu({
+            row: item,
+            label: taskText,
+            task,
+            rerender: renderPinnedCriterionList
+        });
+        item.append(taskText, moreButton, actions);
+        item.addEventListener('click', event => {
+            if (Date.now() < Number(item.dataset.suppressClickUntil || 0)) {
+                event.preventDefault();
+                event.stopPropagation();
+                return;
+            }
+            if (event.target.closest('.candidate-more-btn, .candidate-actions')) return;
+            selectHomeTask(task);
+        });
+        pinnedList.appendChild(item);
+    });
+}
+
 function formatDateKey(date) {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -1429,18 +1490,22 @@ function setTaskGroup(task, criterionId) {
     }
 }
 
-function getGroupedMustDoCandidates() {
+function getTasksForMustDoCriterion(criterionId) {
     ensureMustDoCriteria();
-    const activeId = state.activeMustDoCriterionId;
+    const targetId = criterionId || MUST_DO_INBOX_CRITERION.id;
     const tasks = getMustDoCandidatePool().filter(task => {
         const groupId = getTaskGroupId(task);
-        return isInboxMustDoCriterion(activeId) ? isInboxMustDoCriterion(groupId) : groupId === activeId;
+        return isInboxMustDoCriterion(targetId) ? isInboxMustDoCriterion(groupId) : groupId === targetId;
     });
-    const order = state.mustDoTaskOrder[activeId] || [];
+    const order = state.mustDoTaskOrder[targetId] || [];
     return [
         ...order.filter(task => tasks.includes(task)),
         ...tasks.filter(task => !order.includes(task))
     ];
+}
+
+function getGroupedMustDoCandidates() {
+    return getTasksForMustDoCriterion(state.activeMustDoCriterionId);
 }
 
 function setActiveGroupTaskOrder(tasks) {
@@ -1460,6 +1525,7 @@ function moveTaskToGroup(task, groupId, switchToGroup = false) {
         syncMustDoCriterionActiveState();
     }
     buildMustDoCandidates();
+    renderPinnedCriterionList();
     saveState();
 }
 
@@ -1482,6 +1548,7 @@ function reorderMustDoCriterion(draggedCriterionId, targetCriterionId, position 
     }
     renderMustDoCriteria();
     buildMustDoCandidates();
+    renderPinnedCriterionList();
     saveState();
 }
 
@@ -1501,6 +1568,7 @@ function refreshMustDoOverlayState() {
     renderMustDoCriteria();
     updateMustDoSummary();
     buildMustDoCandidates();
+    renderPinnedCriterionList();
     saveState();
 }
 
@@ -1521,6 +1589,7 @@ function openCriterionNameDialog(mode, criterion = null) {
     criterionDialogMessage.textContent = '';
     criterionDialogSaveBtn.style.display = 'inline-flex';
     criterionDialogSaveBtn.textContent = mode === 'add' ? '新增' : '保存';
+    criterionDialogPinBtn.style.display = 'none';
     criterionDialogDeleteBtn.style.display = 'none';
     criterionDialogCancelBtn.textContent = '取消';
     openOverlay(criterionOverlay);
@@ -1535,6 +1604,7 @@ function openCriterionMessageDialog(title, message) {
     criterionDialogInput.style.display = 'none';
     criterionDialogMessage.textContent = message;
     criterionDialogSaveBtn.style.display = 'none';
+    criterionDialogPinBtn.style.display = 'none';
     criterionDialogDeleteBtn.style.display = 'none';
     criterionDialogCancelBtn.textContent = '知道了';
     openOverlay(criterionOverlay);
@@ -1547,6 +1617,7 @@ function openCriterionDeleteDialog(criterion) {
     criterionDialogInput.style.display = 'none';
     criterionDialogMessage.textContent = `删除“${criterion.name}”？`;
     criterionDialogSaveBtn.style.display = 'none';
+    criterionDialogPinBtn.style.display = 'none';
     criterionDialogDeleteBtn.style.display = 'inline-flex';
     criterionDialogCancelBtn.textContent = '取消';
     openOverlay(criterionOverlay);
@@ -1560,6 +1631,8 @@ function openCriterionManageDialog(criterion) {
     criterionDialogMessage.textContent = '管理这个分组';
     criterionDialogSaveBtn.style.display = 'inline-flex';
     criterionDialogSaveBtn.textContent = '重命名';
+    criterionDialogPinBtn.style.display = 'inline-flex';
+    criterionDialogPinBtn.textContent = state.pinnedMustDoCriterionId === criterion.id ? '取消 Pin' : 'Pin 到首页';
     criterionDialogDeleteBtn.style.display = 'inline-flex';
     criterionDialogCancelBtn.textContent = '取消';
     openOverlay(criterionOverlay);
@@ -1632,6 +1705,17 @@ function renameMustDoCriterion(criterionId) {
     openCriterionNameDialog('rename', criterion);
 }
 
+function togglePinnedMustDoCriterion(criterionId) {
+    ensureMustDoCriteria();
+    if (isInboxMustDoCriterion(criterionId)) return;
+    const criterion = state.mustDoCriteria.find(item => item.id === criterionId);
+    if (!criterion) return;
+    state.pinnedMustDoCriterionId = state.pinnedMustDoCriterionId === criterionId ? '' : criterionId;
+    closeCriterionDialog();
+    renderPinnedCriterionList();
+    saveState();
+}
+
 function deleteMustDoCriterion(criterionId) {
     ensureMustDoCriteria();
     if (isInboxMustDoCriterion(criterionId)) {
@@ -1668,6 +1752,11 @@ function handleCriterionDeleteDialogAction() {
     confirmDeleteMustDoCriterion();
 }
 
+function handleCriterionPinDialogAction() {
+    if (criterionDialogMode !== 'manage') return;
+    togglePinnedMustDoCriterion(criterionDialogCriterionId);
+}
+
 function confirmDeleteMustDoCriterion() {
     ensureMustDoCriteria();
     const criterionId = criterionDialogCriterionId;
@@ -1696,6 +1785,9 @@ function confirmDeleteMustDoCriterion() {
 
     if (state.activeMustDoCriterionId === criterionId) {
         state.activeMustDoCriterionId = MUST_DO_INBOX_CRITERION.id;
+    }
+    if (state.pinnedMustDoCriterionId === criterionId) {
+        state.pinnedMustDoCriterionId = '';
     }
     closeCriterionDialog();
     refreshMustDoOverlayState();
@@ -1809,13 +1901,18 @@ function renderMustDoCriteria() {
 
     state.mustDoCriteria.forEach(criterion => {
         const taskCount = getTaskGroupCount(criterion.id);
+        const pinned = criterion.id === state.pinnedMustDoCriterionId;
         const button = document.createElement('button');
         button.type = 'button';
-        button.className = `must-do-criterion${taskCount ? ' has-tasks' : ''}${criterion.id === state.activeMustDoCriterionId ? ' active' : ''}`;
+        button.className = `must-do-criterion${taskCount ? ' has-tasks' : ''}${criterion.id === state.activeMustDoCriterionId ? ' active' : ''}${pinned ? ' is-pinned' : ''}`;
         button.dataset.criterionId = criterion.id;
         button.dataset.count = String(taskCount);
         button.setAttribute('aria-pressed', criterion.id === state.activeMustDoCriterionId ? 'true' : 'false');
-        button.title = taskCount ? `${criterion.name} · ${taskCount} 项` : criterion.name;
+        button.title = [
+            criterion.name,
+            taskCount ? `${taskCount} 项` : '',
+            pinned ? '已 Pin 到首页' : ''
+        ].filter(Boolean).join(' · ');
         button.textContent = criterion.name;
         bindMustDoCriterionInteractions(button, criterion);
         mustDoCriteriaBar.appendChild(button);
@@ -2222,6 +2319,7 @@ function addTaskToActiveMustDoGroup(value) {
     appendTaskToBox(text, groupId);
     saveState();
     renderFabState();
+    renderPinnedCriterionList();
     return { ok: true };
 }
 
@@ -3006,6 +3104,7 @@ migrateLaterBtn.addEventListener('click', () => {
 undoFab.addEventListener('click', undoLastComplete);
 
 criterionDialogSaveBtn.addEventListener('click', saveCriterionNameDialog);
+criterionDialogPinBtn.addEventListener('click', handleCriterionPinDialogAction);
 criterionDialogDeleteBtn.addEventListener('click', handleCriterionDeleteDialogAction);
 criterionDialogCancelBtn.addEventListener('click', closeCriterionDialog);
 moveTaskCancelBtn.addEventListener('click', closeMoveTaskDialog);
