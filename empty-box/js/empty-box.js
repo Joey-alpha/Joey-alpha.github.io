@@ -1005,7 +1005,7 @@ function reorderSelectedMustDoTask(draggedTask, targetTask) {
 
 function selectHomeTask(task) {
     if (state.nowTask && state.nowTask !== task && !state.boxTasks.includes(state.nowTask)) {
-        prependTaskToBox(state.nowTask, getTaskGroupIdRaw(state.nowTask));
+        appendTaskToBox(state.nowTask, getTaskGroupIdRaw(state.nowTask));
     }
     state.boxTasks = state.boxTasks.filter(item => item !== task);
     state.nowTask = task;
@@ -1382,24 +1382,24 @@ function removeTaskFromAllGroupOrders(task) {
     });
 }
 
-function prependTaskToGroupOrder(task, groupId = MUST_DO_INBOX_CRITERION.id) {
+function appendTaskToGroupOrder(task, groupId = MUST_DO_INBOX_CRITERION.id) {
     ensureMustDoCriteria();
     if (!task) return;
     removeTaskFromAllGroupOrders(task);
     if (!state.mustDoTaskOrder[groupId]) state.mustDoTaskOrder[groupId] = [];
-    state.mustDoTaskOrder[groupId] = [task, ...normalizeTaskList(state.mustDoTaskOrder[groupId])];
+    state.mustDoTaskOrder[groupId] = [...normalizeTaskList(state.mustDoTaskOrder[groupId]), task];
 }
 
-function prependTaskToBox(task, groupId = MUST_DO_INBOX_CRITERION.id) {
+function appendTaskToBox(task, groupId = MUST_DO_INBOX_CRITERION.id) {
     if (!task) return;
     state.boxTasks = state.boxTasks.filter(item => item !== task);
-    state.boxTasks.unshift(task);
+    state.boxTasks.push(task);
     if (isInboxMustDoCriterion(groupId)) {
         delete state.mustDoTaskGroups[task];
     } else {
         state.mustDoTaskGroups[task] = groupId;
     }
-    prependTaskToGroupOrder(task, groupId);
+    appendTaskToGroupOrder(task, groupId);
 }
 
 function getTaskGroupId(task) {
@@ -2219,7 +2219,7 @@ function addTaskToActiveMustDoGroup(value) {
     if (!text) return { ok: false, message: '任务内容不能为空' };
     if (taskTextExists(text)) return { ok: false, message: '已存在同名任务' };
     const groupId = state.activeMustDoCriterionId || MUST_DO_INBOX_CRITERION.id;
-    prependTaskToBox(text, groupId);
+    appendTaskToBox(text, groupId);
     saveState();
     renderFabState();
     return { ok: true };
@@ -2388,7 +2388,7 @@ function addToBox(value) {
     const text = value.trim();
     if (!text) return false;
     if (!state.boxTasks.includes(text) && !state.completedTasks.includes(text) && text !== state.nowTask) {
-        prependTaskToBox(text);
+        appendTaskToBox(text);
         saveState();
         renderFabState();
         return true;
@@ -2432,7 +2432,7 @@ function renderSearchResults(keyword) {
 
         selectButton.addEventListener('click', () => {
             if (state.nowTask && !state.boxTasks.includes(state.nowTask)) {
-                prependTaskToBox(state.nowTask, getTaskGroupIdRaw(state.nowTask));
+                appendTaskToBox(state.nowTask, getTaskGroupIdRaw(state.nowTask));
             }
             state.boxTasks = state.boxTasks.filter(item => item !== task);
             state.nowTask = task;
@@ -2893,7 +2893,7 @@ blindboxFab.addEventListener('click', () => {
 acceptBlindboxBtn.addEventListener('click', () => {
     if (!blindboxTask || blindboxTask === '没有任务') return;
     if (state.nowTask && !state.boxTasks.includes(state.nowTask)) {
-        prependTaskToBox(state.nowTask, getTaskGroupIdRaw(state.nowTask));
+        appendTaskToBox(state.nowTask, getTaskGroupIdRaw(state.nowTask));
     }
     state.boxTasks = state.boxTasks.filter(item => item !== blindboxTask);
     state.nowTask = blindboxTask;

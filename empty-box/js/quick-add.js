@@ -139,18 +139,18 @@ async function addToBoxQuick(value) {
     return { ok: false, reason: 'duplicate' };
   }
 
-  state.boxTasks.unshift(text);
-  // Keep the main app's tab order cache in sync; otherwise new tasks render after older Inbox items.
+  state.boxTasks.push(text);
+  // Keep the main app's tab order cache in sync with bottom insertion.
   Object.keys(state.mustDoTaskOrder).forEach(groupId => {
     state.mustDoTaskOrder[groupId] = Array.isArray(state.mustDoTaskOrder[groupId])
       ? state.mustDoTaskOrder[groupId].filter(task => task !== text)
       : [];
   });
   state.mustDoTaskOrder[MUST_DO_INBOX_CRITERION_ID] = [
-    text,
     ...(Array.isArray(state.mustDoTaskOrder[MUST_DO_INBOX_CRITERION_ID])
       ? state.mustDoTaskOrder[MUST_DO_INBOX_CRITERION_ID]
-      : [])
+      : []),
+    text
   ];
   await saveState(state);
   return { ok: true };
