@@ -601,6 +601,7 @@
         if (!getNode(parentId)) return addRoot();
         const previousSelectedId = selectedId;
         const id = addNode('');
+        trackNodePosition(parentId);
         getNode(parentId).children.push(id);
         getNode(parentId).collapsed = false;
         selectedId = id;
@@ -613,6 +614,7 @@
         const parentId = findParentId(nodeId);
         const previousSelectedId = selectedId;
         const id = addNode('');
+        trackNodePosition(nodeId);
         if (parentId) {
             const siblings = getNode(parentId).children;
             const idx = siblings.indexOf(nodeId);
@@ -631,6 +633,7 @@
         if (!nodeId || !getNode(nodeId)) return;
         if (state.rootIds.includes(nodeId)) return;
 
+        trackNodePosition(nodeId);
         const parentId = findParentId(nodeId);
         if (parentId) {
             const p = getNode(parentId);
@@ -657,6 +660,10 @@
     function deleteNode(nodeId) {
         if (!getNode(nodeId)) return;
         const parentId = findParentId(nodeId);
+        const rootIndex = state.rootIds.indexOf(nodeId);
+        const anchorId = parentId || state.rootIds[rootIndex - 1] || state.rootIds[rootIndex + 1] || null;
+        if (anchorId) trackNodePosition(anchorId);
+
         if (parentId) {
             const p = getNode(parentId);
             p.children = p.children.filter(id => id !== nodeId);
@@ -668,7 +675,9 @@
             const id = addNode('Root Topic');
             state.rootIds = [id];
         }
-        selectedId = state.rootIds[0] || Object.keys(state.nodes)[0] || null;
+        selectedId = anchorId && getNode(anchorId)
+            ? anchorId
+            : state.rootIds[0] || Object.keys(state.nodes)[0] || null;
         persistAndRender();
         adjustViewAfterLayoutChange();
     }
