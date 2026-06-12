@@ -343,6 +343,51 @@ function selectHomeTask(task) {
     renderNow();
 }
 
+function normalizeTaskLinkHref(value) {
+    return /^https?:\/\//i.test(value) ? value : `https://${value}`;
+}
+
+function splitTrailingLinkPunctuation(value) {
+    const match = value.match(/[),.!?:;，。！？；：）】》]+$/);
+    if (!match) return [value, ''];
+    const trailing = match[0];
+    return [value.slice(0, -trailing.length), trailing];
+}
+
+function renderTaskText(element, text) {
+    element.textContent = '';
+    const source = String(text || '');
+    const linkPattern = /(https?:\/\/[^\s<]+|www\.[^\s<]+)/gi;
+    let cursor = 0;
+    source.replace(linkPattern, (match, _unused, offset) => {
+        if (offset > cursor) {
+            element.appendChild(document.createTextNode(source.slice(cursor, offset)));
+        }
+        const [linkText, trailing] = splitTrailingLinkPunctuation(match);
+        if (linkText) {
+            const anchor = document.createElement('a');
+            anchor.href = normalizeTaskLinkHref(linkText);
+            anchor.textContent = linkText;
+            anchor.target = '_blank';
+            anchor.rel = 'noopener noreferrer';
+            anchor.draggable = false;
+            element.appendChild(anchor);
+        }
+        if (trailing) {
+            element.appendChild(document.createTextNode(trailing));
+        }
+        cursor = offset + match.length;
+        return match;
+    });
+    if (cursor < source.length) {
+        element.appendChild(document.createTextNode(source.slice(cursor)));
+    }
+}
+
+function isTaskItemControlTarget(target) {
+    return Boolean(target.closest('.candidate-more-btn, .candidate-actions, .candidate-text a'));
+}
+
 const createTaskActionMenu = options => TaskActions.createMenu(options);
 
 function bindMustDoListItemDragInteractions(item, task) {
@@ -428,7 +473,7 @@ function renderMustDoList() {
         item.className = `must-do-item candidate-item has-actions${state.nowTask === task ? ' is-current' : ''}`;
         const taskText = document.createElement('span');
         taskText.className = 'candidate-text';
-        taskText.textContent = task;
+        renderTaskText(taskText, task);
         const orderText = document.createElement('span');
         orderText.className = 'must-do-order';
         orderText.textContent = String(index + 1);
@@ -446,7 +491,7 @@ function renderMustDoList() {
                 event.stopPropagation();
                 return;
             }
-            if (event.target.closest('.candidate-more-btn, .candidate-actions')) return;
+            if (isTaskItemControlTarget(event.target)) return;
             selectHomeTask(task);
         });
         mustDoList.appendChild(item);
@@ -481,7 +526,7 @@ function renderDailyList() {
         item.className = `daily-item candidate-item has-actions${state.nowTask === task ? ' is-current' : ''}`;
         const taskText = document.createElement('span');
         taskText.className = 'candidate-text';
-        taskText.textContent = task;
+        renderTaskText(taskText, task);
         const { moreButton, actions } = createTaskActionMenu({
             row: item,
             label: taskText,
@@ -495,7 +540,7 @@ function renderDailyList() {
                 event.stopPropagation();
                 return;
             }
-            if (event.target.closest('.candidate-more-btn, .candidate-actions')) return;
+            if (isTaskItemControlTarget(event.target)) return;
             selectHomeTask(task);
         });
         dailyList.appendChild(item);
@@ -529,7 +574,7 @@ function renderPinnedCriterionList() {
         item.className = `pinned-item candidate-item has-actions${state.nowTask === task ? ' is-current' : ''}`;
         const taskText = document.createElement('span');
         taskText.className = 'candidate-text';
-        taskText.textContent = task;
+        renderTaskText(taskText, task);
         const { moreButton, actions } = createTaskActionMenu({
             row: item,
             label: taskText,
@@ -543,7 +588,7 @@ function renderPinnedCriterionList() {
                 event.stopPropagation();
                 return;
             }
-            if (event.target.closest('.candidate-more-btn, .candidate-actions')) return;
+            if (isTaskItemControlTarget(event.target)) return;
             selectHomeTask(task);
         });
         pinnedList.appendChild(item);
@@ -1467,6 +1512,7 @@ function startTaskTextEdit({ row, label, task, rerender, onAfterSave }) {
     row.draggable = false;
     row.classList.remove('is-menu-open', 'is-actions-revealed');
     row.classList.add('is-editing');
+    label.textContent = task;
     label.contentEditable = 'true';
     label.setAttribute('role', 'textbox');
     label.setAttribute('aria-label', '编辑任务内容');
@@ -1661,7 +1707,7 @@ function buildMustDoCandidates() {
         row.title = '拖动排序，点击 ⋯ 查看操作';
         const label = document.createElement('span');
         label.className = 'candidate-text';
-        label.textContent = task;
+        renderTaskText(label, task);
         const starBadge = document.createElement('span');
         starBadge.className = 'candidate-status-badge candidate-star-badge';
         starBadge.textContent = 'Star';
@@ -1751,7 +1797,7 @@ function renderSearchResults(keyword) {
         row.className = `candidate-item has-actions${selected ? ' is-selected' : ''}${daily ? ' is-daily' : ''}${dailyDoneToday ? ' is-daily-done' : ''}`;
         const taskText = document.createElement('span');
         taskText.className = 'candidate-text';
-        taskText.textContent = task;
+        renderTaskText(taskText, task);
         const starBadge = document.createElement('span');
         starBadge.className = 'candidate-status-badge candidate-star-badge';
         starBadge.textContent = 'Star';
