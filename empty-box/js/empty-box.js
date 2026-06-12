@@ -1245,8 +1245,7 @@ function taskTextExists(text, previousText) {
     return state.boxTasks.includes(text) ||
         state.mustDoTasks.includes(text) ||
         state.dailyTasks.includes(text) ||
-        state.nowTask === text ||
-        state.completedTasks.includes(text);
+        state.nowTask === text;
 }
 
 function renameTaskText(previousText, nextText) {
@@ -1730,7 +1729,7 @@ function completeTask(task) {
 function addToBox(value) {
     const text = value.trim();
     if (!text) return false;
-    if (!state.boxTasks.includes(text) && !state.completedTasks.includes(text) && text !== state.nowTask) {
+    if (!taskTextExists(text)) {
         appendTaskToBox(text);
         saveState();
         renderFabState();

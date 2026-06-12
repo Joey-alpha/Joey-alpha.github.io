@@ -134,7 +134,6 @@ async function addToBoxQuick(value) {
     state.boxTasks.includes(text) ||
     state.mustDoTasks.includes(text) ||
     state.dailyTasks.includes(text) ||
-    state.completedTasks.includes(text) ||
     text === state.nowTask
   ) {
     return { ok: false, reason: 'duplicate' };
