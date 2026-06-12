@@ -802,6 +802,18 @@
         color: #111827;
     }
 
+    .candidate-text[contenteditable="true"] {
+        border-radius: 12px;
+        outline: 2px solid rgba(94, 119, 255, 0.42);
+        outline-offset: 4px;
+        caret-color: var(--accent);
+        cursor: text;
+    }
+
+    .candidate-text[contenteditable="true"].is-edit-invalid {
+        outline-color: rgba(220, 38, 38, 0.62);
+    }
+
     .candidate-more-btn {
         width: 36px;
         height: 36px;

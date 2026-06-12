@@ -1453,52 +1453,66 @@ function autoScrollMustDoSelection(clientY) {
     if (delta) mustDoSelection.scrollTop += delta;
 }
 
-function startMustDoItemTextEdit(row, label, task, rerender = buildMustDoCandidates) {
+function resetEditableTaskLabel(label) {
+    label.contentEditable = 'false';
+    label.removeAttribute('contenteditable');
+    label.removeAttribute('role');
+    label.removeAttribute('aria-label');
+    label.removeAttribute('spellcheck');
+    label.classList.remove('is-edit-invalid');
+    label.title = '';
+    delete label.dataset.originalText;
+}
+
+function startTaskTextEdit({ row, label, task, rerender, onAfterSave }) {
     row.draggable = false;
-    row.classList.remove('is-actions-revealed');
+    row.classList.remove('is-menu-open', 'is-actions-revealed');
     row.classList.add('is-editing');
-    const input = document.createElement('input');
-    input.className = 'must-do-inline-input';
-    input.value = task;
-    input.setAttribute('aria-label', '编辑任务内容');
-    label.replaceWith(input);
-    input.focus();
-    placeInputCursorAtEnd(input);
+    label.contentEditable = 'true';
+    label.setAttribute('role', 'textbox');
+    label.setAttribute('aria-label', '编辑任务内容');
+    label.setAttribute('spellcheck', 'false');
+    label.dataset.originalText = task;
+    label.focus();
+    placeContentEditableCursorAtEnd(label);
 
     let finished = false;
     const finish = (shouldSave, source = 'commit') => {
         if (finished) return;
         finished = true;
         if (!shouldSave) {
+            label.textContent = task;
+            resetEditableTaskLabel(label);
             row.classList.remove('is-editing');
             rerender();
             return;
         }
-        const result = renameTaskText(task, input.value);
+        const result = renameTaskText(task, label.textContent);
         if (!result.ok) {
             if (source === 'blur') {
+                resetEditableTaskLabel(label);
                 row.classList.remove('is-editing');
                 rerender();
                 return;
             }
             finished = false;
-            input.setCustomValidity(result.message);
-            input.reportValidity();
-            input.focus();
-            placeInputCursorAtEnd(input);
+            label.classList.add('is-edit-invalid');
+            label.title = result.message;
+            label.focus();
+            placeContentEditableCursorAtEnd(label);
             return;
         }
-        input.setCustomValidity('');
+        resetEditableTaskLabel(label);
         row.classList.remove('is-editing');
         rerender();
-        updateMustDoSummary();
-        renderNow();
+        onAfterSave();
     };
 
-    input.addEventListener('pointerdown', event => event.stopPropagation());
-    input.addEventListener('click', event => event.stopPropagation());
-    input.addEventListener('dblclick', event => event.stopPropagation());
-    input.addEventListener('keydown', event => {
+    const stopEditingEvent = event => event.stopPropagation();
+    label.addEventListener('pointerdown', stopEditingEvent);
+    label.addEventListener('click', stopEditingEvent);
+    label.addEventListener('dblclick', stopEditingEvent);
+    label.addEventListener('keydown', event => {
         if (isTextCompositionEvent(event)) return;
         if (event.key === 'Enter') {
             event.preventDefault();
@@ -1509,67 +1523,37 @@ function startMustDoItemTextEdit(row, label, task, rerender = buildMustDoCandida
             finish(false);
         }
     });
-    input.addEventListener('input', () => input.setCustomValidity(''));
-    input.addEventListener('blur', () => finish(true, 'blur'));
+    label.addEventListener('input', () => {
+        label.classList.remove('is-edit-invalid');
+        label.title = '';
+    });
+    label.addEventListener('blur', () => finish(true, 'blur'), { once: true });
+}
+
+function startMustDoItemTextEdit(row, label, task, rerender = buildMustDoCandidates) {
+    startTaskTextEdit({
+        row,
+        label,
+        task,
+        rerender,
+        onAfterSave: () => {
+            updateMustDoSummary();
+            renderNow();
+        }
+    });
 }
 
 function startSearchItemTextEdit(row, label, task) {
-    row.classList.remove('is-menu-open');
-    row.classList.add('is-editing');
-    const input = document.createElement('input');
-    input.className = 'must-do-inline-input';
-    input.value = task;
-    input.setAttribute('aria-label', '编辑任务内容');
-    label.replaceWith(input);
-    input.focus();
-    placeInputCursorAtEnd(input);
-
-    let finished = false;
-    const finish = (shouldSave, source = 'commit') => {
-        if (finished) return;
-        finished = true;
-        if (!shouldSave) {
-            row.classList.remove('is-editing');
-            renderSearchResults(searchInput.value);
-            return;
-        }
-        const result = renameTaskText(task, input.value);
-        if (!result.ok) {
-            if (source === 'blur') {
-                row.classList.remove('is-editing');
-                renderSearchResults(searchInput.value);
-                return;
-            }
-            finished = false;
-            input.setCustomValidity(result.message);
-            input.reportValidity();
-            input.focus();
-            placeInputCursorAtEnd(input);
-            return;
-        }
-        input.setCustomValidity('');
-        row.classList.remove('is-editing');
-        renderSearchResults(searchInput.value);
-        updateMustDoSummary();
-        renderNow();
-    };
-
-    input.addEventListener('pointerdown', event => event.stopPropagation());
-    input.addEventListener('click', event => event.stopPropagation());
-    input.addEventListener('dblclick', event => event.stopPropagation());
-    input.addEventListener('keydown', event => {
-        if (isTextCompositionEvent(event)) return;
-        if (event.key === 'Enter') {
-            event.preventDefault();
-            finish(true);
-        }
-        if (event.key === 'Escape') {
-            event.preventDefault();
-            finish(false);
+    startTaskTextEdit({
+        row,
+        label,
+        task,
+        rerender: () => renderSearchResults(searchInput.value),
+        onAfterSave: () => {
+            updateMustDoSummary();
+            renderNow();
         }
     });
-    input.addEventListener('input', () => input.setCustomValidity(''));
-    input.addEventListener('blur', () => finish(true, 'blur'));
 }
 
 function addTaskToActiveMustDoGroup(value) {
