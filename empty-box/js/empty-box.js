@@ -3,6 +3,7 @@ const TaskActions = window.EmptyBoxTaskActions;
 const HomeLists = window.EmptyBoxHomeLists;
 const MustDo = window.EmptyBoxMustDo;
 const TaskModel = window.EmptyBoxTaskModel;
+const Settings = window.EmptyBoxSettings;
 const { STORAGE_KEY, UPDATE_PING_KEY, MIGRATION_DONE_KEY, MIGRATION_DISMISSED_KEY } = StorageService.keys;
 const { formatErrorMessage } = StorageService;
 const {
@@ -231,10 +232,7 @@ let shakeThreshold = 15;
 let lastShake = 0;
 let criterionDialogMode = 'add';
 let criterionDialogCriterionId = null;
-let pendingSpaceMode = 'local_only';
-let pendingRenameSpaceId = null;
 let isBooting = true;
-let activeLegacyMode = false;
 let pendingConfirmResolve = null;
 let pendingMoveTask = '';
 
@@ -244,9 +242,7 @@ StorageService.configure({
         state = nextState;
     },
     isBooting: () => isBooting,
-    setLegacyMode: nextValue => {
-        activeLegacyMode = nextValue;
-    },
+    setLegacyMode: () => {},
     reportCloudSyncError: message => {
         if (spaceStatus) spaceStatus.textContent = message;
     }
@@ -982,6 +978,57 @@ TaskModel.configure({
     }
 });
 
+Settings.configure({
+    elements: {
+        settingsOverlay,
+        settingsFab,
+        spaceSelect,
+        newLocalSpaceBtn,
+        newCloudSpaceBtn,
+        renameSpaceBtn,
+        refreshCloudSpacesBtn,
+        deleteSpaceBtn,
+        migrateSourceSpaceSelect,
+        migrateTargetSpaceSelect,
+        transferSpaceNotesBtn,
+        spaceTransferStatus,
+        spaceStatus,
+        migrateLocalBtn,
+        migrateCloudBtn,
+        migrateMergeBtn,
+        migrateLaterBtn,
+        migrationOverlay,
+        migrationStatus,
+        spaceNameOverlay,
+        spaceNameTitle,
+        spaceNameInput,
+        spaceNameMessage,
+        spaceNameConfirmBtn,
+        spaceNameCancelBtn,
+        exportJsonBtn,
+        importJsonInput
+    },
+    storage: StorageService,
+    formatErrorMessage,
+    createEmptyState,
+    getState: () => state,
+    setState: nextState => {
+        state = nextState;
+    },
+    resetLastCompletedTask: () => {
+        lastCompletedTask = null;
+    },
+    renderNow,
+    renderReflectionFab,
+    openOverlay,
+    closeOverlay,
+    openConfirmDialog,
+    isTextCompositionEvent,
+    storageKey: STORAGE_KEY,
+    migrationDoneKey: MIGRATION_DONE_KEY,
+    migrationDismissedKey: MIGRATION_DISMISSED_KEY
+});
+
 TaskActions.configure({
     getTaskState: task => {
         const daily = isDailyTask(task);
@@ -1622,239 +1669,47 @@ function renderQuote() {
 }
 
 function renderSpaceSettings() {
-    const spaces = StorageService.getSpaces();
-    const current = StorageService.getCurrentSpace();
-    spaceSelect.innerHTML = '';
-    migrateSourceSpaceSelect.innerHTML = '';
-    migrateTargetSpaceSelect.innerHTML = '';
-
-    if (!spaces.length) {
-        const option = document.createElement('option');
-        option.value = '';
-        option.textContent = activeLegacyMode ? '旧版本地数据' : '未选择 Space';
-        spaceSelect.appendChild(option);
-    }
-
-    spaces.forEach(space => {
-        const option = document.createElement('option');
-        option.value = space.id;
-        option.textContent = `${space.name} · ${space.storage_mode === 'cloud_sync' ? '云端同步' : '本地'}`;
-        option.selected = current && current.id === space.id;
-        spaceSelect.appendChild(option);
-
-        const sourceOption = option.cloneNode(true);
-        const targetOption = option.cloneNode(true);
-        sourceOption.textContent = `从：${option.textContent}`;
-        targetOption.textContent = `到：${option.textContent}`;
-        sourceOption.selected = current && current.id === space.id;
-        targetOption.selected = false;
-        migrateSourceSpaceSelect.appendChild(sourceOption);
-        migrateTargetSpaceSelect.appendChild(targetOption);
-    });
-
-    if (spaces.length) {
-        const defaultTarget = spaces.find(space => !current || space.id !== current.id) || spaces[0];
-        migrateTargetSpaceSelect.value = defaultTarget.id;
-    } else {
-        const sourcePlaceholder = document.createElement('option');
-        sourcePlaceholder.value = '';
-        sourcePlaceholder.textContent = '没有可迁移的 Space';
-        migrateSourceSpaceSelect.appendChild(sourcePlaceholder);
-        const targetPlaceholder = sourcePlaceholder.cloneNode(true);
-        migrateTargetSpaceSelect.appendChild(targetPlaceholder);
-    }
-
-    const mode = current ? current.storage_mode : 'legacy_local';
-    const label = mode === 'cloud_sync' ? '云端同步' : mode === 'local_only' ? '仅本地' : '旧本地数据';
-    const cloudCount = spaces.filter(space => space.storage_mode === 'cloud_sync').length;
-    const localCount = spaces.filter(space => space.storage_mode === 'local_only').length;
-    const currentName = current ? current.name : '未选择';
-    spaceStatus.textContent = `${currentName} · ${label} · 本地 ${localCount} / 云端 ${cloudCount}`;
-    renameSpaceBtn.disabled = !current;
-    deleteSpaceBtn.disabled = !current;
-    transferSpaceNotesBtn.disabled = spaces.length < 2;
-    if (!spaceTransferStatus.textContent && spaces.length < 2) {
-        spaceTransferStatus.textContent = '至少需要两个 Space 才能迁移。';
-    } else if (spaces.length >= 2 && spaceTransferStatus.textContent === '至少需要两个 Space 才能迁移。') {
-        spaceTransferStatus.textContent = '';
-    }
+    Settings.renderSpaceSettings();
 }
 
 async function refreshCloudSpaces(showStatus = false) {
-    try {
-        if (showStatus) spaceStatus.textContent = '正在刷新云端 Space...';
-        const spaces = await StorageService.syncCloudSpaces();
-        renderSpaceSettings();
-        if (showStatus) {
-            const cloudCount = spaces.filter(space => space.storage_mode === 'cloud_sync').length;
-            spaceStatus.textContent = `云端 Space 已刷新：${cloudCount} 个`;
-        }
-        return true;
-    } catch (error) {
-        console.error(error);
-        if (showStatus) spaceStatus.textContent = `刷新云端 Space 失败：${formatErrorMessage(error)}`;
-        return false;
-    }
+    return Settings.refreshCloudSpaces(showStatus);
 }
 
 function shouldShowMigrationPrompt() {
-    const hasLegacy = !!localStorage.getItem(STORAGE_KEY);
-    return hasLegacy &&
-        localStorage.getItem(MIGRATION_DONE_KEY) !== 'true' &&
-        localStorage.getItem(MIGRATION_DISMISSED_KEY) !== 'true';
+    return Settings.shouldShowMigrationPrompt();
 }
 
 function showMigrationPromptIfNeeded() {
-    if (shouldShowMigrationPrompt()) {
-        migrationStatus.textContent = '';
-        openOverlay(migrationOverlay);
-    }
+    Settings.showMigrationPromptIfNeeded();
 }
 
 function openSpaceNameDialog(storageMode, space = null) {
-    pendingSpaceMode = storageMode;
-    pendingRenameSpaceId = space ? space.id : null;
-    const isRename = storageMode === 'rename';
-    spaceNameTitle.textContent = isRename ? '重命名 Space' : storageMode === 'cloud_sync' ? '新建云端分区' : '新建本地分区';
-    spaceNameInput.value = isRename && space ? space.name : '';
-    spaceNameMessage.textContent = '';
-    spaceNameConfirmBtn.textContent = isRename ? '保存' : '创建';
-    openOverlay(spaceNameOverlay);
-    setTimeout(() => {
-        spaceNameInput.focus();
-        if (isRename) spaceNameInput.select();
-    }, 0);
+    Settings.openSpaceNameDialog(storageMode, space);
 }
 
 function closeSpaceNameDialog() {
-    closeOverlay(spaceNameOverlay);
-    spaceNameMessage.textContent = '';
-    pendingRenameSpaceId = null;
-    spaceNameConfirmBtn.textContent = '创建';
+    Settings.closeSpaceNameDialog();
 }
 
 async function saveNamedSpace() {
-    const storageMode = pendingSpaceMode;
-    const name = spaceNameInput.value.trim();
-    try {
-        if (storageMode === 'rename') {
-            await StorageService.renameSpace(pendingRenameSpaceId, name);
-            closeSpaceNameDialog();
-            renderSpaceSettings();
-            renderNow();
-            return;
-        }
-
-        await StorageService.createSpace({
-            name: name || (storageMode === 'cloud_sync' ? '云端分区' : '本地分区'),
-            storage_mode: storageMode,
-            initialState: createEmptyState()
-        });
-        closeSpaceNameDialog();
-        state = await StorageService.getCurrentState();
-        renderSpaceSettings();
-        renderNow();
-    } catch (error) {
-        console.error(error);
-        spaceNameMessage.textContent = `${storageMode === 'rename' ? '重命名' : '创建'}失败：${formatErrorMessage(error)}`;
-    }
+    return Settings.saveNamedSpace();
 }
 
 function openRenameSpaceDialog() {
-    const current = StorageService.getCurrentSpace();
-    if (!current) {
-        spaceStatus.textContent = '当前没有可重命名的 Space。';
-        return;
-    }
-    openSpaceNameDialog('rename', current);
+    Settings.openRenameSpaceDialog();
 }
 
 async function transferSelectedSpaceNotes() {
-    const sourceId = migrateSourceSpaceSelect.value;
-    const targetId = migrateTargetSpaceSelect.value;
-    const source = StorageService.getSpaceById(sourceId);
-    const target = StorageService.getSpaceById(targetId);
-    if (!source || !target) {
-        spaceTransferStatus.textContent = '请选择源 Space 和目标 Space。';
-        return;
-    }
-    if (source.id === target.id) {
-        spaceTransferStatus.textContent = '源 Space 和目标 Space 不能相同。';
-        return;
-    }
-
-    const ok = await openConfirmDialog({
-        title: '迁移 Notes',
-        message: `把“${source.name}”的 Notes 迁移到“${target.name}”？迁移后源 Space 会被清空。`,
-        confirmText: '开始迁移'
-    });
-    if (!ok) return;
-
-    try {
-        transferSpaceNotesBtn.disabled = true;
-        spaceTransferStatus.textContent = '正在迁移...';
-        const result = await StorageService.transferSpaceNotes(source.id, target.id);
-        state = result.state;
-        renderSpaceSettings();
-        renderNow();
-        spaceTransferStatus.textContent = `已迁移到“${target.name}”，源 Space 已清空。`;
-    } catch (error) {
-        console.error(error);
-        spaceTransferStatus.textContent = `迁移失败：${formatErrorMessage(error)}`;
-        renderSpaceSettings();
-    }
+    return Settings.transferSelectedSpaceNotes();
 }
 
 async function deleteCurrentSpace() {
-    const current = StorageService.getCurrentSpace();
-    if (!current) {
-        spaceStatus.textContent = '当前没有可删除的 Space。';
-        return;
-    }
-
-    const ok = await openConfirmDialog({
-        title: '删除 Space',
-        message: `删除“${current.name}”？这个 Space 里的 Notes 也会一起删除。`,
-        confirmText: '删除',
-        danger: true
-    });
-    if (!ok) return;
-
-    try {
-        deleteSpaceBtn.disabled = true;
-        spaceStatus.textContent = '正在删除 Space...';
-        const deleted = await StorageService.deleteSpace(current.id);
-        const nextCurrent = StorageService.getCurrentSpace();
-        if (!nextCurrent) {
-            await StorageService.createSpace({
-                name: '默认本地 Space',
-                storage_mode: 'local_only',
-                initialState: createEmptyState()
-            });
-        }
-        state = await StorageService.getCurrentState();
-        lastCompletedTask = null;
-        renderSpaceSettings();
-        renderNow();
-        spaceStatus.textContent = `已删除“${deleted.name}”。`;
-    } catch (error) {
-        console.error(error);
-        spaceStatus.textContent = `删除失败：${formatErrorMessage(error)}`;
-        renderSpaceSettings();
-    }
+    return Settings.deleteCurrentSpace();
 }
 
 async function finishMigration(mode) {
-    try {
-        migrationStatus.textContent = '正在迁移...';
-        state = await StorageService.migrateLegacyData(mode);
-        closeOverlay(migrationOverlay);
-        renderSpaceSettings();
-        renderNow();
-    } catch (error) {
-        console.error(error);
-        migrationStatus.textContent = '迁移失败，请检查 Supabase 表、RLS 或网络。旧数据仍保留在本地。';
-    }
+    return Settings.finishMigration(mode);
 }
 
 completeNowBtn.addEventListener('click', () => {
@@ -2010,59 +1865,7 @@ reflectionTextarea.addEventListener('input', () => {
     saveState();
 });
 
-settingsFab.addEventListener('click', async () => {
-    renderSpaceSettings();
-    openOverlay(settingsOverlay);
-    await refreshCloudSpaces();
-});
-
-spaceSelect.addEventListener('change', async () => {
-    if (!spaceSelect.value) return;
-    await StorageService.setCurrentSpace(spaceSelect.value);
-    state = await StorageService.getCurrentState();
-    renderSpaceSettings();
-    renderNow();
-});
-
-newLocalSpaceBtn.addEventListener('click', () => openSpaceNameDialog('local_only'));
-newCloudSpaceBtn.addEventListener('click', () => openSpaceNameDialog('cloud_sync'));
-renameSpaceBtn.addEventListener('click', openRenameSpaceDialog);
-refreshCloudSpacesBtn.addEventListener('click', () => refreshCloudSpaces(true));
-deleteSpaceBtn.addEventListener('click', deleteCurrentSpace);
-transferSpaceNotesBtn.addEventListener('click', transferSelectedSpaceNotes);
-migrateSourceSpaceSelect.addEventListener('change', () => {
-    spaceTransferStatus.textContent = '';
-    if (migrateSourceSpaceSelect.value === migrateTargetSpaceSelect.value) {
-        const target = StorageService.getSpaces().find(space => space.id !== migrateSourceSpaceSelect.value);
-        if (target) migrateTargetSpaceSelect.value = target.id;
-    }
-});
-migrateTargetSpaceSelect.addEventListener('change', () => {
-    spaceTransferStatus.textContent = '';
-});
-spaceNameConfirmBtn.addEventListener('click', saveNamedSpace);
-spaceNameCancelBtn.addEventListener('click', closeSpaceNameDialog);
-spaceNameInput.addEventListener('input', () => {
-    spaceNameMessage.textContent = '';
-});
-spaceNameInput.addEventListener('keydown', event => {
-    if (isTextCompositionEvent(event)) return;
-    if (event.key === 'Enter') {
-        event.preventDefault();
-        saveNamedSpace();
-    }
-    if (event.key === 'Escape') {
-        event.preventDefault();
-        closeSpaceNameDialog();
-    }
-});
-migrateLocalBtn.addEventListener('click', () => finishMigration('local_only'));
-migrateCloudBtn.addEventListener('click', () => finishMigration('cloud_sync'));
-migrateMergeBtn.addEventListener('click', () => finishMigration('merge'));
-migrateLaterBtn.addEventListener('click', () => {
-    localStorage.setItem(MIGRATION_DISMISSED_KEY, 'true');
-    closeOverlay(migrationOverlay);
-});
+Settings.bindEvents();
 
 undoFab.addEventListener('click', undoLastComplete);
 
@@ -2088,32 +1891,6 @@ criterionDialogInput.addEventListener('keydown', event => {
         event.preventDefault();
         closeCriterionDialog();
     }
-});
-
-exportJsonBtn.addEventListener('click', async () => {
-    const data = await StorageService.exportData();
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'empty-box-backup.json';
-    a.click();
-    URL.revokeObjectURL(url);
-});
-
-importJsonInput.addEventListener('change', async e => {
-    const file = e.target.files && e.target.files[0];
-    if (!file) return;
-    try {
-        const text = await file.text();
-        const parsed = JSON.parse(text);
-        state = await StorageService.importData(parsed);
-        renderNow();
-        renderReflectionFab();
-        renderSpaceSettings();
-        closeOverlay(settingsOverlay);
-    } catch { }
-    importJsonInput.value = '';
 });
 
 nowTaskText.addEventListener('click', startInlineEdit);
