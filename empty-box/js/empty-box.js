@@ -2,6 +2,7 @@ const StorageService = window.EmptyBoxStorage;
 const TaskActions = window.EmptyBoxTaskActions;
 const HomeLists = window.EmptyBoxHomeLists;
 const MustDo = window.EmptyBoxMustDo;
+const TaskModel = window.EmptyBoxTaskModel;
 const { STORAGE_KEY, UPDATE_PING_KEY, MIGRATION_DONE_KEY, MIGRATION_DISMISSED_KEY } = StorageService.keys;
 const { formatErrorMessage } = StorageService;
 const {
@@ -869,7 +870,7 @@ function getMoveTaskGroups() {
 }
 
 function replaceTaskTextInList(list, previousText, nextText) {
-    return normalizeTaskList((Array.isArray(list) ? list : []).map(task => task === previousText ? nextText : task));
+    return TaskModel.replaceTaskTextInList(list, previousText, nextText);
 }
 
 function placeInputCursorAtEnd(input) {
@@ -921,82 +922,27 @@ async function handleCopyTask(button, task) {
 }
 
 function isDailyTask(task) {
-    return state.dailyTasks.includes(task);
+    return TaskModel.isDailyTask(task);
 }
 
 function markDailyTaskDoneToday(task) {
-    if (!isDailyTask(task)) return;
-    const todayKey = getTodayKey();
-    if (!state.dailyCompletedByDate || typeof state.dailyCompletedByDate !== 'object' || Array.isArray(state.dailyCompletedByDate)) {
-        state.dailyCompletedByDate = {};
-    }
-    state.dailyCompletedByDate[todayKey] = normalizeTaskList([
-        ...(state.dailyCompletedByDate[todayKey] || []),
-        task
-    ]);
+    TaskModel.markDailyTaskDoneToday(task);
 }
 
 function removeDailyCompletion(task, dateKey = getTodayKey()) {
-    if (!state.dailyCompletedByDate?.[dateKey]) return;
-    state.dailyCompletedByDate[dateKey] = normalizeTaskList(state.dailyCompletedByDate[dateKey]).filter(item => item !== task);
-    if (!state.dailyCompletedByDate[dateKey].length) {
-        delete state.dailyCompletedByDate[dateKey];
-    }
+    TaskModel.removeDailyCompletion(task, dateKey);
 }
 
 function toggleDailyTask(task) {
-    if (!task) return false;
-    if (isDailyTask(task)) {
-        state.dailyTasks = state.dailyTasks.filter(item => item !== task);
-        Object.keys(state.dailyCompletedByDate || {}).forEach(dateKey => removeDailyCompletion(task, dateKey));
-        return false;
-    }
-    state.dailyTasks = [...new Set([...state.dailyTasks, task])];
-    removeDailyCompletion(task);
-    return true;
+    return TaskModel.toggleDailyTask(task);
 }
 
 function taskTextExists(text, previousText) {
-    if (!text || text === previousText) return false;
-    return state.boxTasks.includes(text) ||
-        state.mustDoTasks.includes(text) ||
-        state.dailyTasks.includes(text) ||
-        state.nowTask === text;
+    return TaskModel.taskTextExists(text, previousText);
 }
 
 function renameTaskText(previousText, nextText) {
-    const trimmedText = nextText.trim();
-    if (!previousText || previousText === trimmedText) return { ok: true };
-    if (!trimmedText) return { ok: false, message: '任务内容不能为空' };
-    if (taskTextExists(trimmedText, previousText)) return { ok: false, message: '已存在同名任务' };
-
-    state.boxTasks = replaceTaskTextInList(state.boxTasks, previousText, trimmedText);
-    state.mustDoTasks = replaceTaskTextInList(state.mustDoTasks, previousText, trimmedText);
-    state.dailyTasks = replaceTaskTextInList(state.dailyTasks, previousText, trimmedText);
-    if (state.nowTask === previousText) state.nowTask = trimmedText;
-    if (blindboxTask === previousText) {
-        blindboxTask = trimmedText;
-        blindboxTaskText.textContent = trimmedText;
-    }
-
-    if (state.mustDoTaskGroups[previousText]) {
-        const previousGroupId = state.mustDoTaskGroups[previousText];
-        delete state.mustDoTaskGroups[previousText];
-        state.mustDoTaskGroups[trimmedText] = previousGroupId;
-    }
-    Object.keys(state.mustDoTaskOrder).forEach(groupId => {
-        state.mustDoTaskOrder[groupId] = replaceTaskTextInList(state.mustDoTaskOrder[groupId], previousText, trimmedText);
-    });
-    Object.values(state.mustDoHiddenByDate).forEach(hiddenByCriterion => {
-        if (!hiddenByCriterion || typeof hiddenByCriterion !== 'object') return;
-        Object.keys(hiddenByCriterion).forEach(criterionId => {
-            hiddenByCriterion[criterionId] = replaceTaskTextInList(hiddenByCriterion[criterionId], previousText, trimmedText);
-        });
-    });
-    Object.keys(state.dailyCompletedByDate).forEach(dateKey => {
-        state.dailyCompletedByDate[dateKey] = replaceTaskTextInList(state.dailyCompletedByDate[dateKey], previousText, trimmedText);
-    });
-    return { ok: true };
+    return TaskModel.renameTaskText(previousText, nextText);
 }
 
 function closeMoveTaskDialog() {
@@ -1023,6 +969,18 @@ function openMoveTaskDialog(task) {
     });
     openOverlay(moveTaskOverlay);
 }
+
+TaskModel.configure({
+    getState: () => state,
+    getTodayKey,
+    getBlindboxTask: () => blindboxTask,
+    setBlindboxTask: task => {
+        blindboxTask = task;
+    },
+    updateBlindboxTaskText: task => {
+        blindboxTaskText.textContent = task;
+    }
+});
 
 TaskActions.configure({
     getTaskState: task => {
