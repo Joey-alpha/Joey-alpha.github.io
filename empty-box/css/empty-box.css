@@ -35,10 +35,6 @@
         transition: background 0.5s ease;
     }
 
-    body.evening {
-        background: linear-gradient(145deg, #f6f2ed 0%, #fffaf4 44%, #e8edf5 100%);
-    }
-
     body.night {
         color: #eef2ff;
         background: linear-gradient(145deg, #111827 0%, #1f2937 48%, #273244 100%);
@@ -107,103 +103,6 @@
 
     body.night .quote-strip {
         color: #d8e0f4;
-    }
-
-    @media (prefers-color-scheme: dark) {
-        body,
-        body.evening,
-        body.late {
-            color: #eef2ff;
-            background: linear-gradient(145deg, #111827 0%, #1f2937 48%, #273244 100%);
-        }
-
-        body .shell,
-        body .ambient-hint,
-        body .fab {
-            background: rgba(24, 30, 46, 0.70);
-            color: #eef2ff;
-            border-color: rgba(255, 255, 255, 0.08);
-        }
-
-        body .overlay-card {
-            background: rgba(24, 30, 46, 0.98);
-            color: #eef2ff;
-            border-color: rgba(255, 255, 255, 0.10);
-        }
-
-        body .must-do-item,
-        body .pinned-item,
-        body .daily-item {
-            background: rgba(24, 30, 46, 0.50);
-            border-color: rgba(255, 255, 255, 0.08);
-            color: #eef2ff;
-        }
-
-        body .search-input,
-        body .reflection-textarea,
-        body .settings-select {
-            background: rgba(255, 255, 255, 0.04);
-            color: #eef2ff;
-            border-color: rgba(255, 255, 255, 0.08);
-        }
-
-        body .overlay .candidate-item,
-        body .overlay .blindbox-task,
-        body .overlay .must-do-criterion {
-            background: rgba(31, 39, 58, 0.96);
-            color: #eef2ff;
-            border-color: rgba(255, 255, 255, 0.10);
-        }
-
-        body .candidate-more-btn,
-        body .must-do-selection .candidate-actions,
-        body .candidate-list .candidate-actions,
-        body .must-do-list .candidate-actions,
-        body .pinned-list .candidate-actions,
-        body .daily-list .candidate-actions {
-            background: rgba(31, 39, 58, 0.98);
-            color: #eef2ff;
-            border-color: rgba(255, 255, 255, 0.10);
-        }
-
-        body .must-do-criterion.active {
-            background: var(--accent);
-            color: #fff;
-        }
-
-        body .time-block p,
-        body .now-task h3.is-empty::before,
-        body .criterion-dialog-message,
-        body .reflection-textarea::placeholder {
-            color: #c6d0e7;
-        }
-
-        body .quote-strip {
-            color: #d8e0f4;
-        }
-
-        body .overlay .must-do-criterion.has-tasks:not(.active) {
-            background: rgba(122, 162, 255, 0.18);
-            border-color: rgba(122, 162, 255, 0.30);
-            color: #d7e1ff;
-        }
-
-        body .must-do-inline-input {
-            background: rgba(15, 23, 42, 0.92);
-            border-color: rgba(148, 163, 184, 0.36);
-            color: #eef2ff;
-            box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.16);
-        }
-
-        body .must-do-selection .candidate-actions .btn.secondary,
-        body .candidate-list .candidate-actions .btn.secondary,
-        body .must-do-list .candidate-actions .btn.secondary,
-        body .pinned-list .candidate-actions .btn.secondary,
-        body .daily-list .candidate-actions .btn.secondary {
-            background: rgba(51, 65, 85, 0.92);
-            border-color: rgba(148, 163, 184, 0.26);
-            color: #eef2ff;
-        }
     }
 
     .app {
@@ -422,6 +321,31 @@
         padding: 10px 12px;
         border-radius: 12px;
         font-size: 14px;
+    }
+
+    .settings-inline .btn.secondary {
+        background: #ffffff;
+        border-color: rgba(31, 41, 55, 0.24);
+        color: #111827;
+        box-shadow: none;
+    }
+
+    .settings-inline .btn.secondary:hover {
+        background: #ffffff;
+        border-color: rgba(0, 113, 227, 0.42);
+        box-shadow: 0 8px 18px rgba(31, 41, 55, 0.08);
+    }
+
+    .settings-inline .btn.secondary.danger {
+        background: #fff1f2;
+        border-color: rgba(220, 38, 38, 0.42);
+        color: #b91c1c;
+    }
+
+    .settings-inline .btn.secondary.danger:hover {
+        background: #fee2e2;
+        border-color: rgba(239, 68, 68, 0.40);
+        box-shadow: 0 8px 18px rgba(185, 28, 28, 0.10);
     }
 
     .space-transfer-grid {
@@ -970,53 +894,31 @@
         color: #eef2ff;
     }
 
-    body.late .candidate-star-badge {
-        background: #fde68a;
-        border-color: #fbbf24;
-        color: #111827;
-    }
-
-    body.late .candidate-daily-badge {
-        background: #bfdbfe;
-        border-color: #93c5fd;
-        color: #111827;
-    }
-
     body.night .must-do-selection .candidate-item.is-selected,
-    body.late .must-do-selection .candidate-item.is-selected,
-    body.night .candidate-list .candidate-item.is-selected,
-    body.late .candidate-list .candidate-item.is-selected {
+    body.night .candidate-list .candidate-item.is-selected {
         background: rgba(245, 158, 11, 0.14);
         border-color: rgba(251, 191, 36, 0.32);
     }
 
     body.night .must-do-selection .candidate-item.is-daily,
-    body.late .must-do-selection .candidate-item.is-daily,
-    body.night .candidate-list .candidate-item.is-daily,
-    body.late .candidate-list .candidate-item.is-daily {
+    body.night .candidate-list .candidate-item.is-daily {
         background: rgba(122, 162, 255, 0.13);
         border-color: rgba(122, 162, 255, 0.30);
     }
 
     body.night .must-do-selection .candidate-item.is-selected.is-daily,
-    body.late .must-do-selection .candidate-item.is-selected.is-daily,
-    body.night .candidate-list .candidate-item.is-selected.is-daily,
-    body.late .candidate-list .candidate-item.is-selected.is-daily {
+    body.night .candidate-list .candidate-item.is-selected.is-daily {
         border-color: rgba(122, 162, 255, 0.36);
     }
 
-    body.night .must-do-add-item,
-    body.late .must-do-add-item {
+    body.night .must-do-add-item {
         border-color: rgba(148, 163, 184, 0.28);
         color: #c6d0e7;
     }
 
     body.night .must-do-add-item:hover,
     body.night .must-do-add-item:focus-visible,
-    body.night .must-do-add-item.is-editing,
-    body.late .must-do-add-item:hover,
-    body.late .must-do-add-item:focus-visible,
-    body.late .must-do-add-item.is-editing {
+    body.night .must-do-add-item.is-editing {
         background: rgba(148, 163, 184, 0.10);
         border-color: rgba(122, 162, 255, 0.36);
         color: #eef2ff;
@@ -1309,15 +1211,13 @@
         }
     }
 
-    body.night select.settings-select,
-    body.late select.settings-select {
+    body.night select.settings-select {
         background-color: rgba(15, 23, 42, 0.86);
         color: #eef2ff;
         color-scheme: dark;
     }
 
-    body.night select.settings-select option,
-    body.late select.settings-select option {
+    body.night select.settings-select option {
         background: #111827 !important;
         background-color: #111827 !important;
         color: #eef2ff !important;
@@ -1325,89 +1225,61 @@
 
     body.night select.settings-select option:checked,
     body.night select.settings-select option:hover,
-    body.night select.settings-select option:focus,
-    body.late select.settings-select option:checked,
-    body.late select.settings-select option:hover,
-    body.late select.settings-select option:focus {
+    body.night select.settings-select option:focus {
         background: #263b66 !important;
         background-color: #263b66 !important;
         color: #ffffff !important;
     }
 
-    @media (prefers-color-scheme: dark) {
-        html {
-            color-scheme: dark;
-        }
-
-        select.settings-select {
-            background-color: rgba(15, 23, 42, 0.86);
-            color: #eef2ff;
-            color-scheme: dark;
-        }
-
-        select.settings-select option {
-            background: #111827 !important;
-            background-color: #111827 !important;
-            color: #eef2ff !important;
-        }
-
-        select.settings-select option:checked,
-        select.settings-select option:hover,
-        select.settings-select option:focus {
-            background: #263b66 !important;
-            background-color: #263b66 !important;
-            color: #ffffff !important;
-        }
-    }
-
-    body.night .settings-inline .btn.secondary,
-    body.late .settings-inline .btn.secondary {
+    body.night .settings-inline .btn.secondary {
         background: transparent;
         border-color: rgba(148, 163, 184, 0.28);
         color: #eef2ff;
         box-shadow: none;
     }
 
-    body.night .settings-inline .btn.secondary:hover,
-    body.late .settings-inline .btn.secondary:hover {
+    body.night .settings-inline .btn.secondary:hover {
         background: rgba(148, 163, 184, 0.10);
     }
 
-    body.night .move-task-list .btn.secondary,
-    body.late .move-task-list .btn.secondary {
+    body.night .move-task-list .btn.secondary {
         background: transparent;
         border-color: rgba(148, 163, 184, 0.28);
         color: #eef2ff;
         box-shadow: none;
     }
 
-    body.night .move-task-list .btn.secondary:hover,
-    body.late .move-task-list .btn.secondary:hover {
+    body.night .move-task-list .btn.secondary:hover {
         background: rgba(148, 163, 184, 0.10);
         border-color: rgba(148, 163, 184, 0.40);
     }
 
-    @media (prefers-color-scheme: dark) {
-        .settings-inline .btn.secondary {
-            background: transparent;
-            border-color: rgba(148, 163, 184, 0.28);
-            color: #eef2ff;
-            box-shadow: none;
-        }
+    body:not(.night) .settings-select {
+        background-color: #ffffff;
+        border-color: rgba(31, 41, 55, 0.22);
+        color: #111827;
+        color-scheme: light;
+    }
 
-        .settings-inline .btn.secondary:hover {
-            background: rgba(148, 163, 184, 0.10);
-        }
+    body:not(.night) .settings-select option {
+        background: #ffffff;
+        background-color: #ffffff;
+        color: #111827;
+    }
 
-        .move-task-list .btn.secondary {
-            background: transparent;
-            border-color: rgba(148, 163, 184, 0.28);
-            color: #eef2ff;
-            box-shadow: none;
-        }
+    body:not(.night) .settings-inline .btn.secondary {
+        background: #ffffff;
+        border-color: rgba(31, 41, 55, 0.28);
+        color: #111827;
+    }
 
-        .move-task-list .btn.secondary:hover {
-            background: rgba(148, 163, 184, 0.10);
-            border-color: rgba(148, 163, 184, 0.40);
-        }
+    body:not(.night) .settings-inline .btn.secondary:hover {
+        border-color: rgba(0, 113, 227, 0.46);
+        background: #f8fafc;
+    }
+
+    body:not(.night) .settings-inline .btn.secondary.danger {
+        background: #fff1f2;
+        border-color: rgba(220, 38, 38, 0.48);
+        color: #991b1b;
     }

@@ -89,6 +89,7 @@ const QUOTES = [
 
 const body = document.body;
 const hour = new Date().getHours();
+const systemDarkModeQuery = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
 const greeting = document.getElementById('greeting');
 const timeText = document.getElementById('timeText');
 const ambientHint = document.getElementById('ambientHint');
@@ -1963,24 +1964,30 @@ window.addEventListener('keydown', (event) => {
     }
 });
 
+function applySystemColorMode(event = systemDarkModeQuery) {
+    const prefersDark = Boolean(event && event.matches);
+    body.classList.toggle('night', prefersDark);
+}
+
+applySystemColorMode();
+if (systemDarkModeQuery) {
+    systemDarkModeQuery.addEventListener('change', applySystemColorMode);
+}
+
 const weekday = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][new Date().getDay()];
 const minute = String(new Date().getMinutes()).padStart(2, '0');
 timeText.textContent = `${weekday} · ${String(hour).padStart(2, '0')}:${minute}`;
 
 if (hour >= 18 && hour < 22) {
-    body.className = 'evening';
     greeting.textContent = '夜晚';
     ambientHint.textContent = '🌙';
 } else if (hour >= 22 || hour < 6) {
-    body.className = 'late';
     greeting.textContent = '夜深了';
     ambientHint.textContent = '🌌';
 } else if (hour >= 6 && hour < 11) {
-    body.className = 'morning';
     greeting.textContent = '早上';
     ambientHint.textContent = '💧';
 } else {
-    body.className = 'day';
     greeting.textContent = '下午';
     ambientHint.textContent = '🌿';
 }
