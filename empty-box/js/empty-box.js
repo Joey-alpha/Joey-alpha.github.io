@@ -1,5 +1,6 @@
 const StorageService = window.EmptyBoxStorage;
 const TaskActions = window.EmptyBoxTaskActions;
+const HomeLists = window.EmptyBoxHomeLists;
 const { STORAGE_KEY, UPDATE_PING_KEY, MIGRATION_DONE_KEY, MIGRATION_DISMISSED_KEY } = StorageService.keys;
 const { formatErrorMessage } = StorageService;
 const {
@@ -281,9 +282,7 @@ function renderNow() {
     completeNowBtn.style.visibility = state.nowTask ? 'visible' : 'hidden';
     undoFab.style.display = lastCompletedTask ? 'inline-flex' : 'none';
     renderFabState();
-    renderDailyList();
-    renderPinnedCriterionList();
-    renderMustDoList();
+    HomeLists.renderAll();
     saveState();
 }
 
@@ -317,55 +316,6 @@ function openConfirmDialog({ title, message, confirmText = '确定', danger = fa
     return new Promise(resolve => {
         pendingConfirmResolve = resolve;
     });
-}
-
-function reorderTaskList(tasks, draggedTask, targetTask) {
-    if (!draggedTask || !targetTask || draggedTask === targetTask) return false;
-    const reorderedTasks = [...tasks];
-    const fromIndex = reorderedTasks.indexOf(draggedTask);
-    const toIndex = reorderedTasks.indexOf(targetTask);
-    if (fromIndex === -1 || toIndex === -1) return false;
-    reorderedTasks.splice(fromIndex, 1);
-    reorderedTasks.splice(toIndex, 0, draggedTask);
-    return reorderedTasks;
-}
-
-function reorderSelectedMustDoTask(draggedTask, targetTask) {
-    const tasks = reorderTaskList(state.mustDoTasks, draggedTask, targetTask);
-    if (!tasks) return false;
-    state.mustDoTasks = tasks;
-    renderMustDoList();
-    saveState();
-    return true;
-}
-
-function reorderDailyTask(draggedTask, targetTask) {
-    const tasks = reorderTaskList(state.dailyTasks, draggedTask, targetTask);
-    if (!tasks) return false;
-    state.dailyTasks = tasks;
-    renderDailyList();
-    saveState();
-    return true;
-}
-
-function reorderPinnedCriterionTask(criterionId, draggedTask, targetTask) {
-    const tasks = reorderTaskList(getTasksForMustDoCriterion(criterionId), draggedTask, targetTask);
-    if (!tasks) return false;
-    setCriterionTaskOrder(criterionId, tasks);
-    renderPinnedCriterionList();
-    if (criterionId === state.activeMustDoCriterionId) buildMustDoCandidates();
-    saveState();
-    return true;
-}
-
-function selectHomeTask(task) {
-    if (state.nowTask && state.nowTask !== task && !state.boxTasks.includes(state.nowTask)) {
-        appendTaskToBox(state.nowTask, getTaskGroupIdRaw(state.nowTask));
-    }
-    state.boxTasks = state.boxTasks.filter(item => item !== task);
-    state.nowTask = task;
-    state.nowTaskStartedAt = Date.now();
-    renderNow();
 }
 
 function normalizeTaskLinkHref(value) {
@@ -415,140 +365,8 @@ function isTaskItemControlTarget(target) {
 
 const createTaskActionMenu = options => TaskActions.createMenu(options);
 
-function bindHomeListItemDragInteractions(item, task, { selector, dataType, reorder }) {
-    item.draggable = true;
-    item.dataset.task = task;
-    let pointerId = null;
-    let startX = 0;
-    let startY = 0;
-    let didPointerDrag = false;
-
-    item.addEventListener('dragstart', event => {
-        if (isTaskItemControlTarget(event.target)) {
-            event.preventDefault();
-            return;
-        }
-        item.classList.add('is-dragging');
-        event.dataTransfer.effectAllowed = 'move';
-        event.dataTransfer.setData(dataType, task);
-    });
-    item.addEventListener('dragend', () => {
-        item.classList.remove('is-dragging');
-    });
-    item.addEventListener('dragover', event => {
-        event.preventDefault();
-        const draggedTask = event.dataTransfer.getData(dataType);
-        if (!draggedTask || draggedTask === task) return;
-        item.classList.add('is-drag-over');
-    });
-    item.addEventListener('dragleave', () => {
-        item.classList.remove('is-drag-over');
-    });
-    item.addEventListener('drop', event => {
-        event.preventDefault();
-        item.classList.remove('is-drag-over');
-        const draggedTask = event.dataTransfer.getData(dataType);
-        reorder(draggedTask, task);
-    });
-
-    item.addEventListener('pointerdown', event => {
-        if (event.pointerType === 'mouse' || isTaskItemControlTarget(event.target)) return;
-        pointerId = event.pointerId;
-        startX = event.clientX;
-        startY = event.clientY;
-        didPointerDrag = false;
-        if (item.setPointerCapture) item.setPointerCapture(event.pointerId);
-    });
-    item.addEventListener('pointermove', event => {
-        if (pointerId !== event.pointerId) return;
-        const moved = Math.hypot(event.clientX - startX, event.clientY - startY);
-        if (moved <= MUST_DO_CRITERION_TAP_MOVE_PX) return;
-        didPointerDrag = true;
-        item.classList.add('is-dragging');
-        event.preventDefault();
-    });
-    item.addEventListener('pointerup', event => {
-        if (pointerId !== event.pointerId) return;
-        pointerId = null;
-        item.classList.remove('is-dragging');
-        if (item.releasePointerCapture && item.hasPointerCapture && item.hasPointerCapture(event.pointerId)) {
-            item.releasePointerCapture(event.pointerId);
-        }
-        if (!didPointerDrag) return;
-        event.preventDefault();
-        event.stopPropagation();
-        item.dataset.suppressClickUntil = String(Date.now() + 350);
-        const targetItem = document.elementFromPoint(event.clientX, event.clientY)?.closest(selector);
-        reorder(task, targetItem?.dataset.task);
-    });
-    item.addEventListener('pointercancel', event => {
-        if (pointerId !== event.pointerId) return;
-        pointerId = null;
-        didPointerDrag = false;
-        item.classList.remove('is-dragging');
-    });
-}
-
-function bindMustDoListItemDragInteractions(item, task) {
-    bindHomeListItemDragInteractions(item, task, {
-        selector: '.must-do-item',
-        dataType: 'application/x-empty-box-selected-task',
-        reorder: reorderSelectedMustDoTask
-    });
-}
-
-function bindDailyListItemDragInteractions(item, task) {
-    bindHomeListItemDragInteractions(item, task, {
-        selector: '.daily-item',
-        dataType: 'application/x-empty-box-daily-task',
-        reorder: reorderDailyTask
-    });
-}
-
-function bindPinnedListItemDragInteractions(item, task, criterionId) {
-    bindHomeListItemDragInteractions(item, task, {
-        selector: '.pinned-item',
-        dataType: 'application/x-empty-box-pinned-task',
-        reorder: (draggedTask, targetTask) => reorderPinnedCriterionTask(criterionId, draggedTask, targetTask)
-    });
-}
-
 function renderMustDoList() {
-    mustDoList.innerHTML = '';
-    if (!state.mustDoTasks.length) {
-        mustDoPanel.classList.remove('active');
-        mustDoList.innerHTML = '<div class="reflection-empty">当前未设置必做任务</div>';
-        return;
-    }
-    mustDoPanel.classList.add('active');
-    state.mustDoTasks.forEach((task, index) => {
-        const item = document.createElement('div');
-        item.className = `must-do-item candidate-item has-actions${state.nowTask === task ? ' is-current' : ''}`;
-        const taskText = document.createElement('span');
-        taskText.className = 'candidate-text';
-        renderTaskText(taskText, task);
-        const orderText = document.createElement('span');
-        orderText.className = 'must-do-order';
-        orderText.textContent = String(index + 1);
-        const { moreButton, actions } = createTaskActionMenu({
-            row: item,
-            label: taskText,
-            task,
-            rerender: renderMustDoList
-        });
-        item.append(taskText, orderText, moreButton, actions);
-        bindMustDoListItemDragInteractions(item, task);
-        item.addEventListener('click', event => {
-            if (Date.now() < Number(item.dataset.suppressClickUntil || 0)) {
-                event.preventDefault();
-                event.stopPropagation();
-                return;
-            }
-            if (isTaskItemControlTarget(event.target)) return;
-            selectHomeTask(task);
-        });
-        mustDoList.appendChild(item);
-    });
+    HomeLists.renderMustDoList();
 }
 
 function isDailyTaskDoneToday(task) {
@@ -556,49 +374,8 @@ function isDailyTaskDoneToday(task) {
     return todayCompleted.includes(task);
 }
 
-function getActiveDailyTasks() {
-    return normalizeTaskList(state.dailyTasks).filter(task => !isDailyTaskDoneToday(task));
-}
-
 function renderDailyList() {
-    dailyList.innerHTML = '';
-    if (!state.dailyTasks.length) {
-        dailyPanel.classList.remove('active');
-        return;
-    }
-
-    dailyPanel.classList.add('active');
-    const activeDailyTasks = getActiveDailyTasks();
-    if (!activeDailyTasks.length) {
-        dailyList.innerHTML = '<div class="reflection-empty">今日 Daily 已完成</div>';
-        return;
-    }
-
-    activeDailyTasks.forEach(task => {
-        const item = document.createElement('div');
-        item.className = `daily-item candidate-item has-actions${state.nowTask === task ? ' is-current' : ''}`;
-        const taskText = document.createElement('span');
-        taskText.className = 'candidate-text';
-        renderTaskText(taskText, task);
-        const { moreButton, actions } = createTaskActionMenu({
-            row: item,
-            label: taskText,
-            task,
-            rerender: renderDailyList
-        });
-        item.append(taskText, moreButton, actions);
-        bindDailyListItemDragInteractions(item, task);
-        item.addEventListener('click', event => {
-            if (Date.now() < Number(item.dataset.suppressClickUntil || 0)) {
-                event.preventDefault();
-                event.stopPropagation();
-                return;
-            }
-            if (isTaskItemControlTarget(event.target)) return;
-            selectHomeTask(task);
-        });
-        dailyList.appendChild(item);
-    });
+    HomeLists.renderDailyList();
 }
 
 function getPinnedMustDoCriterion() {
@@ -608,46 +385,7 @@ function getPinnedMustDoCriterion() {
 }
 
 function renderPinnedCriterionList() {
-    pinnedList.innerHTML = '';
-    const criterion = getPinnedMustDoCriterion();
-    if (!criterion) {
-        pinnedPanel.classList.remove('active');
-        return;
-    }
-
-    const tasks = getTasksForMustDoCriterion(criterion.id);
-    if (!tasks.length) {
-        pinnedPanel.classList.remove('active');
-        return;
-    }
-
-    pinnedTitle.textContent = criterion.name;
-    pinnedPanel.classList.add('active');
-    tasks.forEach(task => {
-        const item = document.createElement('div');
-        item.className = `pinned-item candidate-item has-actions${state.nowTask === task ? ' is-current' : ''}`;
-        const taskText = document.createElement('span');
-        taskText.className = 'candidate-text';
-        renderTaskText(taskText, task);
-        const { moreButton, actions } = createTaskActionMenu({
-            row: item,
-            label: taskText,
-            task,
-            rerender: renderPinnedCriterionList
-        });
-        item.append(taskText, moreButton, actions);
-        bindPinnedListItemDragInteractions(item, task, criterion.id);
-        item.addEventListener('click', event => {
-            if (Date.now() < Number(item.dataset.suppressClickUntil || 0)) {
-                event.preventDefault();
-                event.stopPropagation();
-                return;
-            }
-            if (isTaskItemControlTarget(event.target)) return;
-            selectHomeTask(task);
-        });
-        pinnedList.appendChild(item);
-    });
+    HomeLists.renderPinnedCriterionList();
 }
 
 function formatDateKey(date) {
@@ -1459,6 +1197,33 @@ TaskActions.configure({
         renderDailyList();
         saveState();
     }
+});
+
+HomeLists.configure({
+    elements: {
+        mustDoPanel,
+        mustDoList,
+        dailyPanel,
+        dailyList,
+        pinnedPanel,
+        pinnedTitle,
+        pinnedList
+    },
+    getState: () => state,
+    saveState,
+    renderNow,
+    renderTaskText,
+    createTaskActionMenu,
+    isTaskItemControlTarget,
+    appendTaskToBox,
+    getTaskGroupIdRaw,
+    getTodayKey,
+    getPinnedMustDoCriterion,
+    getTasksForMustDoCriterion,
+    setCriterionTaskOrder,
+    buildMustDoCandidates,
+    getActiveMustDoCriterionId: () => state.activeMustDoCriterionId,
+    tapMovePx: MUST_DO_CRITERION_TAP_MOVE_PX
 });
 
 function bindMustDoItemMoveInteractions(row, task) {
