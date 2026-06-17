@@ -1,4 +1,5 @@
 const StorageService = window.EmptyBoxStorage;
+const Dialogs = window.EmptyBoxDialogs;
 const TaskActions = window.EmptyBoxTaskActions;
 const HomeLists = window.EmptyBoxHomeLists;
 const MustDo = window.EmptyBoxMustDo;
@@ -193,14 +194,25 @@ const overlayStack = [
     confirmOverlay
 ];
 
+Dialogs.configure({
+    overlays: overlayStack,
+    confirm: {
+        overlay: confirmOverlay,
+        title: confirmTitle,
+        message: confirmMessage,
+        acceptButton: confirmAcceptBtn,
+        cancelButton: confirmCancelBtn
+    },
+    closeHandlers: {
+        criterionOverlay: closeCriterionDialog,
+        moveTaskOverlay: closeMoveTaskDialog,
+        spaceNameOverlay: closeSpaceNameDialog,
+        confirmOverlay: () => closeConfirmDialog(false)
+    }
+});
+
 function hoistOverlaysToViewportLayer() {
-    const appRoot = document.querySelector('.app');
-    if (!appRoot) return;
-    overlayStack.forEach(overlay => {
-        if (overlay && overlay.parentElement !== appRoot) {
-            appRoot.appendChild(overlay);
-        }
-    });
+    Dialogs.hoistOverlaysToViewportLayer();
 }
 
 hoistOverlaysToViewportLayer();
@@ -233,7 +245,6 @@ let lastShake = 0;
 let criterionDialogMode = 'add';
 let criterionDialogCriterionId = null;
 let isBooting = true;
-let pendingConfirmResolve = null;
 let pendingMoveTask = '';
 
 StorageService.configure({
@@ -285,35 +296,19 @@ function renderNow() {
 }
 
 function openOverlay(el) {
-    el.classList.add('active');
+    Dialogs.openOverlay(el);
 }
 
 function closeOverlay(el) {
-    el.classList.remove('active');
+    Dialogs.closeOverlay(el);
 }
 
 function closeConfirmDialog(result = false) {
-    closeOverlay(confirmOverlay);
-    if (pendingConfirmResolve) {
-        pendingConfirmResolve(result);
-        pendingConfirmResolve = null;
-    }
+    Dialogs.closeConfirmDialog(result);
 }
 
 function openConfirmDialog({ title, message, confirmText = '确定', danger = false }) {
-    if (pendingConfirmResolve) {
-        pendingConfirmResolve(false);
-        pendingConfirmResolve = null;
-    }
-    confirmTitle.textContent = title;
-    confirmMessage.textContent = message;
-    confirmAcceptBtn.textContent = confirmText;
-    confirmAcceptBtn.classList.toggle('danger', danger);
-    openOverlay(confirmOverlay);
-    confirmAcceptBtn.focus();
-    return new Promise(resolve => {
-        pendingConfirmResolve = resolve;
-    });
+    return Dialogs.openConfirmDialog({ title, message, confirmText, danger });
 }
 
 function normalizeTaskLinkHref(value) {
@@ -1874,8 +1869,6 @@ criterionDialogPinBtn.addEventListener('click', handleCriterionPinDialogAction);
 criterionDialogDeleteBtn.addEventListener('click', handleCriterionDeleteDialogAction);
 criterionDialogCancelBtn.addEventListener('click', closeCriterionDialog);
 moveTaskCancelBtn.addEventListener('click', closeMoveTaskDialog);
-confirmAcceptBtn.addEventListener('click', () => closeConfirmDialog(true));
-confirmCancelBtn.addEventListener('click', () => closeConfirmDialog(false));
 
 criterionDialogInput.addEventListener('input', () => {
     criterionDialogMessage.textContent = '';
@@ -1903,39 +1896,7 @@ nowTaskText.addEventListener('keydown', e => {
     }
 });
 
-document.querySelectorAll('[data-close]').forEach(btn => {
-    btn.addEventListener('click', () => {
-        const target = document.getElementById(btn.dataset.close);
-        if (target === criterionOverlay) {
-            closeCriterionDialog();
-        } else if (target === moveTaskOverlay) {
-            closeMoveTaskDialog();
-        } else if (target === spaceNameOverlay) {
-            closeSpaceNameDialog();
-        } else if (target === confirmOverlay) {
-            closeConfirmDialog(false);
-        } else {
-            closeOverlay(target);
-        }
-    });
-});
-
-overlayStack.forEach(overlay => {
-    overlay.addEventListener('click', e => {
-        if (e.target !== overlay) return;
-        if (overlay === criterionOverlay) {
-            closeCriterionDialog();
-        } else if (overlay === moveTaskOverlay) {
-            closeMoveTaskDialog();
-        } else if (overlay === spaceNameOverlay) {
-            closeSpaceNameDialog();
-        } else if (overlay === confirmOverlay) {
-            closeConfirmDialog(false);
-        } else {
-            closeOverlay(overlay);
-        }
-    });
-});
+Dialogs.bindCloseEvents();
 
 async function initApp() {
     await refreshCloudSpaces();

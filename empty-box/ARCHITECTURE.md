@@ -13,28 +13,32 @@ This app intentionally runs without a build step. Modules are loaded by
    - Owns localStorage, Supabase REST calls, spaces, migration, import/export.
    - Exposes `window.EmptyBoxStorage`.
    - Requires app hooks for the current in-memory state and boot status.
-3. `js/empty-box-task-model.js`
+3. `js/empty-box-dialogs.js`
+   - Owns generic overlay open/close behavior, confirm dialog state, and close-button/backdrop events.
+   - Exposes `window.EmptyBoxDialogs`.
+   - Requires app hooks for business-specific overlay close handlers.
+4. `js/empty-box-task-model.js`
    - Owns task business rules that do not need DOM rendering.
    - Exposes `window.EmptyBoxTaskModel`.
    - Requires app hooks for the current state and small UI side effects during rename.
-4. `js/empty-box-settings.js`
+5. `js/empty-box-settings.js`
    - Owns settings UI, space management, import/export, and legacy migration prompts.
    - Exposes `window.EmptyBoxSettings`.
    - Requires app hooks for state updates, overlays, confirmations, and rendering refreshes.
-5. `js/empty-box-task-actions.js`
+6. `js/empty-box-task-actions.js`
    - Owns the shared item `...` action menu DOM and button wiring.
    - Exposes `window.EmptyBoxTaskActions`.
    - Requires app hooks for editing, copying, moving, completing, Star, and Daily.
-6. `js/empty-box-home-lists.js`
+7. `js/empty-box-home-lists.js`
    - Owns the home-page Must Do, Daily, and pinned tab list rendering.
    - Owns home-list item selection and drag sorting.
    - Exposes `window.EmptyBoxHomeLists`.
    - Requires app hooks for state, task menu creation, and group ordering.
-7. `js/empty-box-must-do.js`
+8. `js/empty-box-must-do.js`
    - Owns Must Do tab bar rendering and tab drag/tap interactions.
    - Exposes `window.EmptyBoxMustDo`.
    - Requires app hooks for group actions and task moves.
-8. `js/empty-box.js`
+9. `js/empty-box.js`
    - Owns DOM, rendering, item interactions, and application boot.
 
 `quick-add.html` should load the shared state module before `quick-add.js`.
@@ -47,6 +51,8 @@ module or Supabase RPC instead of duplicating state normalization.
   Update `empty-box-state.js`, then any rendering logic in `empty-box.js`.
 - Local/cloud persistence, spaces, migration, import/export:
   Update `empty-box-storage.js`.
+- Generic overlays and confirm dialog:
+  Update `empty-box-dialogs.js`; update hooks in `empty-box.js` when an overlay needs custom close behavior.
 - Item action menu structure:
   Update `empty-box-task-actions.js`; update the hooks in `empty-box.js` when behavior changes.
 - Task business rules:
