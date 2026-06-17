@@ -61,9 +61,22 @@ function pickSpaceName(payload, filePath, index) {
   return basename(filePath, '.json').replaceAll('_', ' ').replaceAll('-', ' ');
 }
 
+function createUniqueGroupName(rawName, usedNames) {
+  const baseName = String(rawName || '').trim() || '分组';
+  let name = baseName;
+  let index = 2;
+  while (usedNames.has(name)) {
+    name = `${baseName} ${index}`;
+    index += 1;
+  }
+  usedNames.add(name);
+  return name;
+}
+
 function createGroupRecords({ state, spaceId, exportedAt }) {
   const oldToNewGroupId = new Map();
   const groups = [];
+  const usedGroupNames = new Set(['Inbox']);
 
   const inboxUuid = randomUUID();
   oldToNewGroupId.set(INBOX_ID, inboxUuid);
@@ -79,9 +92,10 @@ function createGroupRecords({ state, spaceId, exportedAt }) {
   });
 
   asArray(state.mustDoCriteria).forEach((criterion, index) => {
-    const name = typeof criterion === 'string' ? criterion : criterion?.name;
+    const rawName = typeof criterion === 'string' ? criterion : criterion?.name;
     const oldId = typeof criterion === 'object' && criterion?.id ? criterion.id : `criterion-${index}`;
-    if (!name || oldId === INBOX_ID) return;
+    if (!String(rawName || '').trim() || oldId === INBOX_ID) return;
+    const name = createUniqueGroupName(rawName, usedGroupNames);
     const id = randomUUID();
     oldToNewGroupId.set(oldId, id);
     groups.push({

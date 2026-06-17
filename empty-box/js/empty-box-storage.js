@@ -98,10 +98,23 @@
         };
     }
 
+    function createUniqueGroupName(rawName, usedNames) {
+        const baseName = String(rawName || '').trim() || '分组';
+        let name = baseName;
+        let index = 2;
+        while (usedNames.has(name)) {
+            name = `${baseName} ${index}`;
+            index += 1;
+        }
+        usedNames.add(name);
+        return name;
+    }
+
     function stateToV2Records(state, space) {
         const normalized = normalizeState(state);
         const now = new Date().toISOString();
         const inboxGroupId = createId('group');
+        const usedGroupNames = new Set(['Inbox']);
         const oldToNewGroupId = new Map([[window.EmptyBoxState.MUST_DO_INBOX_CRITERION.id, inboxGroupId]]);
         const groups = [{
             id: inboxGroupId,
@@ -116,11 +129,12 @@
 
         normalized.mustDoCriteria.forEach((criterion, index) => {
             const groupId = isUuid(criterion.id) ? criterion.id : createId('group');
+            const groupName = createUniqueGroupName(criterion.name, usedGroupNames);
             oldToNewGroupId.set(criterion.id, groupId);
             groups.push({
                 id: groupId,
                 space_id: space.id,
-                name: criterion.name,
+                name: groupName,
                 kind: 'custom',
                 position: index + 1,
                 is_default: false,
@@ -617,6 +631,10 @@
             await supabaseRequest(`empty_box_reflections?space_id=eq.${encodeURIComponent(spaceId)}`, { method: 'DELETE' });
             await supabaseRequest(`empty_box_tasks?space_id=eq.${encodeURIComponent(spaceId)}`, { method: 'DELETE' });
             await supabaseRequest(`empty_box_groups?space_id=eq.${encodeURIComponent(spaceId)}`, { method: 'DELETE' });
+            const remainingGroups = await supabaseRequest(`empty_box_groups?space_id=eq.${encodeURIComponent(spaceId)}&select=id,name&limit=1`);
+            if (Array.isArray(remainingGroups) && remainingGroups.length) {
+                throw new Error('云端分组清空未生效：请检查 empty_box_groups 的 DELETE policy 或外键约束。');
+            }
         },
     
         async assertCloudSpaceDeleted(spaceId) {
@@ -787,6 +805,7 @@
     function mergeTransferStates(target, source) {
         const base = normalizeState(target);
         const incoming = normalizeState(source);
+        const mergedGroups = mergeTransferGroups(base, incoming);
         return normalizeState({
             ...base,
             boxTasks: mergeUnique(base.boxTasks, incoming.boxTasks),
@@ -799,12 +818,76 @@
             mustDoTasks: base.mustDoTasks,
             dailyTasks: mergeUnique(base.dailyTasks, incoming.dailyTasks),
             dailyCompletedByDate: { ...incoming.dailyCompletedByDate, ...base.dailyCompletedByDate },
-            mustDoCriteria: base.mustDoCriteria,
+            mustDoCriteria: mergedGroups.mustDoCriteria,
             activeMustDoCriterionId: base.activeMustDoCriterionId,
             mustDoHiddenByDate: base.mustDoHiddenByDate,
-            mustDoTaskGroups: base.mustDoTaskGroups,
-            mustDoTaskOrder: base.mustDoTaskOrder
+            mustDoTaskGroups: mergedGroups.mustDoTaskGroups,
+            mustDoTaskOrder: mergedGroups.mustDoTaskOrder
         });
+    }
+
+    function mergeTransferGroups(base, incoming) {
+        const inboxId = window.EmptyBoxState.MUST_DO_INBOX_CRITERION.id;
+        const sourceToTargetGroupId = new Map([[inboxId, inboxId]]);
+        const usedNames = new Set(['Inbox', ...base.mustDoCriteria.map(criterion => criterion.name)]);
+        const usedIds = new Set([inboxId, ...base.mustDoCriteria.map(criterion => criterion.id)]);
+        const targetIdByName = new Map(base.mustDoCriteria.map(criterion => [criterion.name, criterion.id]));
+        const mustDoCriteria = base.mustDoCriteria.map(criterion => ({ ...criterion }));
+
+        incoming.mustDoCriteria.forEach(criterion => {
+            const existingId = targetIdByName.get(criterion.name);
+            if (existingId) {
+                sourceToTargetGroupId.set(criterion.id, existingId);
+                return;
+            }
+
+            const nextId = criterion.id && !usedIds.has(criterion.id) ? criterion.id : createId('criterion');
+            const nextName = createUniqueGroupName(criterion.name, usedNames);
+            usedIds.add(nextId);
+            targetIdByName.set(nextName, nextId);
+            sourceToTargetGroupId.set(criterion.id, nextId);
+            mustDoCriteria.push({ id: nextId, name: nextName });
+        });
+
+        const baseTaskSet = new Set(window.EmptyBoxState.getStateTaskPool(base));
+        const incomingTaskSet = new Set(window.EmptyBoxState.getStateTaskPool(incoming));
+        const mustDoTaskGroups = { ...base.mustDoTaskGroups };
+        const mustDoTaskOrder = {};
+
+        Object.entries(base.mustDoTaskOrder || {}).forEach(([groupId, tasks]) => {
+            mustDoTaskOrder[groupId] = window.EmptyBoxState.normalizeTaskList(tasks);
+        });
+
+        Object.entries(incoming.mustDoTaskOrder || {}).forEach(([sourceGroupId, tasks]) => {
+            const targetGroupId = sourceToTargetGroupId.get(sourceGroupId) || inboxId;
+            if (!mustDoTaskOrder[targetGroupId]) mustDoTaskOrder[targetGroupId] = [];
+            window.EmptyBoxState.normalizeTaskList(tasks).forEach(task => {
+                if (!incomingTaskSet.has(task) || baseTaskSet.has(task)) return;
+                mustDoTaskGroups[task] = targetGroupId;
+                if (!mustDoTaskOrder[targetGroupId].includes(task)) {
+                    mustDoTaskOrder[targetGroupId].push(task);
+                }
+            });
+        });
+
+        incomingTaskSet.forEach(task => {
+            if (baseTaskSet.has(task) || mustDoTaskGroups[task]) return;
+            const sourceGroupId = incoming.mustDoTaskGroups[task] || inboxId;
+            const targetGroupId = sourceToTargetGroupId.get(sourceGroupId) || inboxId;
+            mustDoTaskGroups[task] = targetGroupId;
+            if (!mustDoTaskOrder[targetGroupId]) mustDoTaskOrder[targetGroupId] = [];
+            if (!mustDoTaskOrder[targetGroupId].includes(task)) {
+                mustDoTaskOrder[targetGroupId].push(task);
+            }
+        });
+
+        Object.keys(mustDoTaskGroups).forEach(task => {
+            if (mustDoTaskGroups[task] === inboxId) {
+                delete mustDoTaskGroups[task];
+            }
+        });
+
+        return { mustDoCriteria, mustDoTaskGroups, mustDoTaskOrder };
     }
     
     function mergeCriteria(a, b) {
