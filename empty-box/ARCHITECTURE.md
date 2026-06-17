@@ -22,7 +22,11 @@ This app intentionally runs without a build step. Modules are loaded by
    - Owns home-list item selection and drag sorting.
    - Exposes `window.EmptyBoxHomeLists`.
    - Requires app hooks for state, task menu creation, and group ordering.
-5. `js/empty-box.js`
+5. `js/empty-box-must-do.js`
+   - Owns Must Do tab bar rendering and tab drag/tap interactions.
+   - Exposes `window.EmptyBoxMustDo`.
+   - Requires app hooks for group actions and task moves.
+6. `js/empty-box.js`
    - Owns DOM, rendering, item interactions, and application boot.
 
 `quick-add.html` should load the shared state module before `quick-add.js`.
@@ -39,7 +43,9 @@ module or Supabase RPC instead of duplicating state normalization.
   Update `empty-box-task-actions.js`; update the hooks in `empty-box.js` when behavior changes.
 - Home-page Must Do, Daily list, pinned home list:
   Update `empty-box-home-lists.js`; update the hooks in `empty-box.js` when behavior changes.
-- Must Do tabs and group management:
+- Must Do tabs:
+  Update `empty-box-must-do.js`; update hooks in `empty-box.js` when behavior changes.
+- Must Do group dialogs and mutations:
   Update `empty-box.js` for now. This is the next split candidate.
 - Styling:
   Keep shared item menu selectors in sync across `.must-do-selection`,
@@ -47,4 +53,4 @@ module or Supabase RPC instead of duplicating state normalization.
 
 ## Next Split Candidates
 
-- `empty-box-must-do.js`: tab rendering, tab drag sorting, item drag sorting, pinned tab logic.
+- Move Must Do group dialogs and mutations behind `empty-box-must-do.js` hooks.
