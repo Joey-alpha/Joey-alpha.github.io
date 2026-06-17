@@ -226,7 +226,7 @@
     }
 
     .now-task h3.is-empty::before {
-        content: '点击输入任务';
+        content: '点击输入 item';
         color: var(--muted);
     }
 

@@ -237,7 +237,7 @@ let state = {
     mustDoTaskOrder: {}
 };
 
-let blindboxTask = '没有任务';
+let blindboxTask = '没有 item';
 let isEditing = false;
 
 let lastCompletedTask = null;
@@ -637,7 +637,7 @@ function activateMustDoCriterion(criterionId) {
 function openCriterionNameDialog(mode, criterion = null) {
     criterionDialogMode = mode;
     criterionDialogCriterionId = criterion ? criterion.id : null;
-    criterionDialogTitle.textContent = mode === 'add' ? '新增分组' : '修改分组';
+    criterionDialogTitle.textContent = mode === 'add' ? '新增 Tab' : '修改 Tab';
     criterionDialogInput.style.display = 'block';
     criterionDialogInput.value = criterion ? criterion.name : '';
     criterionDialogMessage.textContent = '';
@@ -667,7 +667,7 @@ function openCriterionMessageDialog(title, message) {
 function openCriterionDeleteDialog(criterion) {
     criterionDialogMode = 'delete';
     criterionDialogCriterionId = criterion.id;
-    criterionDialogTitle.textContent = '删除分组';
+    criterionDialogTitle.textContent = '删除 Tab';
     criterionDialogInput.style.display = 'none';
     criterionDialogMessage.textContent = `删除“${criterion.name}”？`;
     criterionDialogSaveBtn.style.display = 'none';
@@ -682,7 +682,7 @@ function openCriterionManageDialog(criterion) {
     criterionDialogCriterionId = criterion.id;
     criterionDialogTitle.textContent = criterion.name;
     criterionDialogInput.style.display = 'none';
-    criterionDialogMessage.textContent = '管理这个分组';
+    criterionDialogMessage.textContent = '管理这个 Tab';
     criterionDialogSaveBtn.style.display = 'inline-flex';
     criterionDialogSaveBtn.textContent = '重命名';
     criterionDialogPinBtn.style.display = 'inline-flex';
@@ -712,7 +712,7 @@ function saveCriterionNameDialog() {
 
     const trimmedName = criterionDialogInput.value.trim();
     if (!trimmedName) {
-        showCriterionDialogMessage('请输入分组名');
+        showCriterionDialogMessage('请输入 Tab 名称');
         return;
     }
 
@@ -742,7 +742,7 @@ function saveCriterionNameDialog() {
 
         const duplicate = state.mustDoCriteria.some(item => item.id !== criterion.id && item.name === trimmedName);
         if (duplicate) {
-            showCriterionDialogMessage('已经有这个分组');
+            showCriterionDialogMessage('已经有这个 Tab');
             return;
         }
 
@@ -773,11 +773,11 @@ function togglePinnedMustDoCriterion(criterionId) {
 function deleteMustDoCriterion(criterionId) {
     ensureMustDoCriteria();
     if (isInboxMustDoCriterion(criterionId)) {
-        openCriterionMessageDialog('不能删除', 'Inbox 是默认分组');
+        openCriterionMessageDialog('不能删除', 'Inbox 是默认 Tab');
         return;
     }
     if (state.mustDoCriteria.length <= 1) {
-        openCriterionMessageDialog('不能删除', '至少保留一个分组');
+        openCriterionMessageDialog('不能删除', '至少保留一个 Tab');
         return;
     }
 
@@ -944,7 +944,7 @@ function closeMoveTaskDialog() {
 
 function openMoveTaskDialog(task) {
     pendingMoveTask = task;
-    moveTaskTitle.textContent = `移动“${task}”`;
+    moveTaskTitle.textContent = `移动“${task}”到 Tab`;
     moveTaskList.innerHTML = '';
     const currentGroupId = getTaskGroupId(task);
     getMoveTaskGroups().forEach(group => {
@@ -1231,7 +1231,7 @@ function startTaskTextEdit({ row, label, task, rerender, onAfterSave }) {
     label.textContent = task;
     label.contentEditable = 'true';
     label.setAttribute('role', 'textbox');
-    label.setAttribute('aria-label', '编辑任务内容');
+    label.setAttribute('aria-label', '编辑 item 内容');
     label.setAttribute('spellcheck', 'false');
     label.dataset.originalText = task;
     label.focus();
@@ -1319,8 +1319,8 @@ function startSearchItemTextEdit(row, label, task) {
 
 function addTaskToActiveMustDoGroup(value) {
     const text = value.trim();
-    if (!text) return { ok: false, message: '任务内容不能为空' };
-    if (taskTextExists(text)) return { ok: false, message: '已存在同名任务' };
+    if (!text) return { ok: false, message: 'item 内容不能为空' };
+    if (taskTextExists(text)) return { ok: false, message: '已存在同名 item' };
     const groupId = state.activeMustDoCriterionId || MUST_DO_INBOX_CRITERION.id;
     appendTaskToBox(text, groupId);
     saveState();
@@ -1410,7 +1410,7 @@ function buildMustDoCandidates() {
     if (!tasks.length) {
         const empty = document.createElement('div');
         empty.className = 'reflection-empty';
-        empty.textContent = isInbox ? 'Inbox 为空' : '这个分组还没有任务';
+        empty.textContent = isInbox ? 'Inbox 为空' : '这个 Tab 还没有 item';
         mustDoSelection.appendChild(empty);
     }
     tasks.forEach(task => {
@@ -1466,7 +1466,7 @@ function completeTask(task) {
     const isDaily = isDailyTask(task);
     lastCompletedTask = task;
     const completionTags = [
-        isMustDo ? '必做' : '',
+        isMustDo ? 'Star' : '',
         isDaily ? 'Daily' : ''
     ].filter(Boolean);
     state.completedTasks.push(completionTags.length ? `${task}【${completionTags.join(' · ')}】` : task);
@@ -1524,7 +1524,7 @@ function renderSearchResults(keyword) {
         dailyBadge.hidden = !daily;
         const selectButton = document.createElement('button');
         selectButton.className = 'btn primary';
-        selectButton.textContent = '选择';
+        selectButton.textContent = '设为当前';
         const { moreButton, actions } = createTaskActionMenu({
             row,
             label: taskText,
@@ -1552,10 +1552,10 @@ function renderSearchResults(keyword) {
 
 function rerollBlindbox() {
     const pool = state.boxTasks.filter(task => task !== state.nowTask && !state.completedTasks.includes(task));
-    blindboxTask = pool[Math.floor(Math.random() * pool.length)] || '没有任务';
+    blindboxTask = pool[Math.floor(Math.random() * pool.length)] || '没有 item';
     blindboxTaskText.textContent = blindboxTask;
 
-    if (blindboxTask === '没有任务') {
+    if (blindboxTask === '没有 item') {
         blindboxActions.style.display = 'none';
     } else {
         blindboxActions.style.display = 'flex';
@@ -1719,8 +1719,10 @@ function undoLastComplete() {
     if (!lastCompletedTask) return;
     const possibleRecords = [
         lastCompletedTask,
+        `${lastCompletedTask}【Star】`,
         `${lastCompletedTask}【必做】`,
         `${lastCompletedTask}【Daily】`,
+        `${lastCompletedTask}【Star · Daily】`,
         `${lastCompletedTask}【必做 · Daily】`
     ];
     const index = state.completedTasks.findLastIndex(record => possibleRecords.includes(record));
@@ -1803,7 +1805,7 @@ blindboxFab.addEventListener('click', () => {
 });
 
 acceptBlindboxBtn.addEventListener('click', () => {
-    if (!blindboxTask || blindboxTask === '没有任务') return;
+    if (!blindboxTask || blindboxTask === '没有 item') return;
     if (state.nowTask && !state.boxTasks.includes(state.nowTask)) {
         appendTaskToBox(state.nowTask, getTaskGroupIdRaw(state.nowTask));
     }
@@ -1831,7 +1833,7 @@ function renderReflectionCompleted() {
     if (!items.length) {
         const empty = document.createElement('div');
         empty.className = 'reflection-empty';
-        empty.textContent = '今天还没有完成的任务';
+        empty.textContent = '今天还没有完成的 item';
         reflectionCompletedList.appendChild(empty);
         return;
     }

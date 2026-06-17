@@ -46,7 +46,7 @@
         if (!spaces.length) {
             const option = document.createElement('option');
             option.value = '';
-            option.textContent = localStorage.getItem(config.storageKey) ? '旧版本地数据' : '未选择 Space';
+            option.textContent = localStorage.getItem(config.storageKey) ? '旧版 item 数据' : '未选择 Space';
             spaceSelect.appendChild(option);
         }
 
@@ -139,7 +139,7 @@
         pendingSpaceMode = storageMode;
         pendingRenameSpaceId = space ? space.id : null;
         const isRename = storageMode === 'rename';
-        spaceNameTitle.textContent = isRename ? '重命名 Space' : storageMode === 'cloud_sync' ? '新建云端分区' : '新建本地分区';
+            spaceNameTitle.textContent = isRename ? '重命名 Space' : storageMode === 'cloud_sync' ? '新建云端 Space' : '新建本地 Space';
         spaceNameInput.value = isRename && space ? space.name : '';
         spaceNameMessage.textContent = '';
         spaceNameConfirmBtn.textContent = isRename ? '保存' : '创建';
@@ -171,7 +171,7 @@
                 return;
             }
             await config.storage.createSpace({
-                name: name || (storageMode === 'cloud_sync' ? '云端分区' : '本地分区'),
+                name: name || (storageMode === 'cloud_sync' ? '云端 Space' : '本地 Space'),
                 storage_mode: storageMode,
                 initialState: config.createEmptyState()
             });
@@ -215,8 +215,8 @@
         }
 
         const ok = await config.openConfirmDialog({
-            title: '迁移 Notes',
-            message: `把“${source.name}”的 Notes 迁移到“${target.name}”？迁移后源 Space 会被清空。`,
+            title: '迁移 Space 内容',
+            message: `把“${source.name}”的 items 和 Tabs 迁移到“${target.name}”？迁移后源 Space 会被清空。`,
             confirmText: '开始迁移'
         });
         if (!ok) return;
@@ -246,7 +246,7 @@
 
         const ok = await config.openConfirmDialog({
             title: '删除 Space',
-            message: `删除“${current.name}”？这个 Space 里的 Notes 也会一起删除。`,
+            message: `删除“${current.name}”？这个 Space 里的 items 和 Tabs 也会一起删除。`,
             confirmText: '删除',
             danger: true
         });

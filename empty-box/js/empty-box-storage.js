@@ -99,7 +99,7 @@
     }
 
     function createUniqueGroupName(rawName, usedNames) {
-        const baseName = String(rawName || '').trim() || '分组';
+        const baseName = String(rawName || '').trim() || 'Tab';
         let name = baseName;
         let index = 2;
         while (usedNames.has(name)) {
@@ -633,7 +633,7 @@
             await supabaseRequest(`empty_box_groups?space_id=eq.${encodeURIComponent(spaceId)}`, { method: 'DELETE' });
             const remainingGroups = await supabaseRequest(`empty_box_groups?space_id=eq.${encodeURIComponent(spaceId)}&select=id,name&limit=1`);
             if (Array.isArray(remainingGroups) && remainingGroups.length) {
-                throw new Error('云端分组清空未生效：请检查 empty_box_groups 的 DELETE policy 或外键约束。');
+                throw new Error('云端 Tab 清空未生效：请检查 empty_box_groups 的 DELETE policy 或外键约束。');
             }
         },
     

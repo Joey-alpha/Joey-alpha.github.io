@@ -129,7 +129,7 @@
         inboxButton.dataset.criterionId = inboxCriterion.id;
         inboxButton.dataset.count = String(inboxCount);
         inboxButton.setAttribute('aria-pressed', config.isInboxCriterion(state.activeMustDoCriterionId) ? 'true' : 'false');
-        inboxButton.title = inboxCount ? `未分组任务 · ${inboxCount} 项` : '未分组任务';
+        inboxButton.title = inboxCount ? `Inbox items · ${inboxCount} 项` : 'Inbox items';
         inboxButton.textContent = inboxCriterion.name;
         bindCriterionInteractions(inboxButton, inboxCriterion);
         mustDoCriteriaBar.appendChild(inboxButton);
@@ -156,8 +156,8 @@
         const addButton = document.createElement('button');
         addButton.type = 'button';
         addButton.className = 'must-do-criterion add';
-        addButton.setAttribute('aria-label', '新增分组');
-        addButton.title = '新增分组';
+        addButton.setAttribute('aria-label', '新增 Tab');
+        addButton.title = '新增 Tab';
         addButton.textContent = '+';
         addButton.addEventListener('click', config.addCriterion);
         mustDoCriteriaBar.appendChild(addButton);

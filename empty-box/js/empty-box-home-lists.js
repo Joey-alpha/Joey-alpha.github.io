@@ -207,7 +207,7 @@
         mustDoList.innerHTML = '';
         if (!state.mustDoTasks.length) {
             mustDoPanel.classList.remove('active');
-            mustDoList.innerHTML = '<div class="reflection-empty">当前未设置必做任务</div>';
+            mustDoList.innerHTML = '<div class="reflection-empty">当前没有 Star item</div>';
             return;
         }
         mustDoPanel.classList.add('active');

@@ -73,8 +73,8 @@
         const state = getState();
         const trimmedText = nextText.trim();
         if (!previousText || previousText === trimmedText) return { ok: true };
-        if (!trimmedText) return { ok: false, message: '任务内容不能为空' };
-        if (taskTextExists(trimmedText, previousText)) return { ok: false, message: '已存在同名任务' };
+        if (!trimmedText) return { ok: false, message: 'item 内容不能为空' };
+        if (taskTextExists(trimmedText, previousText)) return { ok: false, message: '已存在同名 item' };
 
         state.boxTasks = replaceTaskTextInList(state.boxTasks, previousText, trimmedText);
         state.mustDoTasks = replaceTaskTextInList(state.mustDoTasks, previousText, trimmedText);

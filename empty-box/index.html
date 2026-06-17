@@ -6,7 +6,7 @@
     <title>Empty Box Demo</title>
     <link rel="stylesheet" href="css/empty-box.css" />
 </head>
-<body class="morning">
+<body>
     <div class="app">
         <div class="shell">
             <main class="content">
@@ -33,14 +33,14 @@
 
                 <section class="must-do-panel" id="mustDoPanel">
                     <div class="must-do-head">
-                        <h3>必做榜</h3>
+                        <h3>Star</h3>
                     </div>
                     <div class="must-do-list" id="mustDoList"></div>
                 </section>
 
                 <section class="daily-panel" id="dailyPanel">
                     <div class="daily-head">
-                        <h3>Daily 榜</h3>
+                        <h3>Daily</h3>
                     </div>
                     <div class="daily-list" id="dailyList"></div>
                 </section>
@@ -58,7 +58,7 @@
                             <h3 class="overlay-title">搜索</h3>
                             <button class="close-btn" data-close="searchOverlay">×</button>
                         </div>
-                        <input class="search-input" id="searchInput" placeholder="搜索任务…" />
+                        <input class="search-input" id="searchInput" placeholder="搜索 item…" />
                         <div class="candidate-list" id="searchResults"></div>
                     </div>
                 </div>
@@ -69,9 +69,9 @@
                             <h3 class="overlay-title">添加</h3>
                             <button class="close-btn" data-close="addOverlay">×</button>
                         </div>
-                        <input class="search-input" id="addInput" placeholder="输入任务…" />
+                        <input class="search-input" id="addInput" placeholder="输入 item…" />
                         <div class="actions">
-                            <button class="btn primary" id="confirmAddBtn">放进 box</button>
+                            <button class="btn primary" id="confirmAddBtn">添加到 Inbox</button>
                         </div>
                     </div>
                 </div>
@@ -79,10 +79,10 @@
                 <div class="overlay" id="criterionOverlay">
                     <div class="overlay-card">
                         <div class="overlay-head">
-                            <h3 class="overlay-title" id="criterionDialogTitle">分组</h3>
+                            <h3 class="overlay-title" id="criterionDialogTitle">Tab</h3>
                             <button class="close-btn" data-close="criterionOverlay">×</button>
                         </div>
-                        <input class="search-input" id="criterionDialogInput" placeholder="分组名…" />
+                        <input class="search-input" id="criterionDialogInput" placeholder="Tab 名称…" />
                         <div class="criterion-dialog-message" id="criterionDialogMessage"></div>
                         <div class="actions">
                             <button class="btn primary" id="criterionDialogSaveBtn">确定</button>
@@ -96,7 +96,7 @@
                 <div class="overlay" id="moveTaskOverlay">
                     <div class="overlay-card">
                         <div class="overlay-head">
-                            <h3 class="overlay-title" id="moveTaskTitle">移动到分组</h3>
+                            <h3 class="overlay-title" id="moveTaskTitle">移动到 Tab</h3>
                             <button class="close-btn" data-close="moveTaskOverlay">×</button>
                         </div>
                         <div class="move-task-list" id="moveTaskList"></div>
@@ -113,10 +113,10 @@
                             <button class="close-btn" data-close="blindboxOverlay">×</button>
                         </div>
                         <div class="blindbox-task">
-                            <p id="blindboxTaskText">没有任务</p>
+                            <p id="blindboxTaskText">没有 item</p>
                         </div>
                         <div class="actions" id="blindboxActions">
-                            <button class="btn primary" id="acceptBlindboxBtn">选择</button>
+                            <button class="btn primary" id="acceptBlindboxBtn">设为当前</button>
                             <button class="btn secondary" id="rerollBlindboxBtn">换一个</button>
                         </div>
                     </div>
@@ -142,25 +142,25 @@
                         </div>
                         <div class="settings-panel">
                             <div class="settings-row">
-                                <div class="settings-label">分区</div>
+                                <div class="settings-label">Space</div>
                                 <select class="settings-select" id="spaceSelect"></select>
                                 <div class="settings-status space-summary" id="spaceStatus"></div>
                                 <div class="settings-inline">
-                                    <button class="btn secondary" id="newLocalSpaceBtn">新建本地</button>
-                                    <button class="btn secondary" id="newCloudSpaceBtn">新建云端</button>
+                                    <button class="btn secondary" id="newLocalSpaceBtn">本地 Space</button>
+                                    <button class="btn secondary" id="newCloudSpaceBtn">云端 Space</button>
                                     <button class="btn secondary" id="renameSpaceBtn">重命名</button>
                                     <button class="btn secondary" id="refreshCloudSpacesBtn">刷新云端</button>
                                     <button class="btn secondary danger" id="deleteSpaceBtn">删除当前</button>
                                 </div>
                             </div>
                             <div class="settings-row">
-                                <div class="settings-label">迁移 Notes</div>
+                                <div class="settings-label">迁移内容</div>
                                 <div class="space-transfer-grid">
                                     <select class="settings-select" id="migrateSourceSpaceSelect"></select>
                                     <select class="settings-select" id="migrateTargetSpaceSelect"></select>
                                 </div>
                                 <div class="settings-inline">
-                                    <button class="btn primary" id="transferSpaceNotesBtn">迁移到目标</button>
+                                    <button class="btn primary" id="transferSpaceNotesBtn">迁移内容</button>
                                 </div>
                                 <div class="settings-status" id="spaceTransferStatus"></div>
                             </div>
@@ -184,11 +184,11 @@
                             <button class="close-btn" data-close="migrationOverlay">×</button>
                         </div>
                         <div class="settings-status">
-                            检测到旧版本地数据。你可以把它迁移到新的 Space，旧 localStorage 数据会作为备份保留。
+                            检测到旧版 item 数据。你可以把它迁移到新的 Space，旧 localStorage 数据会作为备份保留。
                         </div>
                         <div class="actions">
-                            <button class="btn primary" id="migrateLocalBtn">创建本地 Space</button>
-                            <button class="btn secondary" id="migrateCloudBtn">创建云端 Space</button>
+                            <button class="btn primary" id="migrateLocalBtn">迁移到本地 Space</button>
+                            <button class="btn secondary" id="migrateCloudBtn">迁移到云端 Space</button>
                             <button class="btn secondary" id="migrateMergeBtn">合并到当前 Space</button>
                             <button class="btn secondary" id="migrateLaterBtn">暂不迁移</button>
                         </div>
@@ -199,10 +199,10 @@
                 <div class="overlay" id="spaceNameOverlay">
                     <div class="overlay-card">
                         <div class="overlay-head">
-                            <h3 class="overlay-title" id="spaceNameTitle">新建分区</h3>
+                            <h3 class="overlay-title" id="spaceNameTitle">新建 Space</h3>
                             <button class="close-btn" data-close="spaceNameOverlay">×</button>
                         </div>
-                        <input class="search-input" id="spaceNameInput" placeholder="分区名称…" />
+                        <input class="search-input" id="spaceNameInput" placeholder="Space 名称…" />
                         <div class="settings-status" id="spaceNameMessage"></div>
                         <div class="actions">
                             <button class="btn primary" id="spaceNameConfirmBtn">创建</button>
@@ -229,7 +229,7 @@
         <div class="overlay must-do-overlay" id="mustDoOverlay">
             <div class="overlay-card">
                 <div class="overlay-head">
-                    <h3 class="overlay-title">今日必做</h3>
+                    <h3 class="overlay-title">管理 items</h3>
                     <button class="close-btn" data-close="mustDoOverlay">×</button>
                 </div>
                 <div class="must-do-criteria" id="mustDoCriteriaBar"></div>

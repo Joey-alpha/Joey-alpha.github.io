@@ -65,7 +65,7 @@ function setSubmitting(nextSubmitting) {
   isSubmitting = nextSubmitting;
   taskInput.disabled = nextSubmitting;
   addBtn.disabled = nextSubmitting;
-  addBtn.textContent = nextSubmitting ? '添加中…' : '放进 box';
+  addBtn.textContent = nextSubmitting ? '添加中…' : '添加到 Inbox';
 }
 
 function tryCloseWindow() {
@@ -94,9 +94,9 @@ async function submit() {
   if (!result.ok) {
     setSubmitting(false);
     if (result.reason === 'empty') {
-      setMessage('任务不能为空。', 'error');
+      setMessage('item 不能为空。', 'error');
     } else if (result.reason === 'duplicate') {
-      setMessage('任务已存在，不重复添加。', 'error');
+      setMessage('item 已存在，不重复添加。', 'error');
     } else {
       setMessage('添加失败。', 'error');
     }

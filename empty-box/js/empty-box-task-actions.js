@@ -61,7 +61,7 @@
         const editButton = createButton('编辑');
         const copyButton = createButton('复制');
         const moveButton = createButton('移动');
-        const completeButton = createButton(taskState.dailyDoneToday ? '今日完成' : '完成');
+        const completeButton = createButton(taskState.dailyDoneToday ? '今日已完成' : '完成');
         completeButton.disabled = taskState.dailyDoneToday;
         const starButton = createButton(
             taskState.selected ? 'Unstar' : 'Star',
