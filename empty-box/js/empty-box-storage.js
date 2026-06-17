@@ -6,22 +6,22 @@
     const SUPABASE_URL = 'https://ufwvkabshfrrodmtycjj.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVmd3ZrYWJzaGZycm9kbXR5Y2pqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkxNjg4NjMsImV4cCI6MjA5NDc0NDg2M30.kSQJBTLSjd5XhLX0cddqjUfSw0QXt-Ilr2UsGPMamIo';
     const SPACE_LIST_KEY = 'empty-box-spaces-v1';
+    const V2_SPACE_LIST_KEY = 'empty-box-v2::spaces';
     const CURRENT_SPACE_ID_KEY = 'current_space_id';
     const CURRENT_STORAGE_MODE_KEY = 'current_storage_mode';
     const MIGRATION_DONE_KEY = 'empty-box-migration-done';
     const MIGRATION_DISMISSED_KEY = 'empty-box-migration-dismissed';
-    const CLOUD_STATE_SOURCE = 'empty_box_state';
     const MUST_DO_TASK_LIMIT = 6;
 
     const keys = {
         STORAGE_KEY,
         UPDATE_PING_KEY,
-        SPACE_LIST_KEY,
-        CURRENT_SPACE_ID_KEY,
+            SPACE_LIST_KEY,
+            V2_SPACE_LIST_KEY,
+            CURRENT_SPACE_ID_KEY,
         CURRENT_STORAGE_MODE_KEY,
         MIGRATION_DONE_KEY,
-        MIGRATION_DISMISSED_KEY,
-        CLOUD_STATE_SOURCE
+        MIGRATION_DISMISSED_KEY
     };
 
     let getAppState = createEmptyState;
@@ -64,6 +64,214 @@
     function spaceStateKey(spaceId) {
         return `${STORAGE_KEY}::space::${spaceId}`;
     }
+
+    function v2SpaceCollectionKey(spaceId, collection) {
+        return `empty-box-v2::space::${spaceId}::${collection}`;
+    }
+
+    function isUuid(value) {
+        return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || ''));
+    }
+
+    function nextPosition(values, value) {
+        const index = values.indexOf(value);
+        return index >= 0 ? index : null;
+    }
+
+    function getTodayKey() {
+        return new Date().toISOString().slice(0, 10);
+    }
+
+    function toCompletionRecord(row) {
+        const text = row.task_text_snapshot || '';
+        const tags = Array.isArray(row.tags) ? row.tags.filter(Boolean) : [];
+        return tags.length ? `${text}【${tags.join(' · ')}】` : text;
+    }
+
+    function normalizeSpace(space) {
+        return {
+            owner_id: null,
+            storage_mode: 'local_only',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            ...space
+        };
+    }
+
+    function stateToV2Records(state, space) {
+        const normalized = normalizeState(state);
+        const now = new Date().toISOString();
+        const inboxGroupId = createId('group');
+        const oldToNewGroupId = new Map([[window.EmptyBoxState.MUST_DO_INBOX_CRITERION.id, inboxGroupId]]);
+        const groups = [{
+            id: inboxGroupId,
+            space_id: space.id,
+            name: 'Inbox',
+            kind: 'inbox',
+            position: 0,
+            is_default: true,
+            created_at: now,
+            updated_at: now
+        }];
+
+        normalized.mustDoCriteria.forEach((criterion, index) => {
+            const groupId = isUuid(criterion.id) ? criterion.id : createId('group');
+            oldToNewGroupId.set(criterion.id, groupId);
+            groups.push({
+                id: groupId,
+                space_id: space.id,
+                name: criterion.name,
+                kind: 'custom',
+                position: index + 1,
+                is_default: false,
+                created_at: now,
+                updated_at: now
+            });
+        });
+
+        const taskTexts = window.EmptyBoxState.getStateTaskPool(normalized);
+        Object.values(normalized.mustDoTaskOrder || {}).forEach(tasks => {
+            window.EmptyBoxState.normalizeTaskList(tasks).forEach(task => {
+                if (!taskTexts.includes(task)) taskTexts.push(task);
+            });
+        });
+
+        const taskByText = new Map();
+        const tasks = taskTexts.map((text, index) => {
+            const oldGroupId = normalized.mustDoTaskGroups[text] || window.EmptyBoxState.MUST_DO_INBOX_CRITERION.id;
+            const groupId = oldToNewGroupId.get(oldGroupId) || inboxGroupId;
+            const groupOrder = window.EmptyBoxState.normalizeTaskList(normalized.mustDoTaskOrder[oldGroupId] || []);
+            const starPosition = nextPosition(normalized.mustDoTasks, text);
+            const dailyPosition = nextPosition(normalized.dailyTasks, text);
+            const task = {
+                id: createId('task'),
+                space_id: space.id,
+                group_id: groupId,
+                text,
+                status: 'active',
+                group_position: nextPosition(groupOrder, text) ?? nextPosition(normalized.boxTasks, text) ?? index,
+                is_starred: starPosition !== null,
+                star_position: starPosition,
+                is_daily: dailyPosition !== null,
+                daily_position: dailyPosition,
+                created_at: now,
+                updated_at: now,
+                completed_at: null
+            };
+            taskByText.set(text, task);
+            return task;
+        });
+
+        const dailyCompletions = [];
+        Object.entries(normalized.dailyCompletedByDate || {}).forEach(([dateKey, completedTasks]) => {
+            window.EmptyBoxState.normalizeTaskList(completedTasks).forEach(text => {
+                const task = taskByText.get(text);
+                if (!task) return;
+                dailyCompletions.push({
+                    id: createId('daily-completion'),
+                    space_id: space.id,
+                    task_id: task.id,
+                    date_key: dateKey,
+                    completed_at: `${dateKey}T00:00:00.000Z`
+                });
+            });
+        });
+
+        const completions = window.EmptyBoxState.normalizeTaskList(normalized.completedTasks, false).map(record => ({
+            id: createId('completion'),
+            space_id: space.id,
+            task_id: null,
+            task_text_snapshot: String(record || '').replace(/【.*】$/, ''),
+            tags: (String(record || '').match(/【(.+)】$/)?.[1] || '').split('·').map(item => item.trim()).filter(Boolean),
+            completed_at: now
+        }));
+
+        const reflections = normalized.reflectionNote ? [{
+            id: createId('reflection'),
+            space_id: space.id,
+            date_key: getTodayKey(),
+            content: normalized.reflectionNote,
+            created_at: now,
+            updated_at: now
+        }] : [];
+
+        const currentTask = normalized.nowTask ? taskByText.get(normalized.nowTask) : null;
+        const activeGroupId = oldToNewGroupId.get(normalized.activeMustDoCriterionId) || inboxGroupId;
+        const pinnedGroupId = oldToNewGroupId.get(normalized.pinnedMustDoCriterionId) || null;
+        const nextSpace = normalizeSpace({
+            ...space,
+            active_group_id: activeGroupId,
+            pinned_group_id: pinnedGroupId,
+            current_task_id: currentTask?.id || null,
+            current_task_started_at: currentTask ? new Date(normalized.nowTaskStartedAt || Date.now()).toISOString() : null,
+            blindbox_reject_count: normalized.blindboxRejectCount,
+            blindbox_cooldown_until: normalized.blindboxCooldownUntil ? new Date(normalized.blindboxCooldownUntil).toISOString() : null,
+            updated_at: now
+        });
+
+        return { space: nextSpace, groups, tasks, dailyCompletions, completions, reflections };
+    }
+
+    function v2RecordsToState(records) {
+        const space = records.space || {};
+        const groups = [...(records.groups || [])].sort((a, b) => (a.position || 0) - (b.position || 0));
+        const tasks = [...(records.tasks || [])]
+            .filter(task => task.status !== 'completed')
+            .sort((a, b) => (a.group_position || 0) - (b.group_position || 0));
+        const taskById = new Map(tasks.map(task => [task.id, task]));
+        const inboxGroup = groups.find(group => group.kind === 'inbox' || group.is_default) || groups[0] || null;
+        const customGroups = groups.filter(group => group.id !== inboxGroup?.id);
+        const groupById = new Map(groups.map(group => [group.id, group]));
+        const mustDoTaskGroups = {};
+        const mustDoTaskOrder = {};
+        if (inboxGroup) mustDoTaskOrder[window.EmptyBoxState.MUST_DO_INBOX_CRITERION.id] = [];
+
+        tasks.forEach(task => {
+            const group = groupById.get(task.group_id);
+            const groupKey = group && group.id !== inboxGroup?.id ? group.id : window.EmptyBoxState.MUST_DO_INBOX_CRITERION.id;
+            if (groupKey !== window.EmptyBoxState.MUST_DO_INBOX_CRITERION.id) mustDoTaskGroups[task.text] = groupKey;
+            if (!mustDoTaskOrder[groupKey]) mustDoTaskOrder[groupKey] = [];
+            mustDoTaskOrder[groupKey].push(task.text);
+        });
+
+        const dailyCompletedByDate = {};
+        (records.dailyCompletions || []).forEach(completion => {
+            const task = taskById.get(completion.task_id);
+            if (!task) return;
+            if (!dailyCompletedByDate[completion.date_key]) dailyCompletedByDate[completion.date_key] = [];
+            dailyCompletedByDate[completion.date_key].push(task.text);
+        });
+
+        const currentTask = taskById.get(space.current_task_id);
+        const activeGroupId = space.active_group_id && space.active_group_id !== inboxGroup?.id
+            ? space.active_group_id
+            : window.EmptyBoxState.MUST_DO_INBOX_CRITERION.id;
+        const pinnedGroupId = space.pinned_group_id && space.pinned_group_id !== inboxGroup?.id ? space.pinned_group_id : '';
+
+        return normalizeState({
+            boxTasks: tasks.map(task => task.text),
+            completedTasks: [...(records.completions || [])]
+                .sort((a, b) => String(b.completed_at || '').localeCompare(String(a.completed_at || '')))
+                .map(toCompletionRecord),
+            nowTask: currentTask?.text || '',
+            nowTaskStartedAt: space.current_task_started_at ? new Date(space.current_task_started_at).getTime() : 0,
+            reflectionNote: [...(records.reflections || [])]
+                .sort((a, b) => String(b.date_key || '').localeCompare(String(a.date_key || '')))
+                .map(reflection => reflection.content)
+                .filter(Boolean)
+                .join('\n\n'),
+            blindboxRejectCount: Number(space.blindbox_reject_count || 0),
+            blindboxCooldownUntil: space.blindbox_cooldown_until ? new Date(space.blindbox_cooldown_until).getTime() : 0,
+            mustDoTasks: tasks.filter(task => task.is_starred).sort((a, b) => (a.star_position ?? 0) - (b.star_position ?? 0)).map(task => task.text),
+            dailyTasks: tasks.filter(task => task.is_daily).sort((a, b) => (a.daily_position ?? 0) - (b.daily_position ?? 0)).map(task => task.text),
+            dailyCompletedByDate,
+            mustDoCriteria: customGroups.map(group => ({ id: group.id, name: group.name })),
+            activeMustDoCriterionId: activeGroupId,
+            pinnedMustDoCriterionId: pinnedGroupId,
+            mustDoTaskGroups,
+            mustDoTaskOrder
+        });
+    }
     
     function getSupabaseHeaders(extra = {}) {
         return {
@@ -100,12 +308,22 @@
         configure,
         keys,
         getSpaces() {
-            const spaces = readJson(SPACE_LIST_KEY, []);
-            return Array.isArray(spaces) ? spaces : [];
+            const legacySpaces = readJson(SPACE_LIST_KEY, []);
+            const v2Spaces = readJson(V2_SPACE_LIST_KEY, []);
+            const byId = new Map();
+            (Array.isArray(legacySpaces) ? legacySpaces : []).forEach(space => {
+                if (space?.id) byId.set(space.id, normalizeSpace(space));
+            });
+            (Array.isArray(v2Spaces) ? v2Spaces : []).forEach(space => {
+                if (space?.id) byId.set(space.id, normalizeSpace(space));
+            });
+            return [...byId.values()];
         },
     
         saveSpaces(spaces) {
-            writeJson(SPACE_LIST_KEY, spaces);
+            const normalized = (Array.isArray(spaces) ? spaces : []).map(normalizeSpace);
+            writeJson(SPACE_LIST_KEY, normalized);
+            writeJson(V2_SPACE_LIST_KEY, normalized);
         },
     
         replaceCloudSpaces(nextSpaces) {
@@ -129,7 +347,7 @@
     
         async syncCloudSpaces() {
             // Cloud spaces are shared through Supabase; local_only spaces remain browser-local.
-            const rows = await supabaseRequest('spaces?select=id,owner_id,name,storage_mode,created_at&order=created_at.asc');
+            const rows = await supabaseRequest('empty_box_spaces?select=*&deleted_at=is.null&order=created_at.asc');
             const cloudSpaces = (Array.isArray(rows) ? rows : [])
                 .filter(space => space && space.storage_mode === 'cloud_sync');
             return this.replaceCloudSpaces(cloudSpaces);
@@ -170,9 +388,9 @@
             };
     
             if (storage_mode === 'cloud_sync') {
-                await supabaseRequest('spaces', {
+                await supabaseRequest('empty_box_spaces', {
                     method: 'POST',
-                    body: JSON.stringify(space)
+                    body: JSON.stringify(normalizeSpace(space))
                 });
             }
     
@@ -198,7 +416,7 @@
     
             const updated = { ...space, name: nextName };
             if (space.storage_mode === 'cloud_sync') {
-                await supabaseRequest(`spaces?id=eq.${encodeURIComponent(space.id)}`, {
+                await supabaseRequest(`empty_box_spaces?id=eq.${encodeURIComponent(space.id)}`, {
                     method: 'PATCH',
                     body: JSON.stringify({ name: nextName })
                 });
@@ -228,7 +446,7 @@
             if (space.storage_mode === 'cloud_sync') {
                 return this.getCloudState(space);
             }
-            return normalizeState(readJson(spaceStateKey(space.id), {}));
+            return this.getLocalV2State(space);
         },
     
         async saveStateToSpace(nextState, space) {
@@ -237,7 +455,7 @@
             if (space.storage_mode === 'cloud_sync') {
                 await this.saveCloudState(normalized, space);
             } else {
-                writeJson(spaceStateKey(space.id), normalized);
+                this.saveLocalV2State(normalized, space);
             }
             localStorage.setItem(UPDATE_PING_KEY, String(Date.now()));
         },
@@ -245,11 +463,12 @@
         async clearSpaceState(space) {
             if (!space) return;
             if (space.storage_mode === 'cloud_sync') {
-                await supabaseRequest(`notes?space_id=eq.${encodeURIComponent(space.id)}`, {
-                    method: 'DELETE'
-                });
+                await this.clearCloudV2State(space.id);
             } else {
                 localStorage.removeItem(spaceStateKey(space.id));
+                ['groups', 'tasks', 'daily_completions', 'task_completions', 'reflections'].forEach(collection => {
+                    localStorage.removeItem(v2SpaceCollectionKey(space.id, collection));
+                });
             }
             localStorage.setItem(UPDATE_PING_KEY, String(Date.now()));
         },
@@ -264,7 +483,7 @@
             if (space.storage_mode === 'cloud_sync') {
                 return this.getCloudState(space);
             }
-            return normalizeState(readJson(spaceStateKey(space.id), {}));
+            return this.getLocalV2State(space);
         },
     
         async saveAppState(nextState, forcedSpace = null) {
@@ -284,100 +503,132 @@
                     reportCloudSyncError(`云端同步失败：${formatErrorMessage(error)}`);
                 });
             } else {
-                writeJson(spaceStateKey(space.id), normalized);
+                this.saveLocalV2State(normalized, space);
             }
             localStorage.setItem(UPDATE_PING_KEY, String(Date.now()));
         },
     
         async getCloudState(space) {
-            const rows = await this.getNotes(space.id, CLOUD_STATE_SOURCE);
-            const snapshot = rows[0];
-            if (!snapshot) return createEmptyState();
-            return normalizeState(JSON.parse(snapshot.content || '{}'));
+            const [groups, tasks, dailyCompletions, completions, reflections] = await Promise.all([
+                supabaseRequest(`empty_box_groups?space_id=eq.${encodeURIComponent(space.id)}&order=position.asc`),
+                supabaseRequest(`empty_box_tasks?space_id=eq.${encodeURIComponent(space.id)}&order=group_position.asc`),
+                supabaseRequest(`empty_box_daily_completions?space_id=eq.${encodeURIComponent(space.id)}&order=date_key.desc`),
+                supabaseRequest(`empty_box_task_completions?space_id=eq.${encodeURIComponent(space.id)}&order=completed_at.desc`),
+                supabaseRequest(`empty_box_reflections?space_id=eq.${encodeURIComponent(space.id)}&order=date_key.desc`)
+            ]);
+            return v2RecordsToState({ space, groups, tasks, dailyCompletions, completions, reflections });
         },
     
         async saveCloudState(nextState, space) {
-            const id = `state-${space.id}`;
-            const now = new Date().toISOString();
-            const note = {
-                id,
-                owner_id: null,
-                space_id: space.id,
-                content: JSON.stringify(nextState),
-                source: CLOUD_STATE_SOURCE,
-                old_local_id: space.id,
-                created_at: now,
-                updated_at: now
-            };
-            const existing = await supabaseRequest(`notes?id=eq.${encodeURIComponent(id)}&select=id`);
-            if (existing.length) {
-                await supabaseRequest(`notes?id=eq.${encodeURIComponent(id)}`, {
-                    method: 'PATCH',
-                    body: JSON.stringify({
-                        content: note.content,
-                        source: note.source,
-                        old_local_id: note.old_local_id,
-                        updated_at: note.updated_at
-                    })
-                });
-                return;
-            }
-            await supabaseRequest('notes', {
-                method: 'POST',
-                body: JSON.stringify(note)
-            });
-        },
-    
-        async addNote(note) {
-            const space = this.getCurrentSpace();
-            if (!space) return null;
-            const now = new Date().toISOString();
-            const nextNote = {
-                id: note.id || createId('note'),
-                owner_id: note.owner_id || null,
-                space_id: note.space_id || space.id,
-                content: note.content || '',
-                source: note.source || 'manual',
-                old_local_id: note.old_local_id || null,
-                created_at: note.created_at || now,
-                updated_at: now
-            };
-            if (space.storage_mode === 'cloud_sync') {
-                await supabaseRequest('notes', {
-                    method: 'POST',
-                    body: JSON.stringify(nextNote)
-                });
-            }
-            return nextNote;
-        },
-    
-        async getNotes(spaceId, source = '') {
-            const sourceFilter = source ? `&source=eq.${encodeURIComponent(source)}` : '';
-            return supabaseRequest(`notes?space_id=eq.${encodeURIComponent(spaceId)}${sourceFilter}&order=updated_at.desc`);
-        },
-    
-        async updateNote(noteId, patch) {
-            const now = new Date().toISOString();
-            return supabaseRequest(`notes?id=eq.${encodeURIComponent(noteId)}`, {
+            const records = stateToV2Records(nextState, space);
+            await this.clearCloudV2State(space.id);
+            await supabaseRequest(`empty_box_spaces?id=eq.${encodeURIComponent(space.id)}`, {
                 method: 'PATCH',
-                body: JSON.stringify({ ...patch, updated_at: now })
+                body: JSON.stringify({
+                    active_group_id: null,
+                    pinned_group_id: null,
+                    current_task_id: null,
+                    current_task_started_at: records.space.current_task_started_at,
+                    blindbox_reject_count: records.space.blindbox_reject_count,
+                    blindbox_cooldown_until: records.space.blindbox_cooldown_until,
+                    updated_at: records.space.updated_at
+                })
+            });
+            if (records.groups.length) {
+                await supabaseRequest('empty_box_groups', {
+                    method: 'POST',
+                    body: JSON.stringify(records.groups)
+                });
+            }
+            if (records.tasks.length) {
+                await supabaseRequest('empty_box_tasks', {
+                    method: 'POST',
+                    body: JSON.stringify(records.tasks)
+                });
+            }
+            if (records.dailyCompletions.length) {
+                await supabaseRequest('empty_box_daily_completions', {
+                    method: 'POST',
+                    body: JSON.stringify(records.dailyCompletions)
+                });
+            }
+            if (records.completions.length) {
+                await supabaseRequest('empty_box_task_completions', {
+                    method: 'POST',
+                    body: JSON.stringify(records.completions)
+                });
+            }
+            if (records.reflections.length) {
+                await supabaseRequest('empty_box_reflections', {
+                    method: 'POST',
+                    body: JSON.stringify(records.reflections)
+                });
+            }
+            await supabaseRequest(`empty_box_spaces?id=eq.${encodeURIComponent(space.id)}`, {
+                method: 'PATCH',
+                body: JSON.stringify({
+                    active_group_id: records.space.active_group_id,
+                    pinned_group_id: records.space.pinned_group_id,
+                    current_task_id: records.space.current_task_id,
+                    updated_at: records.space.updated_at
+                })
             });
         },
-    
-        async deleteNote(noteId) {
-            return supabaseRequest(`notes?id=eq.${encodeURIComponent(noteId)}`, {
-                method: 'DELETE'
+
+        getLocalV2State(space) {
+            const groups = readJson(v2SpaceCollectionKey(space.id, 'groups'), null);
+            const tasks = readJson(v2SpaceCollectionKey(space.id, 'tasks'), null);
+            if (!Array.isArray(groups) || !Array.isArray(tasks)) {
+                return normalizeState(readJson(spaceStateKey(space.id), {}));
+            }
+            return v2RecordsToState({
+                space,
+                groups,
+                tasks,
+                dailyCompletions: readJson(v2SpaceCollectionKey(space.id, 'daily_completions'), []),
+                completions: readJson(v2SpaceCollectionKey(space.id, 'task_completions'), []),
+                reflections: readJson(v2SpaceCollectionKey(space.id, 'reflections'), [])
             });
+        },
+
+        saveLocalV2State(nextState, space) {
+            const records = stateToV2Records(nextState, space);
+            writeJson(v2SpaceCollectionKey(space.id, 'groups'), records.groups);
+            writeJson(v2SpaceCollectionKey(space.id, 'tasks'), records.tasks);
+            writeJson(v2SpaceCollectionKey(space.id, 'daily_completions'), records.dailyCompletions);
+            writeJson(v2SpaceCollectionKey(space.id, 'task_completions'), records.completions);
+            writeJson(v2SpaceCollectionKey(space.id, 'reflections'), records.reflections);
+            const spaces = this.getSpaces().map(item => item.id === space.id ? records.space : item);
+            this.saveSpaces(spaces);
+            return records;
+        },
+
+        async clearCloudV2State(spaceId) {
+            await supabaseRequest(`empty_box_spaces?id=eq.${encodeURIComponent(spaceId)}`, {
+                method: 'PATCH',
+                body: JSON.stringify({
+                    active_group_id: null,
+                    pinned_group_id: null,
+                    current_task_id: null
+                })
+            });
+            await supabaseRequest(`empty_box_daily_completions?space_id=eq.${encodeURIComponent(spaceId)}`, { method: 'DELETE' });
+            await supabaseRequest(`empty_box_task_completions?space_id=eq.${encodeURIComponent(spaceId)}`, { method: 'DELETE' });
+            await supabaseRequest(`empty_box_reflections?space_id=eq.${encodeURIComponent(spaceId)}`, { method: 'DELETE' });
+            await supabaseRequest(`empty_box_tasks?space_id=eq.${encodeURIComponent(spaceId)}`, { method: 'DELETE' });
+            await supabaseRequest(`empty_box_groups?space_id=eq.${encodeURIComponent(spaceId)}`, { method: 'DELETE' });
         },
     
         async assertCloudSpaceDeleted(spaceId) {
-            const [remainingNotes, remainingSpaces] = await Promise.all([
-                supabaseRequest(`notes?space_id=eq.${encodeURIComponent(spaceId)}&select=id&limit=1`),
-                supabaseRequest(`spaces?id=eq.${encodeURIComponent(spaceId)}&select=id&limit=1`)
+            const [remainingTasks, remainingGroups, remainingSpaces] = await Promise.all([
+                supabaseRequest(`empty_box_tasks?space_id=eq.${encodeURIComponent(spaceId)}&select=id&limit=1`),
+                supabaseRequest(`empty_box_groups?space_id=eq.${encodeURIComponent(spaceId)}&select=id&limit=1`),
+                supabaseRequest(`empty_box_spaces?id=eq.${encodeURIComponent(spaceId)}&select=id&limit=1`)
             ]);
-            if ((Array.isArray(remainingNotes) && remainingNotes.length) ||
+            if ((Array.isArray(remainingTasks) && remainingTasks.length) ||
+                (Array.isArray(remainingGroups) && remainingGroups.length) ||
                 (Array.isArray(remainingSpaces) && remainingSpaces.length)) {
-                throw new Error('云端删除未生效：请检查 Supabase spaces/notes 表的 DELETE policy 或外键约束。');
+                throw new Error('云端删除未生效：请检查 Supabase empty_box_* 表的 DELETE policy 或外键约束。');
             }
         },
     
@@ -386,11 +637,8 @@
             if (!space) return null;
     
             if (space.storage_mode === 'cloud_sync') {
-                await supabaseRequest(`notes?space_id=eq.${encodeURIComponent(space.id)}`, {
-                    method: 'DELETE',
-                    headers: { Prefer: 'return=representation' }
-                });
-                await supabaseRequest(`spaces?id=eq.${encodeURIComponent(space.id)}`, {
+                await this.clearCloudV2State(space.id);
+                await supabaseRequest(`empty_box_spaces?id=eq.${encodeURIComponent(space.id)}`, {
                     method: 'DELETE',
                     headers: { Prefer: 'return=representation' }
                 });
@@ -481,6 +729,25 @@
         },
     
         async importData(payload) {
+            if (payload && payload.format === 'empty-box-v2-local-import' && payload.entries) {
+                Object.entries(payload.entries).forEach(([key, value]) => {
+                    writeJson(key, value);
+                });
+                const importedSpaces = Array.isArray(payload.entries[V2_SPACE_LIST_KEY])
+                    ? payload.entries[V2_SPACE_LIST_KEY].map(space => normalizeSpace({
+                        ...space,
+                        storage_mode: 'local_only'
+                    }))
+                    : [];
+                if (importedSpaces.length) {
+                    this.saveSpaces(importedSpaces);
+                    await this.setCurrentSpace(importedSpaces[0].id);
+                    const nextState = await this.getCurrentState();
+                    setAppState(nextState);
+                    return nextState;
+                }
+                return getAppState();
+            }
             const importedState = payload && payload.version === 2 ? payload.state : payload;
             const nextState = normalizeState(importedState);
             setAppState(nextState);
