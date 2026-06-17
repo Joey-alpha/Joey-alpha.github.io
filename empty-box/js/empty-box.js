@@ -319,16 +319,41 @@ function openConfirmDialog({ title, message, confirmText = '确定', danger = fa
     });
 }
 
-function reorderSelectedMustDoTask(draggedTask, targetTask) {
+function reorderTaskList(tasks, draggedTask, targetTask) {
     if (!draggedTask || !targetTask || draggedTask === targetTask) return false;
-    const tasks = [...state.mustDoTasks];
-    const fromIndex = tasks.indexOf(draggedTask);
-    const toIndex = tasks.indexOf(targetTask);
+    const reorderedTasks = [...tasks];
+    const fromIndex = reorderedTasks.indexOf(draggedTask);
+    const toIndex = reorderedTasks.indexOf(targetTask);
     if (fromIndex === -1 || toIndex === -1) return false;
-    tasks.splice(fromIndex, 1);
-    tasks.splice(toIndex, 0, draggedTask);
+    reorderedTasks.splice(fromIndex, 1);
+    reorderedTasks.splice(toIndex, 0, draggedTask);
+    return reorderedTasks;
+}
+
+function reorderSelectedMustDoTask(draggedTask, targetTask) {
+    const tasks = reorderTaskList(state.mustDoTasks, draggedTask, targetTask);
+    if (!tasks) return false;
     state.mustDoTasks = tasks;
     renderMustDoList();
+    saveState();
+    return true;
+}
+
+function reorderDailyTask(draggedTask, targetTask) {
+    const tasks = reorderTaskList(state.dailyTasks, draggedTask, targetTask);
+    if (!tasks) return false;
+    state.dailyTasks = tasks;
+    renderDailyList();
+    saveState();
+    return true;
+}
+
+function reorderPinnedCriterionTask(criterionId, draggedTask, targetTask) {
+    const tasks = reorderTaskList(getTasksForMustDoCriterion(criterionId), draggedTask, targetTask);
+    if (!tasks) return false;
+    setCriterionTaskOrder(criterionId, tasks);
+    renderPinnedCriterionList();
+    if (criterionId === state.activeMustDoCriterionId) buildMustDoCandidates();
     saveState();
     return true;
 }
@@ -390,7 +415,7 @@ function isTaskItemControlTarget(target) {
 
 const createTaskActionMenu = options => TaskActions.createMenu(options);
 
-function bindMustDoListItemDragInteractions(item, task) {
+function bindHomeListItemDragInteractions(item, task, { selector, dataType, reorder }) {
     item.draggable = true;
     item.dataset.task = task;
     let pointerId = null;
@@ -399,16 +424,20 @@ function bindMustDoListItemDragInteractions(item, task) {
     let didPointerDrag = false;
 
     item.addEventListener('dragstart', event => {
+        if (isTaskItemControlTarget(event.target)) {
+            event.preventDefault();
+            return;
+        }
         item.classList.add('is-dragging');
         event.dataTransfer.effectAllowed = 'move';
-        event.dataTransfer.setData('application/x-empty-box-selected-task', task);
+        event.dataTransfer.setData(dataType, task);
     });
     item.addEventListener('dragend', () => {
         item.classList.remove('is-dragging');
     });
     item.addEventListener('dragover', event => {
         event.preventDefault();
-        const draggedTask = event.dataTransfer.getData('application/x-empty-box-selected-task');
+        const draggedTask = event.dataTransfer.getData(dataType);
         if (!draggedTask || draggedTask === task) return;
         item.classList.add('is-drag-over');
     });
@@ -418,12 +447,12 @@ function bindMustDoListItemDragInteractions(item, task) {
     item.addEventListener('drop', event => {
         event.preventDefault();
         item.classList.remove('is-drag-over');
-        const draggedTask = event.dataTransfer.getData('application/x-empty-box-selected-task');
-        reorderSelectedMustDoTask(draggedTask, task);
+        const draggedTask = event.dataTransfer.getData(dataType);
+        reorder(draggedTask, task);
     });
 
     item.addEventListener('pointerdown', event => {
-        if (event.pointerType === 'mouse') return;
+        if (event.pointerType === 'mouse' || isTaskItemControlTarget(event.target)) return;
         pointerId = event.pointerId;
         startX = event.clientX;
         startY = event.clientY;
@@ -449,14 +478,38 @@ function bindMustDoListItemDragInteractions(item, task) {
         event.preventDefault();
         event.stopPropagation();
         item.dataset.suppressClickUntil = String(Date.now() + 350);
-        const targetItem = document.elementFromPoint(event.clientX, event.clientY)?.closest('.must-do-item');
-        reorderSelectedMustDoTask(task, targetItem?.dataset.task);
+        const targetItem = document.elementFromPoint(event.clientX, event.clientY)?.closest(selector);
+        reorder(task, targetItem?.dataset.task);
     });
     item.addEventListener('pointercancel', event => {
         if (pointerId !== event.pointerId) return;
         pointerId = null;
         didPointerDrag = false;
         item.classList.remove('is-dragging');
+    });
+}
+
+function bindMustDoListItemDragInteractions(item, task) {
+    bindHomeListItemDragInteractions(item, task, {
+        selector: '.must-do-item',
+        dataType: 'application/x-empty-box-selected-task',
+        reorder: reorderSelectedMustDoTask
+    });
+}
+
+function bindDailyListItemDragInteractions(item, task) {
+    bindHomeListItemDragInteractions(item, task, {
+        selector: '.daily-item',
+        dataType: 'application/x-empty-box-daily-task',
+        reorder: reorderDailyTask
+    });
+}
+
+function bindPinnedListItemDragInteractions(item, task, criterionId) {
+    bindHomeListItemDragInteractions(item, task, {
+        selector: '.pinned-item',
+        dataType: 'application/x-empty-box-pinned-task',
+        reorder: (draggedTask, targetTask) => reorderPinnedCriterionTask(criterionId, draggedTask, targetTask)
     });
 }
 
@@ -534,6 +587,7 @@ function renderDailyList() {
             rerender: renderDailyList
         });
         item.append(taskText, moreButton, actions);
+        bindDailyListItemDragInteractions(item, task);
         item.addEventListener('click', event => {
             if (Date.now() < Number(item.dataset.suppressClickUntil || 0)) {
                 event.preventDefault();
@@ -582,6 +636,7 @@ function renderPinnedCriterionList() {
             rerender: renderPinnedCriterionList
         });
         item.append(taskText, moreButton, actions);
+        bindPinnedListItemDragInteractions(item, task, criterion.id);
         item.addEventListener('click', event => {
             if (Date.now() < Number(item.dataset.suppressClickUntil || 0)) {
                 event.preventDefault();
@@ -773,6 +828,13 @@ function setActiveGroupTaskOrder(tasks) {
     const activeId = state.activeMustDoCriterionId;
     const activeTasks = getGroupedMustDoCandidates();
     state.mustDoTaskOrder[activeId] = normalizeTaskList(tasks).filter(task => activeTasks.includes(task));
+}
+
+function setCriterionTaskOrder(criterionId, tasks) {
+    ensureMustDoCriteria();
+    const targetId = criterionId || MUST_DO_INBOX_CRITERION.id;
+    const activeTasks = getTasksForMustDoCriterion(targetId);
+    state.mustDoTaskOrder[targetId] = normalizeTaskList(tasks).filter(task => activeTasks.includes(task));
 }
 
 function moveTaskToGroup(task, groupId, switchToGroup = false) {
