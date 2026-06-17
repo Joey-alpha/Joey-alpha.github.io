@@ -365,6 +365,31 @@
         box-shadow: 0 8px 18px rgba(185, 28, 28, 0.10);
     }
 
+    #criterionOverlay .actions .btn.secondary {
+        background: #ffffff;
+        border-color: rgba(31, 41, 55, 0.22);
+        color: #111827;
+        box-shadow: none;
+    }
+
+    #criterionOverlay .actions .btn.secondary:hover {
+        background: #f8fbff;
+        border-color: rgba(0, 113, 227, 0.38);
+        box-shadow: 0 8px 18px rgba(31, 41, 55, 0.08);
+    }
+
+    #criterionOverlay .actions .btn.secondary.danger {
+        background: #fff1f2;
+        border-color: rgba(220, 38, 38, 0.42);
+        color: #b91c1c;
+    }
+
+    #criterionOverlay .actions .btn.secondary.danger:hover {
+        background: #fee2e2;
+        border-color: rgba(239, 68, 68, 0.46);
+        box-shadow: 0 8px 18px rgba(185, 28, 28, 0.10);
+    }
+
     .space-transfer-grid {
         display: grid;
         grid-template-columns: 1fr 1fr;
@@ -909,6 +934,28 @@
         background: rgba(122, 162, 255, 0.30);
         border-color: rgba(122, 162, 255, 0.40);
         color: #eef2ff;
+    }
+
+    body.night #criterionOverlay .actions .btn.secondary {
+        background: rgba(59, 130, 246, 0.18);
+        border-color: rgba(147, 197, 253, 0.32);
+        color: #f8fbff;
+    }
+
+    body.night #criterionOverlay .actions .btn.secondary:hover {
+        background: rgba(59, 130, 246, 0.30);
+        border-color: rgba(191, 219, 254, 0.48);
+    }
+
+    body.night #criterionOverlay .actions .btn.secondary.danger {
+        background: rgba(239, 68, 68, 0.18);
+        border-color: rgba(248, 113, 113, 0.42);
+        color: #fecaca;
+    }
+
+    body.night #criterionOverlay .actions .btn.secondary.danger:hover {
+        background: rgba(239, 68, 68, 0.28);
+        border-color: rgba(252, 165, 165, 0.52);
     }
 
     body.night .must-do-selection .candidate-actions,

@@ -133,7 +133,6 @@ const mustDoOverlay = document.getElementById('mustDoOverlay');
 const mustDoCriteriaBar = document.getElementById('mustDoCriteriaBar');
 const mustDoSelection = document.getElementById('mustDoSelection');
 const mustDoSummary = document.getElementById('mustDoSummary');
-const confirmMustDoBtn = document.getElementById('confirmMustDoBtn');
 const mustDoPanel = document.getElementById('mustDoPanel');
 const mustDoList = document.getElementById('mustDoList');
 const dailyPanel = document.getElementById('dailyPanel');
@@ -1787,12 +1786,6 @@ mustDoSelection.addEventListener('click', event => {
     mustDoSelection.querySelectorAll('.candidate-item.is-menu-open').forEach(item => {
         item.classList.remove('is-menu-open');
     });
-});
-
-confirmMustDoBtn.addEventListener('click', () => {
-    closeOverlay(mustDoOverlay);
-    renderMustDoList();
-    saveState();
 });
 
 blindboxFab.addEventListener('click', () => {
