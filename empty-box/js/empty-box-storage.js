@@ -354,53 +354,191 @@
         });
     }
 
-    async function restoreCloudRecords(spaceId, records) {
-        if (!hasCloudRecords(records)) return;
-        await StorageService.clearCloudV2State(spaceId);
-        if (records.groups.length) {
-            await supabaseRequest('empty_box_groups', {
-                method: 'POST',
-                body: JSON.stringify(records.groups)
-            });
+    function sameCloudValue(left, right) {
+        if (left == null && right == null) return true;
+        if (Array.isArray(left) || Array.isArray(right)) {
+            return JSON.stringify(left || []) === JSON.stringify(right || []);
         }
-        if (records.tasks.length) {
-            await supabaseRequest('empty_box_tasks', {
-                method: 'POST',
-                body: JSON.stringify(records.tasks)
+        return left === right;
+    }
+
+    function changedFields(existing, nextRow, fields) {
+        if (!existing) return fields;
+        return fields.filter(field => !sameCloudValue(existing[field], nextRow[field]));
+    }
+
+    function splitRowChanges(nextRows, existingById, compareFields, patchFields = compareFields) {
+        const inserts = [];
+        const patches = [];
+        nextRows.forEach(row => {
+            const existing = existingById.get(row.id);
+            if (!existing) {
+                inserts.push(row);
+                return;
+            }
+            if (!changedFields(existing, row, compareFields).length) return;
+            const body = {};
+            patchFields.forEach(field => {
+                if (field in row) body[field] = row[field];
             });
-        }
-        if (records.dailyCompletions.length) {
-            await supabaseRequest('empty_box_daily_completions', {
-                method: 'POST',
-                body: JSON.stringify(records.dailyCompletions)
-            });
-        }
-        if (records.completions.length) {
-            await supabaseRequest('empty_box_task_completions', {
-                method: 'POST',
-                body: JSON.stringify(records.completions)
-            });
-        }
-        if (records.reflections.length) {
-            await supabaseRequest('empty_box_reflections', {
-                method: 'POST',
-                body: JSON.stringify(records.reflections)
-            });
-        }
-        if (records.space) {
-            await supabaseRequest(`empty_box_spaces?id=eq.${encodeURIComponent(spaceId)}`, {
+            patches.push({ id: row.id, body });
+        });
+        return { inserts, patches };
+    }
+
+    async function insertRows(table, rows) {
+        if (!rows.length) return;
+        await supabaseRequest(table, {
+            method: 'POST',
+            body: JSON.stringify(rows)
+        });
+    }
+
+    async function patchRows(table, patches) {
+        for (const patch of patches) {
+            await supabaseRequest(`${table}?id=eq.${encodeURIComponent(patch.id)}`, {
                 method: 'PATCH',
-                body: JSON.stringify({
-                    active_group_id: records.space.active_group_id,
-                    pinned_group_id: records.space.pinned_group_id,
-                    current_task_id: records.space.current_task_id,
-                    current_task_started_at: records.space.current_task_started_at,
-                    blindbox_reject_count: records.space.blindbox_reject_count,
-                    blindbox_cooldown_until: records.space.blindbox_cooldown_until,
-                    updated_at: records.space.updated_at || new Date().toISOString()
-                })
+                body: JSON.stringify(patch.body)
             });
         }
+    }
+
+    async function deleteRows(table, ids) {
+        const cleanIds = [...new Set(ids.filter(Boolean))];
+        if (!cleanIds.length) return;
+        await supabaseRequest(`${table}?id=in.(${cleanIds.map(id => encodeURIComponent(id)).join(',')})`, {
+            method: 'DELETE'
+        });
+    }
+
+    function isInboxGroup(group) {
+        return group?.kind === 'inbox' || group?.is_default === true;
+    }
+
+    function reconcileGroups(desiredGroups, existingGroups) {
+        const existingById = new Map(existingGroups.map(group => [group.id, group]));
+        const existingInbox = existingGroups.find(isInboxGroup);
+        const customByName = new Map();
+        existingGroups
+            .filter(group => !isInboxGroup(group))
+            .forEach(group => {
+                if (!customByName.has(group.name)) customByName.set(group.name, group);
+            });
+
+        const groupIdByDesiredId = new Map();
+        const rows = desiredGroups.map(group => {
+            const existing = isInboxGroup(group)
+                ? existingInbox
+                : existingById.get(group.id) || customByName.get(group.name);
+            const id = existing?.id || group.id || createId('group');
+            groupIdByDesiredId.set(group.id, id);
+            return {
+                ...group,
+                id,
+                created_at: existing?.created_at || group.created_at
+            };
+        });
+        const desiredIds = new Set(rows.map(group => group.id));
+        return {
+            rows,
+            groupIdByDesiredId,
+            deleteIds: existingGroups.filter(group => !desiredIds.has(group.id)).map(group => group.id)
+        };
+    }
+
+    function reconcileTasks(desiredTasks, existingTasks, groupIdByDesiredId) {
+        const activeExisting = existingTasks.filter(task => task.status !== 'completed');
+        const activeByText = new Map();
+        activeExisting.forEach(task => {
+            if (!activeByText.has(task.text)) activeByText.set(task.text, task);
+        });
+
+        const usedTexts = new Set();
+        const taskIdByText = new Map();
+        const rows = desiredTasks.map(task => {
+            const existing = activeByText.get(task.text);
+            usedTexts.add(task.text);
+            const id = existing?.id || task.id || createId('task');
+            taskIdByText.set(task.text, id);
+            return {
+                ...task,
+                id,
+                group_id: groupIdByDesiredId.get(task.group_id) || task.group_id,
+                created_at: existing?.created_at || task.created_at
+            };
+        });
+
+        return {
+            rows,
+            taskIdByText,
+            deleteIds: activeExisting.filter(task => !usedTexts.has(task.text)).map(task => task.id)
+        };
+    }
+
+    function reconcileDailyCompletions(desiredRows, existingRows, taskIdByText, desiredTasks) {
+        const taskTextByDesiredId = new Map(desiredTasks.map(task => [task.id, task.text]));
+        const existingByKey = new Map(existingRows.map(row => [`${row.date_key}::${row.task_id}`, row]));
+        const rows = desiredRows.map(row => {
+            const text = taskTextByDesiredId.get(row.task_id);
+            const taskId = taskIdByText.get(text) || row.task_id;
+            const existing = existingByKey.get(`${row.date_key}::${taskId}`);
+            return {
+                ...row,
+                id: existing?.id || row.id || createId('daily-completion'),
+                task_id: taskId,
+                completed_at: existing?.completed_at || row.completed_at
+            };
+        });
+        const desiredIds = new Set(rows.map(row => row.id));
+        return {
+            rows,
+            deleteIds: existingRows.filter(row => !desiredIds.has(row.id)).map(row => row.id)
+        };
+    }
+
+    function completionKey(row) {
+        const tags = Array.isArray(row.tags) ? row.tags.join('\u0001') : '';
+        return `${row.task_text_snapshot || ''}\u0002${tags}`;
+    }
+
+    function reconcileCompletions(desiredRows, existingRows) {
+        const existingByKey = new Map();
+        existingRows.forEach(row => {
+            const key = completionKey(row);
+            if (!existingByKey.has(key)) existingByKey.set(key, []);
+            existingByKey.get(key).push(row);
+        });
+        const rows = desiredRows.map(row => {
+            const queue = existingByKey.get(completionKey(row)) || [];
+            const existing = queue.shift() || null;
+            return {
+                ...row,
+                id: existing?.id || row.id || createId('completion'),
+                completed_at: existing?.completed_at || row.completed_at
+            };
+        });
+        const desiredIds = new Set(rows.map(row => row.id));
+        return {
+            rows,
+            deleteIds: existingRows.filter(row => !desiredIds.has(row.id)).map(row => row.id)
+        };
+    }
+
+    function reconcileReflections(desiredRows, existingRows) {
+        const existingByDate = new Map(existingRows.map(row => [row.date_key, row]));
+        const rows = desiredRows.map(row => {
+            const existing = existingByDate.get(row.date_key);
+            return {
+                ...row,
+                id: existing?.id || row.id || createId('reflection'),
+                created_at: existing?.created_at || row.created_at
+            };
+        });
+        const desiredIds = new Set(rows.map(row => row.id));
+        return {
+            rows,
+            deleteIds: existingRows.filter(row => !desiredIds.has(row.id)).map(row => row.id)
+        };
     }
     
     function formatErrorMessage(error) {
@@ -628,6 +766,7 @@
         },
     
         async saveCloudState(nextState, space) {
+            const normalized = normalizeState(nextState);
             const records = stateToV2Records(nextState, space);
             const existingRecords = await getCloudRecordsRaw(space.id);
             const existingHasContent = hasCloudRecords(existingRecords);
@@ -636,67 +775,76 @@
                 throw new Error('Refused to overwrite non-empty cloud data with an empty local state. Export/import or delete the Space explicitly if this was intentional.');
             }
 
-            try {
-                await this.clearCloudV2State(space.id);
-                await supabaseRequest(`empty_box_spaces?id=eq.${encodeURIComponent(space.id)}`, {
-                    method: 'PATCH',
-                    body: JSON.stringify({
-                        active_group_id: null,
-                        pinned_group_id: null,
-                        current_task_id: null,
-                        current_task_started_at: records.space.current_task_started_at,
-                        blindbox_reject_count: records.space.blindbox_reject_count,
-                        blindbox_cooldown_until: records.space.blindbox_cooldown_until,
-                        updated_at: records.space.updated_at
-                    })
-                });
-                if (records.groups.length) {
-                    await supabaseRequest('empty_box_groups', {
-                        method: 'POST',
-                        body: JSON.stringify(records.groups)
-                    });
-                }
-                if (records.tasks.length) {
-                    await supabaseRequest('empty_box_tasks', {
-                        method: 'POST',
-                        body: JSON.stringify(records.tasks)
-                    });
-                }
-                if (records.dailyCompletions.length) {
-                    await supabaseRequest('empty_box_daily_completions', {
-                        method: 'POST',
-                        body: JSON.stringify(records.dailyCompletions)
-                    });
-                }
-                if (records.completions.length) {
-                    await supabaseRequest('empty_box_task_completions', {
-                        method: 'POST',
-                        body: JSON.stringify(records.completions)
-                    });
-                }
-                if (records.reflections.length) {
-                    await supabaseRequest('empty_box_reflections', {
-                        method: 'POST',
-                        body: JSON.stringify(records.reflections)
-                    });
-                }
-                await supabaseRequest(`empty_box_spaces?id=eq.${encodeURIComponent(space.id)}`, {
-                    method: 'PATCH',
-                    body: JSON.stringify({
-                        active_group_id: records.space.active_group_id,
-                        pinned_group_id: records.space.pinned_group_id,
-                        current_task_id: records.space.current_task_id,
-                        updated_at: records.space.updated_at
-                    })
-                });
-            } catch (error) {
-                if (existingHasContent) {
-                    await restoreCloudRecords(space.id, existingRecords).catch(restoreError => {
-                        console.error('Cloud restore failed:', restoreError);
-                    });
-                }
-                throw error;
-            }
+            const groups = reconcileGroups(records.groups, existingRecords.groups);
+            const tasks = reconcileTasks(records.tasks, existingRecords.tasks, groups.groupIdByDesiredId);
+            const dailyCompletions = reconcileDailyCompletions(records.dailyCompletions, existingRecords.dailyCompletions, tasks.taskIdByText, records.tasks);
+            const completions = reconcileCompletions(records.completions, existingRecords.completions);
+            const reflections = reconcileReflections(records.reflections, existingRecords.reflections);
+
+            const existingGroupsById = new Map(existingRecords.groups.map(row => [row.id, row]));
+            const existingTasksById = new Map(existingRecords.tasks.map(row => [row.id, row]));
+            const existingDailyById = new Map(existingRecords.dailyCompletions.map(row => [row.id, row]));
+            const existingCompletionsById = new Map(existingRecords.completions.map(row => [row.id, row]));
+            const existingReflectionsById = new Map(existingRecords.reflections.map(row => [row.id, row]));
+
+            const groupChanges = splitRowChanges(
+                groups.rows,
+                existingGroupsById,
+                ['space_id', 'name', 'kind', 'position', 'is_default'],
+                ['space_id', 'name', 'kind', 'position', 'is_default', 'updated_at']
+            );
+            const taskChanges = splitRowChanges(
+                tasks.rows,
+                existingTasksById,
+                ['space_id', 'group_id', 'text', 'status', 'group_position', 'is_starred', 'star_position', 'is_daily', 'daily_position', 'completed_at'],
+                ['space_id', 'group_id', 'text', 'status', 'group_position', 'is_starred', 'star_position', 'is_daily', 'daily_position', 'completed_at', 'updated_at']
+            );
+            const dailyChanges = splitRowChanges(
+                dailyCompletions.rows,
+                existingDailyById,
+                ['space_id', 'task_id', 'date_key', 'completed_at']
+            );
+            const completionChanges = splitRowChanges(
+                completions.rows,
+                existingCompletionsById,
+                ['space_id', 'task_id', 'task_text_snapshot', 'tags', 'completed_at']
+            );
+            const reflectionChanges = splitRowChanges(
+                reflections.rows,
+                existingReflectionsById,
+                ['space_id', 'date_key', 'content'],
+                ['space_id', 'date_key', 'content', 'updated_at']
+            );
+
+            await insertRows('empty_box_groups', groupChanges.inserts);
+            await patchRows('empty_box_groups', groupChanges.patches);
+            await insertRows('empty_box_tasks', taskChanges.inserts);
+            await patchRows('empty_box_tasks', taskChanges.patches);
+            await insertRows('empty_box_daily_completions', dailyChanges.inserts);
+            await patchRows('empty_box_daily_completions', dailyChanges.patches);
+            await insertRows('empty_box_task_completions', completionChanges.inserts);
+            await patchRows('empty_box_task_completions', completionChanges.patches);
+            await insertRows('empty_box_reflections', reflectionChanges.inserts);
+            await patchRows('empty_box_reflections', reflectionChanges.patches);
+
+            await deleteRows('empty_box_daily_completions', dailyCompletions.deleteIds);
+            await deleteRows('empty_box_task_completions', completions.deleteIds);
+            await deleteRows('empty_box_reflections', reflections.deleteIds);
+            await deleteRows('empty_box_tasks', tasks.deleteIds);
+            await deleteRows('empty_box_groups', groups.deleteIds);
+
+            await supabaseRequest(`empty_box_spaces?id=eq.${encodeURIComponent(space.id)}`, {
+                method: 'PATCH',
+                body: JSON.stringify({
+                    active_group_id: groups.groupIdByDesiredId.get(records.space.active_group_id) || records.space.active_group_id,
+                    pinned_group_id: records.space.pinned_group_id ? groups.groupIdByDesiredId.get(records.space.pinned_group_id) || records.space.pinned_group_id : null,
+                    current_task_id: normalized.nowTask ? tasks.taskIdByText.get(normalized.nowTask) || null : null,
+                    current_task_started_at: records.space.current_task_started_at,
+                    blindbox_reject_count: records.space.blindbox_reject_count,
+                    blindbox_cooldown_until: records.space.blindbox_cooldown_until,
+                    updated_at: records.space.updated_at
+                })
+            });
         },
 
         getLocalV2State(space) {

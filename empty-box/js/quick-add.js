@@ -18,7 +18,12 @@ async function loadState() {
 }
 
 async function saveState(state) {
-  await StorageService.saveAppState(normalizeState(state));
+  const currentSpace = StorageService.getCurrentSpace();
+  if (currentSpace) {
+    await StorageService.saveStateToSpace(normalizeState(state), currentSpace);
+  } else {
+    await StorageService.saveAppState(normalizeState(state));
+  }
   localStorage.setItem(UPDATE_PING_KEY, String(Date.now()));
 }
 
