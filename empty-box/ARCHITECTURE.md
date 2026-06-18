@@ -38,7 +38,11 @@ This app intentionally runs without a build step. Modules are loaded by
    - Owns Must Do tab bar rendering and tab drag/tap interactions.
    - Exposes `window.EmptyBoxItemTabs`.
    - Requires app hooks for group actions and task moves.
-9. `js/empty-box.js`
+9. `js/empty-box-item-manager.js`
+   - Owns the item manager overlay list rendering, item drag sorting, mobile swipe actions, and bottom add row.
+   - Exposes `window.EmptyBoxItemManager`.
+   - Requires app hooks for task state, rendering, group ordering, and shared item menus.
+10. `js/empty-box.js`
    - Owns DOM, rendering, item interactions, and application boot.
 
 `quick-add.html` should load the shared state module before `quick-add.js`.
@@ -61,9 +65,11 @@ module or Supabase RPC instead of duplicating state normalization.
   Update `empty-box-settings.js`; update hooks in `empty-box.js` when state/render coordination changes.
 - Home-page Must Do, Daily list, pinned home list:
   Update `empty-box-home-lists.js`; update the hooks in `empty-box.js` when behavior changes.
-- Must Do tabs:
+- Tab bar:
   Update `empty-box-item-tabs.js`; update hooks in `empty-box.js` when behavior changes.
-- Must Do group dialogs and mutations:
+- Item manager list interactions:
+  Update `empty-box-item-manager.js`; update hooks in `empty-box.js` when behavior changes.
+- Tab dialogs and mutations:
   Update `empty-box.js` for now. This is the next split candidate.
 - Styling:
   Keep shared item menu selectors in sync across `.item-manager-list`,
@@ -71,4 +77,4 @@ module or Supabase RPC instead of duplicating state normalization.
 
 ## Next Split Candidates
 
-- Move Must Do group dialogs and mutations behind `empty-box-item-tabs.js` hooks.
+- Move Tab dialogs and mutations behind `empty-box-item-tabs.js` or a dedicated tab model.
