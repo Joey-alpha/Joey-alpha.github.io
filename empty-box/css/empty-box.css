@@ -701,7 +701,14 @@
         min-height: min(32vh, 260px);
         max-height: none;
         overflow: auto;
-        padding-right: 4px;
+        overscroll-behavior: contain;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .must-do-selection::-webkit-scrollbar {
+        display: none;
     }
 
     .must-do-selection .candidate-item,
