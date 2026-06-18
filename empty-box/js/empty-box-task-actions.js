@@ -46,6 +46,7 @@
         button.type = 'button';
         button.className = className;
         button.textContent = text;
+        button.addEventListener('pointerdown', event => event.stopPropagation());
         return button;
     }
 
@@ -57,6 +58,7 @@
 
         const actions = document.createElement('div');
         actions.className = 'candidate-actions';
+        actions.addEventListener('pointerdown', event => event.stopPropagation());
 
         const editButton = createButton('编辑');
         const copyButton = createButton('复制');

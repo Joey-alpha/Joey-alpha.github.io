@@ -89,9 +89,20 @@
         let startY = 0;
         let didPointerDrag = false;
 
+        item.addEventListener('pointerdown', event => {
+            item.draggable = !config.isTaskItemControlTarget(event.target);
+        }, true);
+        item.addEventListener('pointerup', () => {
+            item.draggable = true;
+        }, true);
+        item.addEventListener('pointercancel', () => {
+            item.draggable = true;
+        }, true);
+
         item.addEventListener('dragstart', event => {
             if (config.isTaskItemControlTarget(event.target)) {
                 event.preventDefault();
+                event.stopPropagation();
                 return;
             }
             item.classList.add('is-dragging');

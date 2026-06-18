@@ -11,6 +11,7 @@
     const CURRENT_STORAGE_MODE_KEY = 'current_storage_mode';
     const MIGRATION_DONE_KEY = 'empty-box-migration-done';
     const MIGRATION_DISMISSED_KEY = 'empty-box-migration-dismissed';
+    const CLOUD_BACKUP_PREFIX = 'empty-box-v2::cloud-backup::';
     const MUST_DO_TASK_LIMIT = 6;
 
     const keys = {
@@ -80,6 +81,23 @@
 
     function getTodayKey() {
         return new Date().toISOString().slice(0, 10);
+    }
+
+    function cloudBackupKey(spaceId) {
+        return `${CLOUD_BACKUP_PREFIX}${spaceId}`;
+    }
+
+    function hasCloudRecords(records) {
+        return Boolean(
+            records &&
+            (
+                (Array.isArray(records.tasks) && records.tasks.length) ||
+                (Array.isArray(records.dailyCompletions) && records.dailyCompletions.length) ||
+                (Array.isArray(records.completions) && records.completions.length) ||
+                (Array.isArray(records.reflections) && records.reflections.length) ||
+                (records.space && (records.space.current_task_id || records.space.active_group_id || records.space.pinned_group_id))
+            )
+        );
     }
 
     function toCompletionRecord(row) {
@@ -308,6 +326,82 @@
         const text = await response.text();
         return text ? JSON.parse(text) : null;
     }
+
+    async function getCloudRecordsRaw(spaceId) {
+        const [spaces, groups, tasks, dailyCompletions, completions, reflections] = await Promise.all([
+            supabaseRequest(`empty_box_spaces?id=eq.${encodeURIComponent(spaceId)}&limit=1`),
+            supabaseRequest(`empty_box_groups?space_id=eq.${encodeURIComponent(spaceId)}&order=position.asc`),
+            supabaseRequest(`empty_box_tasks?space_id=eq.${encodeURIComponent(spaceId)}&order=group_position.asc`),
+            supabaseRequest(`empty_box_daily_completions?space_id=eq.${encodeURIComponent(spaceId)}&order=date_key.desc`),
+            supabaseRequest(`empty_box_task_completions?space_id=eq.${encodeURIComponent(spaceId)}&order=completed_at.desc`),
+            supabaseRequest(`empty_box_reflections?space_id=eq.${encodeURIComponent(spaceId)}&order=date_key.desc`)
+        ]);
+        return {
+            space: Array.isArray(spaces) ? spaces[0] || null : null,
+            groups: Array.isArray(groups) ? groups : [],
+            tasks: Array.isArray(tasks) ? tasks : [],
+            dailyCompletions: Array.isArray(dailyCompletions) ? dailyCompletions : [],
+            completions: Array.isArray(completions) ? completions : [],
+            reflections: Array.isArray(reflections) ? reflections : []
+        };
+    }
+
+    function saveCloudBackup(spaceId, records) {
+        if (!hasCloudRecords(records)) return;
+        writeJson(cloudBackupKey(spaceId), {
+            backed_up_at: new Date().toISOString(),
+            records
+        });
+    }
+
+    async function restoreCloudRecords(spaceId, records) {
+        if (!hasCloudRecords(records)) return;
+        await StorageService.clearCloudV2State(spaceId);
+        if (records.groups.length) {
+            await supabaseRequest('empty_box_groups', {
+                method: 'POST',
+                body: JSON.stringify(records.groups)
+            });
+        }
+        if (records.tasks.length) {
+            await supabaseRequest('empty_box_tasks', {
+                method: 'POST',
+                body: JSON.stringify(records.tasks)
+            });
+        }
+        if (records.dailyCompletions.length) {
+            await supabaseRequest('empty_box_daily_completions', {
+                method: 'POST',
+                body: JSON.stringify(records.dailyCompletions)
+            });
+        }
+        if (records.completions.length) {
+            await supabaseRequest('empty_box_task_completions', {
+                method: 'POST',
+                body: JSON.stringify(records.completions)
+            });
+        }
+        if (records.reflections.length) {
+            await supabaseRequest('empty_box_reflections', {
+                method: 'POST',
+                body: JSON.stringify(records.reflections)
+            });
+        }
+        if (records.space) {
+            await supabaseRequest(`empty_box_spaces?id=eq.${encodeURIComponent(spaceId)}`, {
+                method: 'PATCH',
+                body: JSON.stringify({
+                    active_group_id: records.space.active_group_id,
+                    pinned_group_id: records.space.pinned_group_id,
+                    current_task_id: records.space.current_task_id,
+                    current_task_started_at: records.space.current_task_started_at,
+                    blindbox_reject_count: records.space.blindbox_reject_count,
+                    blindbox_cooldown_until: records.space.blindbox_cooldown_until,
+                    updated_at: records.space.updated_at || new Date().toISOString()
+                })
+            });
+        }
+    }
     
     function formatErrorMessage(error) {
         try {
@@ -535,58 +629,74 @@
     
         async saveCloudState(nextState, space) {
             const records = stateToV2Records(nextState, space);
-            await this.clearCloudV2State(space.id);
-            await supabaseRequest(`empty_box_spaces?id=eq.${encodeURIComponent(space.id)}`, {
-                method: 'PATCH',
-                body: JSON.stringify({
-                    active_group_id: null,
-                    pinned_group_id: null,
-                    current_task_id: null,
-                    current_task_started_at: records.space.current_task_started_at,
-                    blindbox_reject_count: records.space.blindbox_reject_count,
-                    blindbox_cooldown_until: records.space.blindbox_cooldown_until,
-                    updated_at: records.space.updated_at
-                })
-            });
-            if (records.groups.length) {
-                await supabaseRequest('empty_box_groups', {
-                    method: 'POST',
-                    body: JSON.stringify(records.groups)
-                });
+            const existingRecords = await getCloudRecordsRaw(space.id);
+            const existingHasContent = hasCloudRecords(existingRecords);
+            saveCloudBackup(space.id, existingRecords);
+            if (existingHasContent && !records.tasks.length && !records.completions.length && !records.dailyCompletions.length && !records.reflections.length && !records.space.current_task_id) {
+                throw new Error('Refused to overwrite non-empty cloud data with an empty local state. Export/import or delete the Space explicitly if this was intentional.');
             }
-            if (records.tasks.length) {
-                await supabaseRequest('empty_box_tasks', {
-                    method: 'POST',
-                    body: JSON.stringify(records.tasks)
+
+            try {
+                await this.clearCloudV2State(space.id);
+                await supabaseRequest(`empty_box_spaces?id=eq.${encodeURIComponent(space.id)}`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({
+                        active_group_id: null,
+                        pinned_group_id: null,
+                        current_task_id: null,
+                        current_task_started_at: records.space.current_task_started_at,
+                        blindbox_reject_count: records.space.blindbox_reject_count,
+                        blindbox_cooldown_until: records.space.blindbox_cooldown_until,
+                        updated_at: records.space.updated_at
+                    })
                 });
-            }
-            if (records.dailyCompletions.length) {
-                await supabaseRequest('empty_box_daily_completions', {
-                    method: 'POST',
-                    body: JSON.stringify(records.dailyCompletions)
+                if (records.groups.length) {
+                    await supabaseRequest('empty_box_groups', {
+                        method: 'POST',
+                        body: JSON.stringify(records.groups)
+                    });
+                }
+                if (records.tasks.length) {
+                    await supabaseRequest('empty_box_tasks', {
+                        method: 'POST',
+                        body: JSON.stringify(records.tasks)
+                    });
+                }
+                if (records.dailyCompletions.length) {
+                    await supabaseRequest('empty_box_daily_completions', {
+                        method: 'POST',
+                        body: JSON.stringify(records.dailyCompletions)
+                    });
+                }
+                if (records.completions.length) {
+                    await supabaseRequest('empty_box_task_completions', {
+                        method: 'POST',
+                        body: JSON.stringify(records.completions)
+                    });
+                }
+                if (records.reflections.length) {
+                    await supabaseRequest('empty_box_reflections', {
+                        method: 'POST',
+                        body: JSON.stringify(records.reflections)
+                    });
+                }
+                await supabaseRequest(`empty_box_spaces?id=eq.${encodeURIComponent(space.id)}`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({
+                        active_group_id: records.space.active_group_id,
+                        pinned_group_id: records.space.pinned_group_id,
+                        current_task_id: records.space.current_task_id,
+                        updated_at: records.space.updated_at
+                    })
                 });
+            } catch (error) {
+                if (existingHasContent) {
+                    await restoreCloudRecords(space.id, existingRecords).catch(restoreError => {
+                        console.error('Cloud restore failed:', restoreError);
+                    });
+                }
+                throw error;
             }
-            if (records.completions.length) {
-                await supabaseRequest('empty_box_task_completions', {
-                    method: 'POST',
-                    body: JSON.stringify(records.completions)
-                });
-            }
-            if (records.reflections.length) {
-                await supabaseRequest('empty_box_reflections', {
-                    method: 'POST',
-                    body: JSON.stringify(records.reflections)
-                });
-            }
-            await supabaseRequest(`empty_box_spaces?id=eq.${encodeURIComponent(space.id)}`, {
-                method: 'PATCH',
-                body: JSON.stringify({
-                    active_group_id: records.space.active_group_id,
-                    pinned_group_id: records.space.pinned_group_id,
-                    current_task_id: records.space.current_task_id,
-                    updated_at: records.space.updated_at
-                })
-            });
         },
 
         getLocalV2State(space) {
