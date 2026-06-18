@@ -12,10 +12,7 @@
         openOverlay: () => {},
         closeOverlay: () => {},
         openConfirmDialog: async () => false,
-        isTextCompositionEvent: () => false,
-        storageKey: '',
-        migrationDoneKey: '',
-        migrationDismissedKey: ''
+        isTextCompositionEvent: () => false
     };
 
     let pendingSpaceMode = 'local_only';
@@ -46,7 +43,7 @@
         if (!spaces.length) {
             const option = document.createElement('option');
             option.value = '';
-            option.textContent = localStorage.getItem(config.storageKey) ? '旧版 item 数据' : '未选择 Space';
+            option.textContent = '未选择 Space';
             spaceSelect.appendChild(option);
         }
 
@@ -78,8 +75,8 @@
             migrateTargetSpaceSelect.appendChild(targetPlaceholder);
         }
 
-        const mode = current ? current.storage_mode : 'legacy_local';
-        const label = mode === 'cloud_sync' ? '云端同步' : mode === 'local_only' ? '仅本地' : '旧本地数据';
+        const mode = current ? current.storage_mode : null;
+        const label = mode === 'cloud_sync' ? '云端同步' : mode === 'local_only' ? '仅本地' : '未选择';
         const cloudCount = spaces.filter(space => space.storage_mode === 'cloud_sync').length;
         const localCount = spaces.filter(space => space.storage_mode === 'local_only').length;
         const currentName = current ? current.name : '未选择';
@@ -110,21 +107,6 @@
             console.error(error);
             if (showStatus) spaceStatus.textContent = `刷新云端 Space 失败：${config.formatErrorMessage(error)}`;
             return config.storage.getSpaces();
-        }
-    }
-
-    function shouldShowMigrationPrompt() {
-        const hasLegacy = !!localStorage.getItem(config.storageKey);
-        return hasLegacy &&
-            localStorage.getItem(config.migrationDoneKey) !== 'true' &&
-            localStorage.getItem(config.migrationDismissedKey) !== 'true';
-    }
-
-    function showMigrationPromptIfNeeded() {
-        const { migrationStatus, migrationOverlay } = config.elements;
-        if (shouldShowMigrationPrompt()) {
-            migrationStatus.textContent = '';
-            config.openOverlay(migrationOverlay);
         }
     }
 
@@ -276,20 +258,6 @@
         }
     }
 
-    async function finishMigration(mode) {
-        const { migrationStatus, migrationOverlay } = config.elements;
-        try {
-            migrationStatus.textContent = '正在迁移...';
-            config.setState(await config.storage.migrateLegacyData(mode));
-            config.closeOverlay(migrationOverlay);
-            renderSpaceSettings();
-            config.renderNow();
-        } catch (error) {
-            console.error(error);
-            migrationStatus.textContent = '迁移失败，请检查 Supabase 表、RLS 或网络。旧数据仍保留在本地。';
-        }
-    }
-
     async function exportJson() {
         const data = await config.storage.exportData();
         const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -334,11 +302,6 @@
             spaceNameCancelBtn,
             spaceNameInput,
             spaceNameMessage,
-            migrateLocalBtn,
-            migrateCloudBtn,
-            migrateMergeBtn,
-            migrateLaterBtn,
-            migrationOverlay,
             exportJsonBtn,
             importJsonInput
         } = config.elements;
@@ -389,13 +352,6 @@
                 closeSpaceNameDialog();
             }
         });
-        migrateLocalBtn.addEventListener('click', () => finishMigration('local_only'));
-        migrateCloudBtn.addEventListener('click', () => finishMigration('cloud_sync'));
-        migrateMergeBtn.addEventListener('click', () => finishMigration('merge'));
-        migrateLaterBtn.addEventListener('click', () => {
-            localStorage.setItem(config.migrationDismissedKey, 'true');
-            config.closeOverlay(migrationOverlay);
-        });
         exportJsonBtn.addEventListener('click', exportJson);
         importJsonInput.addEventListener('change', importJson);
     }
@@ -405,14 +361,11 @@
         bindEvents,
         renderSpaceSettings,
         refreshCloudSpaces,
-        shouldShowMigrationPrompt,
-        showMigrationPromptIfNeeded,
         openSpaceNameDialog,
         closeSpaceNameDialog,
         saveNamedSpace,
         openRenameSpaceDialog,
         transferSelectedSpaceContent,
-        deleteCurrentSpace,
-        finishMigration
+        deleteCurrentSpace
     };
 })();

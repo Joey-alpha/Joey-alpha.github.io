@@ -1,48 +1,30 @@
 (function () {
     const { normalizeState, createEmptyState } = window.EmptyBoxState;
 
-    const STORAGE_KEY = 'activation-task-demo-state';
     const UPDATE_PING_KEY = 'activation-task-demo-last-updated';
     const SUPABASE_URL = 'https://ufwvkabshfrrodmtycjj.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVmd3ZrYWJzaGZycm9kbXR5Y2pqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkxNjg4NjMsImV4cCI6MjA5NDc0NDg2M30.kSQJBTLSjd5XhLX0cddqjUfSw0QXt-Ilr2UsGPMamIo';
-    const SPACE_LIST_KEY = 'empty-box-spaces-v1';
     const V2_SPACE_LIST_KEY = 'empty-box-v2::spaces';
     const CURRENT_SPACE_ID_KEY = 'current_space_id';
     const CURRENT_STORAGE_MODE_KEY = 'current_storage_mode';
-    const MIGRATION_DONE_KEY = 'empty-box-migration-done';
-    const MIGRATION_DISMISSED_KEY = 'empty-box-migration-dismissed';
     const CLOUD_BACKUP_PREFIX = 'empty-box-v2::cloud-backup::';
-    const MUST_DO_TASK_LIMIT = 6;
-
     const keys = {
-        STORAGE_KEY,
         UPDATE_PING_KEY,
-            SPACE_LIST_KEY,
-            V2_SPACE_LIST_KEY,
-            CURRENT_SPACE_ID_KEY,
-        CURRENT_STORAGE_MODE_KEY,
-        MIGRATION_DONE_KEY,
-        MIGRATION_DISMISSED_KEY
+        V2_SPACE_LIST_KEY,
+        CURRENT_SPACE_ID_KEY,
+        CURRENT_STORAGE_MODE_KEY
     };
 
     let getAppState = createEmptyState;
     let setAppState = () => {};
     let getBooting = () => false;
-    let setLegacyMode = () => {};
     let reportCloudSyncError = () => {};
-    let activeLegacyMode = false;
 
     function configure(options = {}) {
         if (typeof options.getState === 'function') getAppState = options.getState;
         if (typeof options.setState === 'function') setAppState = options.setState;
         if (typeof options.isBooting === 'function') getBooting = options.isBooting;
-        if (typeof options.setLegacyMode === 'function') setLegacyMode = options.setLegacyMode;
         if (typeof options.reportCloudSyncError === 'function') reportCloudSyncError = options.reportCloudSyncError;
-    }
-
-    function setActiveLegacyMode(nextValue) {
-        activeLegacyMode = Boolean(nextValue);
-        setLegacyMode(activeLegacyMode);
     }
 
     function createId(prefix) {
@@ -62,10 +44,6 @@
         localStorage.setItem(key, JSON.stringify(value));
     }
     
-    function spaceStateKey(spaceId) {
-        return `${STORAGE_KEY}::space::${spaceId}`;
-    }
-
     function v2SpaceCollectionKey(spaceId, collection) {
         return `empty-box-v2::space::${spaceId}::${collection}`;
     }
@@ -554,21 +532,14 @@
         configure,
         keys,
         getSpaces() {
-            const legacySpaces = readJson(SPACE_LIST_KEY, []);
             const v2Spaces = readJson(V2_SPACE_LIST_KEY, []);
-            const byId = new Map();
-            (Array.isArray(legacySpaces) ? legacySpaces : []).forEach(space => {
-                if (space?.id) byId.set(space.id, normalizeSpace(space));
-            });
-            (Array.isArray(v2Spaces) ? v2Spaces : []).forEach(space => {
-                if (space?.id) byId.set(space.id, normalizeSpace(space));
-            });
-            return [...byId.values()];
+            return (Array.isArray(v2Spaces) ? v2Spaces : [])
+                .filter(space => space?.id)
+                .map(normalizeSpace);
         },
     
         saveSpaces(spaces) {
             const normalized = (Array.isArray(spaces) ? spaces : []).map(normalizeSpace);
-            writeJson(SPACE_LIST_KEY, normalized);
             writeJson(V2_SPACE_LIST_KEY, normalized);
         },
     
@@ -613,7 +584,6 @@
             }
             localStorage.removeItem(CURRENT_SPACE_ID_KEY);
             localStorage.removeItem(CURRENT_STORAGE_MODE_KEY);
-            setActiveLegacyMode(true);
             return null;
         },
     
@@ -711,7 +681,6 @@
             if (space.storage_mode === 'cloud_sync') {
                 await this.clearCloudV2State(space.id);
             } else {
-                localStorage.removeItem(spaceStateKey(space.id));
                 ['groups', 'tasks', 'daily_completions', 'task_completions', 'reflections'].forEach(collection => {
                     localStorage.removeItem(v2SpaceCollectionKey(space.id, collection));
                 });
@@ -721,11 +690,7 @@
     
         async getCurrentState() {
             const space = this.getCurrentSpace();
-            if (!space) {
-                setActiveLegacyMode(true);
-                return normalizeState(readJson(STORAGE_KEY, {}));
-            }
-            setActiveLegacyMode(false);
+            if (!space) return createEmptyState();
             if (space.storage_mode === 'cloud_sync') {
                 return this.getCloudState(space);
             }
@@ -737,11 +702,7 @@
             const normalized = normalizeState(nextState);
             const space = forcedSpace || this.getCurrentSpace();
     
-            if (!space || activeLegacyMode) {
-                writeJson(STORAGE_KEY, normalized);
-                localStorage.setItem(UPDATE_PING_KEY, String(Date.now()));
-                return;
-            }
+            if (!space) return;
     
             if (space.storage_mode === 'cloud_sync') {
                 this.saveCloudState(normalized, space).catch(error => {
@@ -851,7 +812,7 @@
             const groups = readJson(v2SpaceCollectionKey(space.id, 'groups'), null);
             const tasks = readJson(v2SpaceCollectionKey(space.id, 'tasks'), null);
             if (!Array.isArray(groups) || !Array.isArray(tasks)) {
-                return normalizeState(readJson(spaceStateKey(space.id), {}));
+                return createEmptyState();
             }
             return v2RecordsToState({
                 space,
@@ -920,7 +881,9 @@
                 });
                 await this.assertCloudSpaceDeleted(space.id);
             } else {
-                localStorage.removeItem(spaceStateKey(space.id));
+                ['groups', 'tasks', 'daily_completions', 'task_completions', 'reflections'].forEach(collection => {
+                    localStorage.removeItem(v2SpaceCollectionKey(space.id, collection));
+                });
             }
     
             const nextSpaces = this.getSpaces().filter(item => item.id !== space.id);
@@ -933,7 +896,6 @@
                 } else {
                     localStorage.removeItem(CURRENT_SPACE_ID_KEY);
                     localStorage.removeItem(CURRENT_STORAGE_MODE_KEY);
-                    setActiveLegacyMode(false);
                 }
             }
     
@@ -956,49 +918,13 @@
             return { source, target, state: merged };
         },
     
-        async migrateLegacyData(mode) {
-            const legacyState = normalizeState(readJson(STORAGE_KEY, {}));
-            const backupKey = `${STORAGE_KEY}::legacy-backup::${Date.now()}`;
-            writeJson(backupKey, legacyState);
-    
-            if (mode === 'local_only' || mode === 'cloud_sync') {
-                await this.createSpace({
-                    name: mode === 'cloud_sync' ? '旧数据云端 Space' : '旧数据本地 Space',
-                    storage_mode: mode,
-                    initialState: legacyState
-                });
-                localStorage.setItem(MIGRATION_DONE_KEY, 'true');
-                localStorage.removeItem(MIGRATION_DISMISSED_KEY);
-                return legacyState;
-            }
-    
-            const existingSpace = this.getCurrentSpace();
-            if (!existingSpace) {
-                await this.createSpace({
-                    name: '合并后的本地 Space',
-                    storage_mode: 'local_only',
-                    initialState: legacyState
-                });
-                localStorage.setItem(MIGRATION_DONE_KEY, 'true');
-                localStorage.removeItem(MIGRATION_DISMISSED_KEY);
-                return legacyState;
-            }
-    
-            const current = await this.getCurrentState();
-            const merged = mergeStates(current, legacyState);
-            await this.saveAppState(merged);
-            localStorage.setItem(MIGRATION_DONE_KEY, 'true');
-            localStorage.removeItem(MIGRATION_DISMISSED_KEY);
-            return merged;
-        },
-    
         async exportData() {
             const space = this.getCurrentSpace();
             return {
                 version: 2,
                 exported_at: new Date().toISOString(),
                 current_space_id: space ? space.id : null,
-                current_storage_mode: space ? space.storage_mode : 'legacy_local',
+                current_storage_mode: space ? space.storage_mode : null,
                 spaces: this.getSpaces(),
                 state: getAppState()
             };
@@ -1024,7 +950,10 @@
                 }
                 return getAppState();
             }
-            const importedState = payload && payload.version === 2 ? payload.state : payload;
+            if (!payload || payload.version !== 2) {
+                throw new Error('只支持导入 Empty Box v2 JSON。');
+            }
+            const importedState = payload.state;
             const nextState = normalizeState(importedState);
             setAppState(nextState);
             await this.saveAppState(nextState);
@@ -1035,29 +964,6 @@
     
     function mergeUnique(a, b) {
         return [...new Set([...(Array.isArray(a) ? a : []), ...(Array.isArray(b) ? b : [])].filter(Boolean))];
-    }
-    
-    function mergeStates(target, source) {
-        const base = normalizeState(target);
-        const incoming = normalizeState(source);
-        return normalizeState({
-            ...base,
-            boxTasks: mergeUnique(base.boxTasks, incoming.boxTasks),
-            completedTasks: mergeUnique(base.completedTasks, incoming.completedTasks),
-            nowTask: base.nowTask || incoming.nowTask,
-            nowTaskStartedAt: base.nowTaskStartedAt || incoming.nowTaskStartedAt,
-            reflectionNote: [base.reflectionNote, incoming.reflectionNote].filter(Boolean).join('\n\n'),
-            blindboxRejectCount: Math.max(base.blindboxRejectCount, incoming.blindboxRejectCount),
-            blindboxCooldownUntil: Math.max(base.blindboxCooldownUntil, incoming.blindboxCooldownUntil),
-            mustDoTasks: mergeUnique(base.mustDoTasks, incoming.mustDoTasks).slice(0, MUST_DO_TASK_LIMIT),
-            dailyTasks: mergeUnique(base.dailyTasks, incoming.dailyTasks),
-            dailyCompletedByDate: { ...incoming.dailyCompletedByDate, ...base.dailyCompletedByDate },
-            mustDoCriteria: mergeCriteria(base.mustDoCriteria, incoming.mustDoCriteria),
-            activeMustDoCriterionId: base.activeMustDoCriterionId || incoming.activeMustDoCriterionId,
-            mustDoHiddenByDate: { ...incoming.mustDoHiddenByDate, ...base.mustDoHiddenByDate },
-            mustDoTaskGroups: { ...incoming.mustDoTaskGroups, ...base.mustDoTaskGroups },
-            mustDoTaskOrder: { ...incoming.mustDoTaskOrder, ...base.mustDoTaskOrder }
-        });
     }
     
     function mergeTransferStates(target, source) {
@@ -1146,15 +1052,6 @@
         });
 
         return { mustDoCriteria, mustDoTaskGroups, mustDoTaskOrder };
-    }
-    
-    function mergeCriteria(a, b) {
-        const seen = new Set();
-        return [...(Array.isArray(a) ? a : []), ...(Array.isArray(b) ? b : [])].filter(item => {
-            if (!item || seen.has(item.name)) return false;
-            seen.add(item.name);
-            return true;
-        });
     }
     
     StorageService.formatErrorMessage = formatErrorMessage;

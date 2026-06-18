@@ -6,7 +6,7 @@ const ItemTabs = window.EmptyBoxItemTabs;
 const ItemManager = window.EmptyBoxItemManager;
 const TaskModel = window.EmptyBoxTaskModel;
 const Settings = window.EmptyBoxSettings;
-const { STORAGE_KEY, UPDATE_PING_KEY, MIGRATION_DONE_KEY, MIGRATION_DISMISSED_KEY } = StorageService.keys;
+const { UPDATE_PING_KEY } = StorageService.keys;
 const { formatErrorMessage } = StorageService;
 const {
     MUST_DO_INBOX_CRITERION: INBOX_TAB,
@@ -113,7 +113,6 @@ const reflectionOverlay = document.getElementById('reflectionOverlay');
 const settingsOverlay = document.getElementById('settingsOverlay');
 const tabOverlay = document.getElementById('tabOverlay');
 const moveTaskOverlay = document.getElementById('moveTaskOverlay');
-const migrationOverlay = document.getElementById('migrationOverlay');
 const spaceNameOverlay = document.getElementById('spaceNameOverlay');
 const confirmOverlay = document.getElementById('confirmOverlay');
 
@@ -162,11 +161,6 @@ const migrateTargetSpaceSelect = document.getElementById('migrateTargetSpaceSele
 const transferSpaceContentBtn = document.getElementById('transferSpaceContentBtn');
 const spaceTransferStatus = document.getElementById('spaceTransferStatus');
 const spaceStatus = document.getElementById('spaceStatus');
-const migrateLocalBtn = document.getElementById('migrateLocalBtn');
-const migrateCloudBtn = document.getElementById('migrateCloudBtn');
-const migrateMergeBtn = document.getElementById('migrateMergeBtn');
-const migrateLaterBtn = document.getElementById('migrateLaterBtn');
-const migrationStatus = document.getElementById('migrationStatus');
 const spaceNameTitle = document.getElementById('spaceNameTitle');
 const spaceNameInput = document.getElementById('spaceNameInput');
 const spaceNameMessage = document.getElementById('spaceNameMessage');
@@ -186,7 +180,6 @@ const overlayStack = [
     itemManagerOverlay,
     tabOverlay,
     moveTaskOverlay,
-    migrationOverlay,
     spaceNameOverlay,
     confirmOverlay
 ];
@@ -250,7 +243,6 @@ StorageService.configure({
         state = nextState;
     },
     isBooting: () => isBooting,
-    setLegacyMode: () => {},
     reportCloudSyncError: message => {
         if (spaceStatus) spaceStatus.textContent = message;
     }
@@ -997,12 +989,6 @@ Settings.configure({
         transferSpaceContentBtn,
         spaceTransferStatus,
         spaceStatus,
-        migrateLocalBtn,
-        migrateCloudBtn,
-        migrateMergeBtn,
-        migrateLaterBtn,
-        migrationOverlay,
-        migrationStatus,
         spaceNameOverlay,
         spaceNameTitle,
         spaceNameInput,
@@ -1027,10 +1013,7 @@ Settings.configure({
     openOverlay,
     closeOverlay,
     openConfirmDialog,
-    isTextCompositionEvent,
-    storageKey: STORAGE_KEY,
-    migrationDoneKey: MIGRATION_DONE_KEY,
-    migrationDismissedKey: MIGRATION_DISMISSED_KEY
+    isTextCompositionEvent
 });
 
 TaskActions.configure({
@@ -1479,14 +1462,6 @@ async function refreshCloudSpaces(showStatus = false) {
     return Settings.refreshCloudSpaces(showStatus);
 }
 
-function shouldShowMigrationPrompt() {
-    return Settings.shouldShowMigrationPrompt();
-}
-
-function showMigrationPromptIfNeeded() {
-    Settings.showMigrationPromptIfNeeded();
-}
-
 function openSpaceNameDialog(storageMode, space = null) {
     Settings.openSpaceNameDialog(storageMode, space);
 }
@@ -1509,10 +1484,6 @@ async function transferSelectedSpaceContent() {
 
 async function deleteCurrentSpace() {
     return Settings.deleteCurrentSpace();
-}
-
-async function finishMigration(mode) {
-    return Settings.finishMigration(mode);
 }
 
 completeNowBtn.addEventListener('click', () => {
@@ -1694,7 +1665,7 @@ async function initApp() {
     await refreshCloudSpaces();
     await loadState();
     isBooting = false;
-    if (!StorageService.getCurrentSpace() && !localStorage.getItem(STORAGE_KEY)) {
+    if (!StorageService.getCurrentSpace()) {
         await StorageService.createSpace({
             name: '默认本地 Space',
             storage_mode: 'local_only',
@@ -1708,13 +1679,12 @@ async function initApp() {
     setInterval(renderQuote, 60000);
     renderNow();
     renderSpaceSettings();
-    showMigrationPromptIfNeeded();
 }
 
 initApp();
 
 window.addEventListener('storage', async e => {
-    if (e.key === STORAGE_KEY || e.key === UPDATE_PING_KEY) {
+    if (e.key === UPDATE_PING_KEY) {
         await loadState();
         renderNow();
         renderSpaceSettings();

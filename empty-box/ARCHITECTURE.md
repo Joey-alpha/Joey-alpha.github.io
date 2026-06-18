@@ -10,7 +10,7 @@ This app intentionally runs without a build step. Modules are loaded by
    - Exposes `window.EmptyBoxState`.
    - Add new persisted fields here first.
 2. `js/empty-box-storage.js`
-   - Owns localStorage, Supabase REST calls, spaces, migration, import/export.
+   - Owns localStorage, Supabase REST calls, spaces, space transfer, import/export.
    - Exposes `window.EmptyBoxStorage`.
    - Requires app hooks for the current in-memory state and boot status.
 3. `js/empty-box-dialogs.js`
@@ -22,7 +22,7 @@ This app intentionally runs without a build step. Modules are loaded by
    - Exposes `window.EmptyBoxTaskModel`.
    - Requires app hooks for the current state and small UI side effects during rename.
 5. `js/empty-box-settings.js`
-   - Owns settings UI, space management, import/export, and legacy migration prompts.
+   - Owns settings UI, space management, space transfer, and import/export.
    - Exposes `window.EmptyBoxSettings`.
    - Requires app hooks for state updates, overlays, confirmations, and rendering refreshes.
 6. `js/empty-box-task-actions.js`
@@ -53,7 +53,7 @@ module or Supabase RPC instead of duplicating state normalization.
 
 - State field changes:
   Update `empty-box-state.js`, then any rendering logic in `empty-box.js`.
-- Local/cloud persistence, spaces, migration, import/export:
+- Local/cloud persistence, spaces, space transfer, import/export:
   Update `empty-box-storage.js`.
 - Generic overlays and confirm dialog:
   Update `empty-box-dialogs.js`; update hooks in `empty-box.js` when an overlay needs custom close behavior.
@@ -61,7 +61,7 @@ module or Supabase RPC instead of duplicating state normalization.
   Update `empty-box-task-actions.js`; update the hooks in `empty-box.js` when behavior changes.
 - Task business rules:
   Update `empty-box-task-model.js`; update hooks in `empty-box.js` when behavior needs UI side effects.
-- Settings, spaces, migration, import/export:
+- Settings, spaces, space transfer, import/export:
   Update `empty-box-settings.js`; update hooks in `empty-box.js` when state/render coordination changes.
 - Home-page Must Do, Daily list, pinned home list:
   Update `empty-box-home-lists.js`; update the hooks in `empty-box.js` when behavior changes.

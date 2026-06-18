@@ -1117,10 +1117,6 @@
         background: rgba(10, 14, 24, 0.42);
     }
 
-    .overlay#migrationOverlay {
-        z-index: var(--layer-priority);
-    }
-
     .overlay.active {
         display: flex;
     }
