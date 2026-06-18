@@ -21,6 +21,7 @@
         setActiveGroupTaskOrder: () => {},
         taskTextExists: () => false,
         appendTaskToBox: () => {},
+        syncTabState: () => {},
         startTextEdit: () => {},
         isDailyTask: () => false,
         isDailyTaskDoneToday: () => false,
@@ -166,6 +167,7 @@
         config.saveState();
         config.renderFabState();
         config.renderPinnedTabList();
+        config.syncTabState(groupId);
         return { ok: true };
     }
 
@@ -210,7 +212,6 @@
                     return;
                 }
                 finished = true;
-                config.renderItemTabs();
                 renderItems();
             };
 

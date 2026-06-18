@@ -571,8 +571,8 @@ function moveTaskToGroup(task, groupId, switchToGroup = false) {
     if (switchToGroup) {
         state.activeMustDoCriterionId = groupId;
         renderItemTabs();
-    } else if (previousGroupId === state.activeMustDoCriterionId || groupId === state.activeMustDoCriterionId) {
-        syncActiveTabState();
+    } else {
+        syncActiveTabState([previousGroupId, groupId]);
     }
     renderItemManagerItems();
     renderPinnedTabList();
@@ -602,11 +602,29 @@ function reorderTab(draggedTabId, targetTabId, position = 'before') {
     saveState();
 }
 
-function syncActiveTabState() {
+function syncActiveTabState(tabIds = null) {
+    const targetIds = tabIds
+        ? new Set(normalizeTaskList(Array.isArray(tabIds) ? tabIds : [tabIds]))
+        : null;
     itemTabsBar.querySelectorAll('.item-tab:not(.add)').forEach(button => {
-        const isActive = button.dataset.tabId === state.activeMustDoCriterionId;
+        const tabId = button.dataset.tabId;
+        if (targetIds && !targetIds.has(tabId)) return;
+        const isActive = tabId === state.activeMustDoCriterionId;
+        const taskCount = getTaskGroupCount(tabId);
+        const tab = isInboxTab(tabId)
+            ? INBOX_TAB
+            : state.mustDoCriteria.find(item => item.id === tabId);
+        const pinned = tabId === state.pinnedMustDoCriterionId;
         button.classList.toggle('active', isActive);
+        button.classList.toggle('has-tasks', Boolean(taskCount));
+        button.classList.toggle('is-pinned', pinned);
+        button.dataset.count = String(taskCount);
         button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+        button.title = [
+            tab?.name || button.textContent,
+            taskCount ? `${taskCount} 项` : '',
+            pinned ? '已 Pin 到首页' : ''
+        ].filter(Boolean).join(' · ');
     });
 }
 
@@ -1035,8 +1053,10 @@ TaskActions.configure({
     copyTask: ({ button, task }) => handleCopyTask(button, task),
     moveTask: task => openMoveTaskDialog(task),
     completeTask: ({ task, rerender }) => {
+        const affectedTabId = getTaskGroupIdRaw(task);
         completeTask(task);
         rerender();
+        syncActiveTabState(affectedTabId);
         renderStarList();
         renderNow();
     },
@@ -1051,8 +1071,10 @@ TaskActions.configure({
         saveState();
     },
     toggleDaily: ({ task, rerender }) => {
+        const affectedTabId = getTaskGroupIdRaw(task);
         toggleDailyTask(task);
         rerender();
+        syncActiveTabState(affectedTabId);
         renderDailyList();
         saveState();
     }
@@ -1123,6 +1145,7 @@ ItemManager.configure({
     setActiveGroupTaskOrder,
     taskTextExists,
     appendTaskToBox,
+    syncTabState: syncActiveTabState,
     startTextEdit: startItemManagerTextEdit,
     isDailyTask,
     isDailyTaskDoneToday,
@@ -1494,7 +1517,9 @@ async function finishMigration(mode) {
 
 completeNowBtn.addEventListener('click', () => {
     if (!state.nowTask) return;
+    const affectedTabId = getTaskGroupIdRaw(state.nowTask);
     completeTask(state.nowTask);
+    syncActiveTabState(affectedTabId);
     renderNow();
     renderStarList();
 });
