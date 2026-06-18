@@ -71,7 +71,7 @@
         border-color: rgba(255, 255, 255, 0.10);
     }
 
-    body.night .must-do-item,
+    body.night .star-item,
     body.night .pinned-item,
     body.night .daily-item {
         background: rgba(24, 30, 46, 0.50);
@@ -89,16 +89,16 @@
 
     body.night .overlay .candidate-item,
     body.night .overlay .blindbox-task,
-    body.night .overlay .must-do-criterion {
+    body.night .overlay .item-tab {
         background: rgba(31, 39, 58, 0.96);
         color: #eef2ff;
         border-color: rgba(255, 255, 255, 0.10);
     }
 
     body.night .candidate-more-btn,
-    body.night .must-do-selection .candidate-actions,
+    body.night .item-manager-list .candidate-actions,
     body.night .candidate-list .candidate-actions,
-    body.night .must-do-list .candidate-actions,
+    body.night .star-list .candidate-actions,
     body.night .pinned-list .candidate-actions,
     body.night .daily-list .candidate-actions {
         background: rgba(31, 39, 58, 0.98);
@@ -106,14 +106,14 @@
         border-color: rgba(255, 255, 255, 0.10);
     }
 
-    body.night .must-do-criterion.active {
+    body.night .item-tab.active {
         background: var(--accent);
         color: #fff;
     }
 
     body.night .time-block p,
     body.night .now-task h3.is-empty::before,
-    body.night .criterion-dialog-message,
+    body.night .tab-dialog-message,
     body.night .reflection-textarea::placeholder {
         color: #c6d0e7;
     }
@@ -365,26 +365,26 @@
         box-shadow: 0 8px 18px rgba(185, 28, 28, 0.10);
     }
 
-    #criterionOverlay .actions .btn.secondary {
+    #tabOverlay .actions .btn.secondary {
         background: #ffffff;
         border-color: rgba(31, 41, 55, 0.22);
         color: #111827;
         box-shadow: none;
     }
 
-    #criterionOverlay .actions .btn.secondary:hover {
+    #tabOverlay .actions .btn.secondary:hover {
         background: #f8fbff;
         border-color: rgba(0, 113, 227, 0.38);
         box-shadow: 0 8px 18px rgba(31, 41, 55, 0.08);
     }
 
-    #criterionOverlay .actions .btn.secondary.danger {
+    #tabOverlay .actions .btn.secondary.danger {
         background: #fff1f2;
         border-color: rgba(220, 38, 38, 0.42);
         color: #b91c1c;
     }
 
-    #criterionOverlay .actions .btn.secondary.danger:hover {
+    #tabOverlay .actions .btn.secondary.danger:hover {
         background: #fee2e2;
         border-color: rgba(239, 68, 68, 0.46);
         box-shadow: 0 8px 18px rgba(185, 28, 28, 0.10);
@@ -478,7 +478,7 @@
 
     .daily-panel,
     .pinned-panel,
-    .must-do-panel {
+    .star-panel {
         display: none;
         gap: 12px;
         width: 70vw;
@@ -494,7 +494,7 @@
         padding-bottom: 0;
     }
 
-    .must-do-panel {
+    .star-panel {
         padding-bottom: 0;
     }
 
@@ -504,13 +504,13 @@
 
     .daily-panel.active,
     .pinned-panel.active,
-    .must-do-panel.active {
+    .star-panel.active {
         display: grid;
     }
 
     .daily-head,
     .pinned-head,
-    .must-do-head {
+    .star-head {
         display: flex;
         justify-content: flex-start;
         align-items: center;
@@ -519,25 +519,25 @@
 
     .daily-head h3,
     .pinned-head h3,
-    .must-do-head h3 {
+    .star-head h3 {
         margin: 0;
         font-size: 18px;
     }
 
-    .must-do-head p {
+    .star-head p {
         display: none;
     }
 
     .daily-list,
     .pinned-list,
-    .must-do-list {
+    .star-list {
         display: grid;
         gap: 10px;
     }
 
     .daily-item,
     .pinned-item,
-    .must-do-item {
+    .star-item {
         width: 100%;
         padding: 14px 16px;
         border-radius: 18px;
@@ -553,26 +553,26 @@
 
     .daily-item[draggable="true"],
     .pinned-item[draggable="true"],
-    .must-do-item[draggable="true"] {
+    .star-item[draggable="true"] {
         cursor: grab;
     }
 
     .daily-item.is-dragging,
     .pinned-item.is-dragging,
-    .must-do-item.is-dragging {
+    .star-item.is-dragging {
         opacity: 0.55;
     }
 
     .daily-item.is-drag-over,
     .pinned-item.is-drag-over,
-    .must-do-item.is-drag-over {
+    .star-item.is-drag-over {
         border-color: rgba(94, 119, 255, 0.48);
         box-shadow: inset 0 0 0 1px rgba(94, 119, 255, 0.20);
     }
 
     .daily-item span,
     .pinned-item span,
-    .must-do-item span {
+    .star-item span {
         flex: 1;
         min-width: 0;
         font-size: 16px;
@@ -582,15 +582,15 @@
         white-space: normal;
     }
 
-    .must-do-item .must-do-order {
+    .star-item .star-order {
         display: none;
     }
 
-    .must-do-overlay .overlay-card {
+    .item-manager-overlay .overlay-card {
         max-height: min(80vh, 760px);
     }
 
-    .must-do-criteria {
+    .item-tabs {
         display: flex;
         flex-wrap: wrap;
         gap: 8px;
@@ -600,7 +600,7 @@
         -webkit-touch-callout: none;
     }
 
-    .must-do-criterion {
+    .item-tab {
         border: 1px solid var(--line);
         border-radius: 999px;
         background: var(--modal-item);
@@ -618,61 +618,61 @@
         transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
     }
 
-    .must-do-criterion.is-pressing {
+    .item-tab.is-pressing {
         transform: scale(0.98);
     }
 
-    .must-do-criterion[draggable="true"] {
+    .item-tab[draggable="true"] {
         cursor: grab;
     }
 
-    .must-do-criterion.is-dragging {
+    .item-tab.is-dragging {
         opacity: 0.55;
     }
 
-    .must-do-criterion.is-drop-target {
+    .item-tab.is-drop-target {
         border-color: rgba(94, 119, 255, 0.55);
         box-shadow: 0 0 0 3px rgba(94, 119, 255, 0.14);
     }
 
-    .must-do-criterion.has-tasks:not(.active) {
+    .item-tab.has-tasks:not(.active) {
         background: rgba(94, 119, 255, 0.13);
         border-color: rgba(94, 119, 255, 0.24);
         color: #4257d8;
     }
 
-    .must-do-criterion.is-pinned:not(.active) {
+    .item-tab.is-pinned:not(.active) {
         border-color: rgba(245, 158, 11, 0.45);
         box-shadow: inset 0 0 0 1px rgba(245, 158, 11, 0.12);
     }
 
-    body.night .overlay .must-do-criterion.has-tasks:not(.active) {
+    body.night .overlay .item-tab.has-tasks:not(.active) {
         background: rgba(122, 162, 255, 0.18);
         border-color: rgba(122, 162, 255, 0.30);
         color: #d7e1ff;
     }
 
-    body.night .overlay .must-do-criterion.is-pinned:not(.active) {
+    body.night .overlay .item-tab.is-pinned:not(.active) {
         border-color: rgba(252, 211, 77, 0.45);
         box-shadow: inset 0 0 0 1px rgba(252, 211, 77, 0.12);
     }
 
-    .must-do-criterion.active {
+    .item-tab.active {
         background: var(--accent);
         border-color: transparent;
         color: #fff;
     }
 
-    .must-do-criterion.add {
+    .item-tab.add {
         width: 36px;
         padding-inline: 0;
     }
 
-    .must-do-criterion.fixed {
+    .item-tab.fixed {
         border-style: dashed;
     }
 
-    .criterion-dialog-message {
+    .tab-dialog-message {
         margin: 4px 2px 0;
         color: var(--muted);
         font-size: 14px;
@@ -690,7 +690,7 @@
         word-break: break-word;
     }
 
-    .must-do-selection {
+    .item-manager-list {
         display: grid;
         align-content: start;
         align-items: start;
@@ -707,13 +707,13 @@
         -webkit-overflow-scrolling: touch;
     }
 
-    .must-do-selection::-webkit-scrollbar {
+    .item-manager-list::-webkit-scrollbar {
         display: none;
     }
 
-    .must-do-selection .candidate-item,
+    .item-manager-list .candidate-item,
     .candidate-list .candidate-item.has-actions,
-    .must-do-list .candidate-item.has-actions,
+    .star-list .candidate-item.has-actions,
     .daily-list .candidate-item.has-actions,
     .pinned-list .candidate-item.has-actions {
         position: relative;
@@ -726,26 +726,26 @@
         overflow: visible;
     }
 
-    .must-do-selection .candidate-item.is-selected,
+    .item-manager-list .candidate-item.is-selected,
     .candidate-list .candidate-item.is-selected {
         background: rgba(245, 158, 11, 0.10);
         border-color: rgba(245, 158, 11, 0.34);
     }
 
-    .must-do-selection .candidate-item.is-daily,
+    .item-manager-list .candidate-item.is-daily,
     .candidate-list .candidate-item.is-daily {
         border-color: rgba(0, 113, 227, 0.28);
         background: rgba(0, 113, 227, 0.08);
     }
 
-    .must-do-selection .candidate-item.is-selected.is-daily,
+    .item-manager-list .candidate-item.is-selected.is-daily,
     .candidate-list .candidate-item.is-selected.is-daily {
         border-color: rgba(94, 119, 255, 0.34);
     }
 
-    .must-do-selection .candidate-text,
+    .item-manager-list .candidate-text,
     .candidate-list .candidate-text,
-    .must-do-list .candidate-text,
+    .star-list .candidate-text,
     .pinned-list .candidate-text,
     .daily-list .candidate-text {
         min-width: 0;
@@ -816,9 +816,9 @@
         flex: 0 0 auto;
     }
 
-    .must-do-selection .candidate-actions,
+    .item-manager-list .candidate-actions,
     .candidate-list .candidate-actions,
-    .must-do-list .candidate-actions,
+    .star-list .candidate-actions,
     .pinned-list .candidate-actions,
     .daily-list .candidate-actions {
         position: absolute;
@@ -842,9 +842,9 @@
         z-index: 4;
     }
 
-    .must-do-selection .candidate-item.is-menu-open .candidate-actions,
+    .item-manager-list .candidate-item.is-menu-open .candidate-actions,
     .candidate-list .candidate-item.is-menu-open .candidate-actions,
-    .must-do-list .candidate-item.is-menu-open .candidate-actions,
+    .star-list .candidate-item.is-menu-open .candidate-actions,
     .pinned-list .candidate-item.is-menu-open .candidate-actions,
     .daily-list .candidate-item.is-menu-open .candidate-actions {
         opacity: 1;
@@ -852,9 +852,9 @@
         transform: translateY(-50%) translateX(0);
     }
 
-    .must-do-selection .candidate-actions .btn,
+    .item-manager-list .candidate-actions .btn,
     .candidate-list .candidate-actions .btn,
-    .must-do-list .candidate-actions .btn,
+    .star-list .candidate-actions .btn,
     .pinned-list .candidate-actions .btn,
     .daily-list .candidate-actions .btn {
         min-width: 44px;
@@ -863,15 +863,15 @@
         width: 100%;
     }
 
-    .must-do-selection .candidate-item.is-editing .candidate-actions,
+    .item-manager-list .candidate-item.is-editing .candidate-actions,
     .candidate-list .candidate-item.is-editing .candidate-actions,
-    .must-do-list .candidate-item.is-editing .candidate-actions,
+    .star-list .candidate-item.is-editing .candidate-actions,
     .pinned-list .candidate-item.is-editing .candidate-actions,
     .daily-list .candidate-item.is-editing .candidate-actions {
         display: none;
     }
 
-    .must-do-add-item {
+    .item-manager-add {
         min-height: 52px;
         padding: 14px 16px;
         border: 1px dashed rgba(102, 112, 133, 0.32);
@@ -885,15 +885,15 @@
         transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
     }
 
-    .must-do-add-item:hover,
-    .must-do-add-item:focus-visible,
-    .must-do-add-item.is-editing {
+    .item-manager-add:hover,
+    .item-manager-add:focus-visible,
+    .item-manager-add.is-editing {
         background: rgba(255, 255, 255, 0.38);
         border-color: rgba(0, 113, 227, 0.30);
         color: inherit;
     }
 
-    .must-do-add-plus {
+    .item-manager-add-plus {
         width: 22px;
         height: 22px;
         border-radius: 999px;
@@ -906,11 +906,11 @@
         flex: 0 0 auto;
     }
 
-    .must-do-add-item .must-do-inline-input {
+    .item-manager-add .item-manager-inline-input {
         width: 100%;
     }
 
-    .must-do-inline-input {
+    .item-manager-inline-input {
         width: 100%;
         min-width: 0;
         flex: 1;
@@ -924,7 +924,7 @@
         box-shadow: inset 0 0 0 1px rgba(94, 119, 255, 0.14);
     }
 
-    body.night .must-do-inline-input {
+    body.night .item-manager-inline-input {
         background: rgba(15, 23, 42, 0.92);
         border-color: rgba(148, 163, 184, 0.36);
         color: #eef2ff;
@@ -943,31 +943,31 @@
         color: #eef2ff;
     }
 
-    body.night #criterionOverlay .actions .btn.secondary {
+    body.night #tabOverlay .actions .btn.secondary {
         background: rgba(59, 130, 246, 0.18);
         border-color: rgba(147, 197, 253, 0.32);
         color: #f8fbff;
     }
 
-    body.night #criterionOverlay .actions .btn.secondary:hover {
+    body.night #tabOverlay .actions .btn.secondary:hover {
         background: rgba(59, 130, 246, 0.30);
         border-color: rgba(191, 219, 254, 0.48);
     }
 
-    body.night #criterionOverlay .actions .btn.secondary.danger {
+    body.night #tabOverlay .actions .btn.secondary.danger {
         background: rgba(239, 68, 68, 0.18);
         border-color: rgba(248, 113, 113, 0.42);
         color: #fecaca;
     }
 
-    body.night #criterionOverlay .actions .btn.secondary.danger:hover {
+    body.night #tabOverlay .actions .btn.secondary.danger:hover {
         background: rgba(239, 68, 68, 0.28);
         border-color: rgba(252, 165, 165, 0.52);
     }
 
-    body.night .must-do-selection .candidate-actions,
+    body.night .item-manager-list .candidate-actions,
     body.night .candidate-list .candidate-actions,
-    body.night .must-do-list .candidate-actions,
+    body.night .star-list .candidate-actions,
     body.night .pinned-list .candidate-actions,
     body.night .daily-list .candidate-actions {
         background: rgba(15, 23, 42, 0.96);
@@ -975,9 +975,9 @@
         box-shadow: 0 18px 38px rgba(0, 0, 0, 0.34);
     }
 
-    body.night .must-do-selection .candidate-actions .btn.secondary,
+    body.night .item-manager-list .candidate-actions .btn.secondary,
     body.night .candidate-list .candidate-actions .btn.secondary,
-    body.night .must-do-list .candidate-actions .btn.secondary,
+    body.night .star-list .candidate-actions .btn.secondary,
     body.night .pinned-list .candidate-actions .btn.secondary,
     body.night .daily-list .candidate-actions .btn.secondary {
         background: rgba(37, 99, 235, 0.18);
@@ -985,61 +985,61 @@
         color: #f8fbff;
     }
 
-    body.night .must-do-selection .candidate-actions .btn.secondary:hover,
+    body.night .item-manager-list .candidate-actions .btn.secondary:hover,
     body.night .candidate-list .candidate-actions .btn.secondary:hover,
-    body.night .must-do-list .candidate-actions .btn.secondary:hover,
+    body.night .star-list .candidate-actions .btn.secondary:hover,
     body.night .pinned-list .candidate-actions .btn.secondary:hover,
     body.night .daily-list .candidate-actions .btn.secondary:hover {
         background: rgba(59, 130, 246, 0.28);
         border-color: rgba(191, 219, 254, 0.46);
     }
 
-    body.night .must-do-selection .candidate-item.is-selected,
+    body.night .item-manager-list .candidate-item.is-selected,
     body.night .candidate-list .candidate-item.is-selected {
         background: rgba(245, 158, 11, 0.14);
         border-color: rgba(251, 191, 36, 0.32);
     }
 
-    body.night .must-do-selection .candidate-item.is-daily,
+    body.night .item-manager-list .candidate-item.is-daily,
     body.night .candidate-list .candidate-item.is-daily {
         background: rgba(122, 162, 255, 0.13);
         border-color: rgba(122, 162, 255, 0.30);
     }
 
-    body.night .must-do-selection .candidate-item.is-selected.is-daily,
+    body.night .item-manager-list .candidate-item.is-selected.is-daily,
     body.night .candidate-list .candidate-item.is-selected.is-daily {
         border-color: rgba(122, 162, 255, 0.36);
     }
 
-    body.night .must-do-add-item {
+    body.night .item-manager-add {
         border-color: rgba(148, 163, 184, 0.28);
         color: #c6d0e7;
     }
 
-    body.night .must-do-add-item:hover,
-    body.night .must-do-add-item:focus-visible,
-    body.night .must-do-add-item.is-editing {
+    body.night .item-manager-add:hover,
+    body.night .item-manager-add:focus-visible,
+    body.night .item-manager-add.is-editing {
         background: rgba(148, 163, 184, 0.10);
         border-color: rgba(122, 162, 255, 0.36);
         color: #eef2ff;
     }
 
-    .must-do-selection .candidate-item[draggable="true"] {
+    .item-manager-list .candidate-item[draggable="true"] {
         cursor: grab;
     }
 
-    .must-do-selection .candidate-item.is-dragging {
+    .item-manager-list .candidate-item.is-dragging {
         opacity: 0.55;
     }
 
-    .must-do-selection .candidate-item.is-drag-over {
+    .item-manager-list .candidate-item.is-drag-over {
         border-color: rgba(94, 119, 255, 0.48);
         box-shadow: inset 0 0 0 1px rgba(94, 119, 255, 0.20);
     }
 
-    .must-do-selection .candidate-item button,
+    .item-manager-list .candidate-item button,
     .candidate-list .candidate-item.has-actions button,
-    .must-do-list .candidate-item.has-actions button,
+    .star-list .candidate-item.has-actions button,
     .pinned-list .candidate-item.has-actions button,
     .daily-list .candidate-item.has-actions button {
         min-width: 56px;
@@ -1061,13 +1061,7 @@
         text-align: left;
     }
 
-    .must-do-summary {
-        margin-top: 12px;
-        color: var(--muted);
-        font-size: 14px;
-    }
-
-    .must-do-panel {
+    .star-panel {
         margin-top: 10px;
     }
 
@@ -1115,7 +1109,7 @@
         isolation: isolate;
     }
 
-    .overlay#criterionOverlay,
+    .overlay#tabOverlay,
     .overlay#moveTaskOverlay,
     .overlay#spaceNameOverlay,
     .overlay#confirmOverlay {
@@ -1241,13 +1235,13 @@
             grid-template-columns: 1fr;
         }
 
-        .must-do-selection {
+        .item-manager-list {
             min-height: 34vh;
         }
 
-        .must-do-selection .candidate-item,
+        .item-manager-list .candidate-item,
         .candidate-list .candidate-item.has-actions,
-        .must-do-list .candidate-item.has-actions,
+        .star-list .candidate-item.has-actions,
         .pinned-list .candidate-item.has-actions,
         .daily-list .candidate-item.has-actions {
             position: relative;
@@ -1257,26 +1251,26 @@
             padding-right: 16px;
         }
 
-        .must-do-selection .candidate-text,
+        .item-manager-list .candidate-text,
         .candidate-list .candidate-text,
-        .must-do-list .candidate-text,
+        .star-list .candidate-text,
         .pinned-list .candidate-text,
         .daily-list .candidate-text {
             transition: transform 0.2s ease;
         }
 
-        .must-do-selection .candidate-actions,
+        .item-manager-list .candidate-actions,
         .candidate-list .candidate-actions,
-        .must-do-list .candidate-actions,
+        .star-list .candidate-actions,
         .pinned-list .candidate-actions,
         .daily-list .candidate-actions {
             right: 52px;
             width: 176px;
         }
 
-        .must-do-selection .candidate-actions .btn,
+        .item-manager-list .candidate-actions .btn,
         .candidate-list .candidate-actions .btn,
-        .must-do-list .candidate-actions .btn,
+        .star-list .candidate-actions .btn,
         .pinned-list .candidate-actions .btn,
         .daily-list .candidate-actions .btn {
             min-width: 40px;
@@ -1284,17 +1278,17 @@
             font-size: 13px;
         }
 
-        .must-do-selection .candidate-item.is-editing,
+        .item-manager-list .candidate-item.is-editing,
         .candidate-list .candidate-item.is-editing,
-        .must-do-list .candidate-item.is-editing,
+        .star-list .candidate-item.is-editing,
         .pinned-list .candidate-item.is-editing,
         .daily-list .candidate-item.is-editing {
             padding-right: 16px;
         }
 
-        .must-do-selection .candidate-item.is-editing .candidate-text,
+        .item-manager-list .candidate-item.is-editing .candidate-text,
         .candidate-list .candidate-item.is-editing .candidate-text,
-        .must-do-list .candidate-item.is-editing .candidate-text,
+        .star-list .candidate-item.is-editing .candidate-text,
         .pinned-list .candidate-item.is-editing .candidate-text,
         .daily-list .candidate-item.is-editing .candidate-text {
             transform: none;

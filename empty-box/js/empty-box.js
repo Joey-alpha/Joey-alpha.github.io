@@ -2,27 +2,27 @@ const StorageService = window.EmptyBoxStorage;
 const Dialogs = window.EmptyBoxDialogs;
 const TaskActions = window.EmptyBoxTaskActions;
 const HomeLists = window.EmptyBoxHomeLists;
-const MustDo = window.EmptyBoxMustDo;
+const ItemTabs = window.EmptyBoxItemTabs;
 const TaskModel = window.EmptyBoxTaskModel;
 const Settings = window.EmptyBoxSettings;
 const { STORAGE_KEY, UPDATE_PING_KEY, MIGRATION_DONE_KEY, MIGRATION_DISMISSED_KEY } = StorageService.keys;
 const { formatErrorMessage } = StorageService;
 const {
-    MUST_DO_INBOX_CRITERION,
-    cloneDefaultMustDoCriteria,
-    createMustDoCriterionId,
-    isInboxMustDoCriterion,
+    MUST_DO_INBOX_CRITERION: INBOX_TAB,
+    cloneDefaultMustDoCriteria: cloneDefaultTabs,
+    createMustDoCriterionId: createTabId,
+    isInboxMustDoCriterion: isInboxTab,
     normalizeTaskList,
     normalizeState,
     createEmptyState
 } = window.EmptyBoxState;
-const MUST_DO_TASK_LIMIT = 6;
-const MUST_DO_CRITERION_DOUBLE_TAP_MS = 360;
-const MUST_DO_CRITERION_TAP_MOVE_PX = 12;
-const MUST_DO_HIDDEN_RETENTION_DAYS = 30;
-const MUST_DO_ITEM_SWIPE_PX = 58;
-const MUST_DO_AUTO_SCROLL_EDGE_PX = 72;
-const MUST_DO_AUTO_SCROLL_MAX_PX = 22;
+const STAR_TASK_LIMIT = 6;
+const TAB_DOUBLE_TAP_MS = 360;
+const TAB_TAP_MOVE_PX = 12;
+const TAB_HIDDEN_RETENTION_DAYS = 30;
+const ITEM_SWIPE_PX = 58;
+const ITEM_MANAGER_AUTO_SCROLL_EDGE_PX = 72;
+const ITEM_MANAGER_AUTO_SCROLL_MAX_PX = 22;
 const QUOTE_ROTATION_MS = 2 * 60 * 60 * 1000;
 const QUOTES = [
     { theme: '斯多葛', text: '控制可控，接受不可控。' },
@@ -113,7 +113,7 @@ const addOverlay = document.getElementById('addOverlay');
 const blindboxOverlay = document.getElementById('blindboxOverlay');
 const reflectionOverlay = document.getElementById('reflectionOverlay');
 const settingsOverlay = document.getElementById('settingsOverlay');
-const criterionOverlay = document.getElementById('criterionOverlay');
+const tabOverlay = document.getElementById('tabOverlay');
 const moveTaskOverlay = document.getElementById('moveTaskOverlay');
 const migrationOverlay = document.getElementById('migrationOverlay');
 const spaceNameOverlay = document.getElementById('spaceNameOverlay');
@@ -129,25 +129,24 @@ const blindboxActions = document.getElementById('blindboxActions');
 const acceptBlindboxBtn = document.getElementById('acceptBlindboxBtn');
 const rerollBlindboxBtn = document.getElementById('rerollBlindboxBtn');
 
-const mustDoOverlay = document.getElementById('mustDoOverlay');
-const mustDoCriteriaBar = document.getElementById('mustDoCriteriaBar');
-const mustDoSelection = document.getElementById('mustDoSelection');
-const mustDoSummary = document.getElementById('mustDoSummary');
-const mustDoPanel = document.getElementById('mustDoPanel');
-const mustDoList = document.getElementById('mustDoList');
+const itemManagerOverlay = document.getElementById('itemManagerOverlay');
+const itemTabsBar = document.getElementById('itemTabsBar');
+const itemManagerList = document.getElementById('itemManagerList');
+const starPanel = document.getElementById('starPanel');
+const starList = document.getElementById('starList');
 const dailyPanel = document.getElementById('dailyPanel');
 const dailyList = document.getElementById('dailyList');
 const pinnedPanel = document.getElementById('pinnedPanel');
 const pinnedTitle = document.getElementById('pinnedTitle');
 const pinnedList = document.getElementById('pinnedList');
 
-const criterionDialogTitle = document.getElementById('criterionDialogTitle');
-const criterionDialogInput = document.getElementById('criterionDialogInput');
-const criterionDialogMessage = document.getElementById('criterionDialogMessage');
-const criterionDialogSaveBtn = document.getElementById('criterionDialogSaveBtn');
-const criterionDialogPinBtn = document.getElementById('criterionDialogPinBtn');
-const criterionDialogDeleteBtn = document.getElementById('criterionDialogDeleteBtn');
-const criterionDialogCancelBtn = document.getElementById('criterionDialogCancelBtn');
+const tabDialogTitle = document.getElementById('tabDialogTitle');
+const tabDialogInput = document.getElementById('tabDialogInput');
+const tabDialogMessage = document.getElementById('tabDialogMessage');
+const tabDialogSaveBtn = document.getElementById('tabDialogSaveBtn');
+const tabDialogPinBtn = document.getElementById('tabDialogPinBtn');
+const tabDialogDeleteBtn = document.getElementById('tabDialogDeleteBtn');
+const tabDialogCancelBtn = document.getElementById('tabDialogCancelBtn');
 const moveTaskTitle = document.getElementById('moveTaskTitle');
 const moveTaskList = document.getElementById('moveTaskList');
 const moveTaskCancelBtn = document.getElementById('moveTaskCancelBtn');
@@ -162,7 +161,7 @@ const refreshCloudSpacesBtn = document.getElementById('refreshCloudSpacesBtn');
 const deleteSpaceBtn = document.getElementById('deleteSpaceBtn');
 const migrateSourceSpaceSelect = document.getElementById('migrateSourceSpaceSelect');
 const migrateTargetSpaceSelect = document.getElementById('migrateTargetSpaceSelect');
-const transferSpaceNotesBtn = document.getElementById('transferSpaceNotesBtn');
+const transferSpaceContentBtn = document.getElementById('transferSpaceContentBtn');
 const spaceTransferStatus = document.getElementById('spaceTransferStatus');
 const spaceStatus = document.getElementById('spaceStatus');
 const migrateLocalBtn = document.getElementById('migrateLocalBtn');
@@ -186,8 +185,8 @@ const overlayStack = [
     blindboxOverlay,
     reflectionOverlay,
     settingsOverlay,
-    mustDoOverlay,
-    criterionOverlay,
+    itemManagerOverlay,
+    tabOverlay,
     moveTaskOverlay,
     migrationOverlay,
     spaceNameOverlay,
@@ -204,7 +203,7 @@ Dialogs.configure({
         cancelButton: confirmCancelBtn
     },
     closeHandlers: {
-        criterionOverlay: closeCriterionDialog,
+        tabOverlay: closeTabDialog,
         moveTaskOverlay: closeMoveTaskDialog,
         spaceNameOverlay: closeSpaceNameDialog,
         confirmOverlay: () => closeConfirmDialog(false)
@@ -228,8 +227,8 @@ let state = {
     mustDoTasks: [],
     dailyTasks: [],
     dailyCompletedByDate: {},
-    mustDoCriteria: cloneDefaultMustDoCriteria(),
-    activeMustDoCriterionId: MUST_DO_INBOX_CRITERION.id,
+    mustDoCriteria: cloneDefaultTabs(),
+    activeMustDoCriterionId: INBOX_TAB.id,
     pinnedMustDoCriterionId: '',
     mustDoHiddenByDate: {},
     mustDoTaskGroups: {},
@@ -242,8 +241,8 @@ let isEditing = false;
 let lastCompletedTask = null;
 let shakeThreshold = 15;
 let lastShake = 0;
-let criterionDialogMode = 'add';
-let criterionDialogCriterionId = null;
+let tabDialogMode = 'add';
+let tabDialogTabId = null;
 let isBooting = true;
 let pendingMoveTask = '';
 
@@ -358,8 +357,8 @@ function isTaskItemControlTarget(target) {
 
 const createTaskActionMenu = options => TaskActions.createMenu(options);
 
-function renderMustDoList() {
-    HomeLists.renderMustDoList();
+function renderStarList() {
+    HomeLists.renderStarList();
 }
 
 function isDailyTaskDoneToday(task) {
@@ -371,14 +370,14 @@ function renderDailyList() {
     HomeLists.renderDailyList();
 }
 
-function getPinnedMustDoCriterion() {
-    ensureMustDoCriteria();
+function getPinnedTab() {
+    ensureItemTabs();
     if (!state.pinnedMustDoCriterionId) return null;
-    return state.mustDoCriteria.find(criterion => criterion.id === state.pinnedMustDoCriterionId) || null;
+    return state.mustDoCriteria.find(tab => tab.id === state.pinnedMustDoCriterionId) || null;
 }
 
-function renderPinnedCriterionList() {
-    HomeLists.renderPinnedCriterionList();
+function renderPinnedTabList() {
+    HomeLists.renderPinnedTabList();
 }
 
 function formatDateKey(date) {
@@ -392,10 +391,10 @@ function getTodayKey() {
     return formatDateKey(new Date());
 }
 
-function getMustDoHiddenRetentionKeys() {
+function getTabHiddenRetentionKeys() {
     const today = new Date();
     const keys = [];
-    for (let offset = 0; offset < MUST_DO_HIDDEN_RETENTION_DAYS; offset += 1) {
+    for (let offset = 0; offset < TAB_HIDDEN_RETENTION_DAYS; offset += 1) {
         const date = new Date(today.getFullYear(), today.getMonth(), today.getDate());
         date.setDate(date.getDate() - offset);
         keys.push(formatDateKey(date));
@@ -403,8 +402,8 @@ function getMustDoHiddenRetentionKeys() {
     return keys;
 }
 
-function pruneMustDoHiddenByDate() {
-    const retainedKeys = new Set(getMustDoHiddenRetentionKeys());
+function pruneHiddenTabsByDate() {
+    const retainedKeys = new Set(getTabHiddenRetentionKeys());
     Object.keys(state.mustDoHiddenByDate).forEach(dateKey => {
         if (!retainedKeys.has(dateKey)) {
             delete state.mustDoHiddenByDate[dateKey];
@@ -417,7 +416,7 @@ function pruneDailyCompletedByDate() {
         state.dailyCompletedByDate = {};
         return;
     }
-    const retainedKeys = new Set(getMustDoHiddenRetentionKeys());
+    const retainedKeys = new Set(getTabHiddenRetentionKeys());
     Object.keys(state.dailyCompletedByDate).forEach(dateKey => {
         if (!retainedKeys.has(dateKey)) {
             delete state.dailyCompletedByDate[dateKey];
@@ -431,13 +430,13 @@ function pruneDailyCompletedByDate() {
     });
 }
 
-function ensureMustDoCriteria() {
+function ensureItemTabs() {
     if (!Array.isArray(state.mustDoCriteria) || !state.mustDoCriteria.length) {
-        state.mustDoCriteria = cloneDefaultMustDoCriteria();
+        state.mustDoCriteria = cloneDefaultTabs();
     }
-    if (!isInboxMustDoCriterion(state.activeMustDoCriterionId) &&
-        !state.mustDoCriteria.some(criterion => criterion.id === state.activeMustDoCriterionId)) {
-        state.activeMustDoCriterionId = MUST_DO_INBOX_CRITERION.id;
+    if (!isInboxTab(state.activeMustDoCriterionId) &&
+        !state.mustDoCriteria.some(tab => tab.id === state.activeMustDoCriterionId)) {
+        state.activeMustDoCriterionId = INBOX_TAB.id;
     }
     if (!state.mustDoHiddenByDate || typeof state.mustDoHiddenByDate !== 'object' || Array.isArray(state.mustDoHiddenByDate)) {
         state.mustDoHiddenByDate = {};
@@ -450,11 +449,11 @@ function ensureMustDoCriteria() {
     }
     state.dailyTasks = normalizeTaskList(state.dailyTasks);
     pruneDailyCompletedByDate();
-    const validCriterionIds = new Set(state.mustDoCriteria.map(criterion => criterion.id));
-    const validGroupIds = new Set([MUST_DO_INBOX_CRITERION.id, ...validCriterionIds]);
-    const taskPool = getMustDoCandidatePool();
+    const validTabIds = new Set(state.mustDoCriteria.map(tab => tab.id));
+    const validGroupIds = new Set([INBOX_TAB.id, ...validTabIds]);
+    const taskPool = getItemPool();
     Object.keys(state.mustDoTaskGroups).forEach(task => {
-        if (!validCriterionIds.has(state.mustDoTaskGroups[task]) || !taskPool.includes(task)) {
+        if (!validTabIds.has(state.mustDoTaskGroups[task]) || !taskPool.includes(task)) {
             delete state.mustDoTaskGroups[task];
         }
     });
@@ -467,19 +466,19 @@ function ensureMustDoCriteria() {
             taskPool.includes(task) && getTaskGroupIdRaw(task) === groupId
         );
     });
-    pruneMustDoHiddenByDate();
+    pruneHiddenTabsByDate();
 }
 
-function getMustDoCandidatePool() {
+function getItemPool() {
     return [...new Set([...state.boxTasks, ...state.dailyTasks, state.nowTask].filter(Boolean))];
 }
 
 function getTaskGroupIdRaw(task) {
-    return state.mustDoTaskGroups[task] || MUST_DO_INBOX_CRITERION.id;
+    return state.mustDoTaskGroups[task] || INBOX_TAB.id;
 }
 
 function getTaskGroupCount(groupId) {
-    return getMustDoCandidatePool().filter(task => getTaskGroupIdRaw(task) === groupId).length;
+    return getItemPool().filter(task => getTaskGroupIdRaw(task) === groupId).length;
 }
 
 function removeTaskFromAllGroupOrders(task) {
@@ -489,19 +488,19 @@ function removeTaskFromAllGroupOrders(task) {
     });
 }
 
-function appendTaskToGroupOrder(task, groupId = MUST_DO_INBOX_CRITERION.id) {
-    ensureMustDoCriteria();
+function appendTaskToGroupOrder(task, groupId = INBOX_TAB.id) {
+    ensureItemTabs();
     if (!task) return;
     removeTaskFromAllGroupOrders(task);
     if (!state.mustDoTaskOrder[groupId]) state.mustDoTaskOrder[groupId] = [];
     state.mustDoTaskOrder[groupId] = [...normalizeTaskList(state.mustDoTaskOrder[groupId]), task];
 }
 
-function appendTaskToBox(task, groupId = MUST_DO_INBOX_CRITERION.id) {
+function appendTaskToBox(task, groupId = INBOX_TAB.id) {
     if (!task) return;
     state.boxTasks = state.boxTasks.filter(item => item !== task);
     state.boxTasks.push(task);
-    if (isInboxMustDoCriterion(groupId)) {
+    if (isInboxTab(groupId)) {
         delete state.mustDoTaskGroups[task];
     } else {
         state.mustDoTaskGroups[task] = groupId;
@@ -510,38 +509,38 @@ function appendTaskToBox(task, groupId = MUST_DO_INBOX_CRITERION.id) {
 }
 
 function getTaskGroupId(task) {
-    ensureMustDoCriteria();
+    ensureItemTabs();
     return getTaskGroupIdRaw(task);
 }
 
-function setTaskGroup(task, criterionId) {
-    ensureMustDoCriteria();
+function setTaskGroup(task, tabId) {
+    ensureItemTabs();
     if (!task) return;
     const previousGroupId = getTaskGroupId(task);
     if (state.mustDoTaskOrder[previousGroupId]) {
         state.mustDoTaskOrder[previousGroupId] = state.mustDoTaskOrder[previousGroupId].filter(item => item !== task);
     }
-    if (isInboxMustDoCriterion(criterionId)) {
+    if (isInboxTab(tabId)) {
         delete state.mustDoTaskGroups[task];
-        if (!state.mustDoTaskOrder[MUST_DO_INBOX_CRITERION.id]) state.mustDoTaskOrder[MUST_DO_INBOX_CRITERION.id] = [];
-        state.mustDoTaskOrder[MUST_DO_INBOX_CRITERION.id] = state.mustDoTaskOrder[MUST_DO_INBOX_CRITERION.id].filter(item => item !== task);
-        state.mustDoTaskOrder[MUST_DO_INBOX_CRITERION.id].push(task);
+        if (!state.mustDoTaskOrder[INBOX_TAB.id]) state.mustDoTaskOrder[INBOX_TAB.id] = [];
+        state.mustDoTaskOrder[INBOX_TAB.id] = state.mustDoTaskOrder[INBOX_TAB.id].filter(item => item !== task);
+        state.mustDoTaskOrder[INBOX_TAB.id].push(task);
         return;
     }
-    if (state.mustDoCriteria.some(criterion => criterion.id === criterionId)) {
-        state.mustDoTaskGroups[task] = criterionId;
-        if (!state.mustDoTaskOrder[criterionId]) state.mustDoTaskOrder[criterionId] = [];
-        state.mustDoTaskOrder[criterionId] = state.mustDoTaskOrder[criterionId].filter(item => item !== task);
-        state.mustDoTaskOrder[criterionId].push(task);
+    if (state.mustDoCriteria.some(tab => tab.id === tabId)) {
+        state.mustDoTaskGroups[task] = tabId;
+        if (!state.mustDoTaskOrder[tabId]) state.mustDoTaskOrder[tabId] = [];
+        state.mustDoTaskOrder[tabId] = state.mustDoTaskOrder[tabId].filter(item => item !== task);
+        state.mustDoTaskOrder[tabId].push(task);
     }
 }
 
-function getTasksForMustDoCriterion(criterionId) {
-    ensureMustDoCriteria();
-    const targetId = criterionId || MUST_DO_INBOX_CRITERION.id;
-    const tasks = getMustDoCandidatePool().filter(task => {
+function getTasksForTab(tabId) {
+    ensureItemTabs();
+    const targetId = tabId || INBOX_TAB.id;
+    const tasks = getItemPool().filter(task => {
         const groupId = getTaskGroupId(task);
-        return isInboxMustDoCriterion(targetId) ? isInboxMustDoCriterion(groupId) : groupId === targetId;
+        return isInboxTab(targetId) ? isInboxTab(groupId) : groupId === targetId;
     });
     const order = state.mustDoTaskOrder[targetId] || [];
     return [
@@ -550,21 +549,21 @@ function getTasksForMustDoCriterion(criterionId) {
     ];
 }
 
-function getGroupedMustDoCandidates() {
-    return getTasksForMustDoCriterion(state.activeMustDoCriterionId);
+function getActiveTabItems() {
+    return getTasksForTab(state.activeMustDoCriterionId);
 }
 
 function setActiveGroupTaskOrder(tasks) {
-    ensureMustDoCriteria();
+    ensureItemTabs();
     const activeId = state.activeMustDoCriterionId;
-    const activeTasks = getGroupedMustDoCandidates();
+    const activeTasks = getActiveTabItems();
     state.mustDoTaskOrder[activeId] = normalizeTaskList(tasks).filter(task => activeTasks.includes(task));
 }
 
-function setCriterionTaskOrder(criterionId, tasks) {
-    ensureMustDoCriteria();
-    const targetId = criterionId || MUST_DO_INBOX_CRITERION.id;
-    const activeTasks = getTasksForMustDoCriterion(targetId);
+function setTabTaskOrder(tabId, tasks) {
+    ensureItemTabs();
+    const targetId = tabId || INBOX_TAB.id;
+    const activeTasks = getTasksForTab(targetId);
     state.mustDoTaskOrder[targetId] = normalizeTaskList(tasks).filter(task => activeTasks.includes(task));
 }
 
@@ -573,291 +572,285 @@ function moveTaskToGroup(task, groupId, switchToGroup = false) {
     setTaskGroup(task, groupId);
     if (switchToGroup) {
         state.activeMustDoCriterionId = groupId;
-        renderMustDoCriteria();
+        renderItemTabs();
     } else if (previousGroupId === state.activeMustDoCriterionId || groupId === state.activeMustDoCriterionId) {
-        syncMustDoCriterionActiveState();
+        syncActiveTabState();
     }
-    buildMustDoCandidates();
-    renderPinnedCriterionList();
+    renderItemManagerItems();
+    renderPinnedTabList();
     saveState();
 }
 
-function reorderMustDoCriterion(draggedCriterionId, targetCriterionId, position = 'before') {
-    if (!draggedCriterionId || draggedCriterionId === targetCriterionId || isInboxMustDoCriterion(draggedCriterionId)) return;
-    const fromIndex = state.mustDoCriteria.findIndex(criterion => criterion.id === draggedCriterionId);
+function reorderTab(draggedTabId, targetTabId, position = 'before') {
+    if (!draggedTabId || draggedTabId === targetTabId || isInboxTab(draggedTabId)) return;
+    const fromIndex = state.mustDoCriteria.findIndex(tab => tab.id === draggedTabId);
     if (fromIndex === -1) return;
 
-    const [draggedCriterion] = state.mustDoCriteria.splice(fromIndex, 1);
-    if (isInboxMustDoCriterion(targetCriterionId)) {
-        state.mustDoCriteria.unshift(draggedCriterion);
+    const [draggedTab] = state.mustDoCriteria.splice(fromIndex, 1);
+    if (isInboxTab(targetTabId)) {
+        state.mustDoCriteria.unshift(draggedTab);
     } else {
-        const targetIndex = state.mustDoCriteria.findIndex(criterion => criterion.id === targetCriterionId);
+        const targetIndex = state.mustDoCriteria.findIndex(tab => tab.id === targetTabId);
         if (targetIndex === -1) {
-            state.mustDoCriteria.push(draggedCriterion);
+            state.mustDoCriteria.push(draggedTab);
         } else {
             const insertIndex = position === 'after' ? targetIndex + 1 : targetIndex;
-            state.mustDoCriteria.splice(insertIndex, 0, draggedCriterion);
+            state.mustDoCriteria.splice(insertIndex, 0, draggedTab);
         }
     }
-    renderMustDoCriteria();
-    buildMustDoCandidates();
-    renderPinnedCriterionList();
+    renderItemTabs();
+    renderItemManagerItems();
+    renderPinnedTabList();
     saveState();
 }
 
-function updateMustDoSummary() {
-    if (mustDoSummary) mustDoSummary.textContent = '';
-}
-
-function syncMustDoCriterionActiveState() {
-    mustDoCriteriaBar.querySelectorAll('.must-do-criterion:not(.add)').forEach(button => {
-        const isActive = button.dataset.criterionId === state.activeMustDoCriterionId;
+function syncActiveTabState() {
+    itemTabsBar.querySelectorAll('.item-tab:not(.add)').forEach(button => {
+        const isActive = button.dataset.tabId === state.activeMustDoCriterionId;
         button.classList.toggle('active', isActive);
         button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
     });
 }
 
-function refreshMustDoOverlayState() {
-    renderMustDoCriteria();
-    updateMustDoSummary();
-    buildMustDoCandidates();
-    renderPinnedCriterionList();
+function refreshItemManagerState() {
+    renderItemTabs();
+    renderItemManagerItems();
+    renderPinnedTabList();
     saveState();
 }
 
-function activateMustDoCriterion(criterionId) {
-    state.activeMustDoCriterionId = criterionId;
-    syncMustDoCriterionActiveState();
-    updateMustDoSummary();
-    buildMustDoCandidates();
+function activateTab(tabId) {
+    state.activeMustDoCriterionId = tabId;
+    syncActiveTabState();
+    renderItemManagerItems();
     saveState();
 }
 
-function openCriterionNameDialog(mode, criterion = null) {
-    criterionDialogMode = mode;
-    criterionDialogCriterionId = criterion ? criterion.id : null;
-    criterionDialogTitle.textContent = mode === 'add' ? '新增 Tab' : '修改 Tab';
-    criterionDialogInput.style.display = 'block';
-    criterionDialogInput.value = criterion ? criterion.name : '';
-    criterionDialogMessage.textContent = '';
-    criterionDialogSaveBtn.style.display = 'inline-flex';
-    criterionDialogSaveBtn.textContent = mode === 'add' ? '新增' : '保存';
-    criterionDialogPinBtn.style.display = 'none';
-    criterionDialogDeleteBtn.style.display = 'none';
-    criterionDialogCancelBtn.textContent = '取消';
-    openOverlay(criterionOverlay);
-    criterionDialogInput.focus();
-    criterionDialogInput.select();
+function openTabNameDialog(mode, tab = null) {
+    tabDialogMode = mode;
+    tabDialogTabId = tab ? tab.id : null;
+    tabDialogTitle.textContent = mode === 'add' ? '新增 Tab' : '修改 Tab';
+    tabDialogInput.style.display = 'block';
+    tabDialogInput.value = tab ? tab.name : '';
+    tabDialogMessage.textContent = '';
+    tabDialogSaveBtn.style.display = 'inline-flex';
+    tabDialogSaveBtn.textContent = mode === 'add' ? '新增' : '保存';
+    tabDialogPinBtn.style.display = 'none';
+    tabDialogDeleteBtn.style.display = 'none';
+    tabDialogCancelBtn.textContent = '取消';
+    openOverlay(tabOverlay);
+    tabDialogInput.focus();
+    tabDialogInput.select();
 }
 
-function openCriterionMessageDialog(title, message) {
-    criterionDialogMode = 'message';
-    criterionDialogCriterionId = null;
-    criterionDialogTitle.textContent = title;
-    criterionDialogInput.style.display = 'none';
-    criterionDialogMessage.textContent = message;
-    criterionDialogSaveBtn.style.display = 'none';
-    criterionDialogPinBtn.style.display = 'none';
-    criterionDialogDeleteBtn.style.display = 'none';
-    criterionDialogCancelBtn.textContent = '知道了';
-    openOverlay(criterionOverlay);
+function openTabMessageDialog(title, message) {
+    tabDialogMode = 'message';
+    tabDialogTabId = null;
+    tabDialogTitle.textContent = title;
+    tabDialogInput.style.display = 'none';
+    tabDialogMessage.textContent = message;
+    tabDialogSaveBtn.style.display = 'none';
+    tabDialogPinBtn.style.display = 'none';
+    tabDialogDeleteBtn.style.display = 'none';
+    tabDialogCancelBtn.textContent = '知道了';
+    openOverlay(tabOverlay);
 }
 
-function openCriterionDeleteDialog(criterion) {
-    criterionDialogMode = 'delete';
-    criterionDialogCriterionId = criterion.id;
-    criterionDialogTitle.textContent = '删除 Tab';
-    criterionDialogInput.style.display = 'none';
-    criterionDialogMessage.textContent = `删除“${criterion.name}”？`;
-    criterionDialogSaveBtn.style.display = 'none';
-    criterionDialogPinBtn.style.display = 'none';
-    criterionDialogDeleteBtn.style.display = 'inline-flex';
-    criterionDialogCancelBtn.textContent = '取消';
-    openOverlay(criterionOverlay);
+function openTabDeleteDialog(tab) {
+    tabDialogMode = 'delete';
+    tabDialogTabId = tab.id;
+    tabDialogTitle.textContent = '删除 Tab';
+    tabDialogInput.style.display = 'none';
+    tabDialogMessage.textContent = `删除“${tab.name}”？`;
+    tabDialogSaveBtn.style.display = 'none';
+    tabDialogPinBtn.style.display = 'none';
+    tabDialogDeleteBtn.style.display = 'inline-flex';
+    tabDialogCancelBtn.textContent = '取消';
+    openOverlay(tabOverlay);
 }
 
-function openCriterionManageDialog(criterion) {
-    criterionDialogMode = 'manage';
-    criterionDialogCriterionId = criterion.id;
-    criterionDialogTitle.textContent = criterion.name;
-    criterionDialogInput.style.display = 'none';
-    criterionDialogMessage.textContent = '管理这个 Tab';
-    criterionDialogSaveBtn.style.display = 'inline-flex';
-    criterionDialogSaveBtn.textContent = '重命名';
-    criterionDialogPinBtn.style.display = 'inline-flex';
-    criterionDialogPinBtn.textContent = state.pinnedMustDoCriterionId === criterion.id ? '取消 Pin' : 'Pin 到首页';
-    criterionDialogDeleteBtn.style.display = 'inline-flex';
-    criterionDialogCancelBtn.textContent = '取消';
-    openOverlay(criterionOverlay);
+function openTabManageDialog(tab) {
+    tabDialogMode = 'manage';
+    tabDialogTabId = tab.id;
+    tabDialogTitle.textContent = tab.name;
+    tabDialogInput.style.display = 'none';
+    tabDialogMessage.textContent = '管理这个 Tab';
+    tabDialogSaveBtn.style.display = 'inline-flex';
+    tabDialogSaveBtn.textContent = '重命名';
+    tabDialogPinBtn.style.display = 'inline-flex';
+    tabDialogPinBtn.textContent = state.pinnedMustDoCriterionId === tab.id ? '取消 Pin' : 'Pin 到首页';
+    tabDialogDeleteBtn.style.display = 'inline-flex';
+    tabDialogCancelBtn.textContent = '取消';
+    openOverlay(tabOverlay);
 }
 
-function closeCriterionDialog() {
-    closeOverlay(criterionOverlay);
-    criterionDialogMessage.textContent = '';
-    criterionDialogCriterionId = null;
+function closeTabDialog() {
+    closeOverlay(tabOverlay);
+    tabDialogMessage.textContent = '';
+    tabDialogTabId = null;
 }
 
-function showCriterionDialogMessage(message) {
-    criterionDialogMessage.textContent = message;
+function showTabDialogMessage(message) {
+    tabDialogMessage.textContent = message;
 }
 
-function saveCriterionNameDialog() {
-    if (criterionDialogMode === 'manage') {
-        const criterionId = criterionDialogCriterionId;
-        closeCriterionDialog();
-        renameMustDoCriterion(criterionId);
+function saveTabNameDialog() {
+    if (tabDialogMode === 'manage') {
+        const tabId = tabDialogTabId;
+        closeTabDialog();
+        renameTab(tabId);
         return;
     }
 
-    const trimmedName = criterionDialogInput.value.trim();
+    const trimmedName = tabDialogInput.value.trim();
     if (!trimmedName) {
-        showCriterionDialogMessage('请输入 Tab 名称');
+        showTabDialogMessage('请输入 Tab 名称');
         return;
     }
 
-    ensureMustDoCriteria();
+    ensureItemTabs();
 
-    if (criterionDialogMode === 'add') {
-        const existing = state.mustDoCriteria.find(criterion => criterion.name === trimmedName);
+    if (tabDialogMode === 'add') {
+        const existing = state.mustDoCriteria.find(tab => tab.name === trimmedName);
         if (existing) {
             state.activeMustDoCriterionId = existing.id;
         } else {
-            const criterion = { id: createMustDoCriterionId(), name: trimmedName };
-            state.mustDoCriteria.push(criterion);
-            state.activeMustDoCriterionId = criterion.id;
+            const tab = { id: createTabId(), name: trimmedName };
+            state.mustDoCriteria.push(tab);
+            state.activeMustDoCriterionId = tab.id;
         }
-        closeCriterionDialog();
-        refreshMustDoOverlayState();
+        closeTabDialog();
+        refreshItemManagerState();
         return;
     }
 
-    if (criterionDialogMode === 'rename') {
-        const criterion = state.mustDoCriteria.find(item => item.id === criterionDialogCriterionId);
-        if (!criterion) return;
-        if (trimmedName === criterion.name) {
-            closeCriterionDialog();
+    if (tabDialogMode === 'rename') {
+        const tab = state.mustDoCriteria.find(item => item.id === tabDialogTabId);
+        if (!tab) return;
+        if (trimmedName === tab.name) {
+            closeTabDialog();
             return;
         }
 
-        const duplicate = state.mustDoCriteria.some(item => item.id !== criterion.id && item.name === trimmedName);
+        const duplicate = state.mustDoCriteria.some(item => item.id !== tab.id && item.name === trimmedName);
         if (duplicate) {
-            showCriterionDialogMessage('已经有这个 Tab');
+            showTabDialogMessage('已经有这个 Tab');
             return;
         }
 
-        criterion.name = trimmedName;
-        closeCriterionDialog();
-        refreshMustDoOverlayState();
+        tab.name = trimmedName;
+        closeTabDialog();
+        refreshItemManagerState();
     }
 }
 
-function renameMustDoCriterion(criterionId) {
-    ensureMustDoCriteria();
-    const criterion = state.mustDoCriteria.find(item => item.id === criterionId);
-    if (!criterion) return;
-    openCriterionNameDialog('rename', criterion);
+function renameTab(tabId) {
+    ensureItemTabs();
+    const tab = state.mustDoCriteria.find(item => item.id === tabId);
+    if (!tab) return;
+    openTabNameDialog('rename', tab);
 }
 
-function togglePinnedMustDoCriterion(criterionId) {
-    ensureMustDoCriteria();
-    if (isInboxMustDoCriterion(criterionId)) return;
-    const criterion = state.mustDoCriteria.find(item => item.id === criterionId);
-    if (!criterion) return;
-    state.pinnedMustDoCriterionId = state.pinnedMustDoCriterionId === criterionId ? '' : criterionId;
-    closeCriterionDialog();
-    renderPinnedCriterionList();
+function togglePinnedTab(tabId) {
+    ensureItemTabs();
+    if (isInboxTab(tabId)) return;
+    const tab = state.mustDoCriteria.find(item => item.id === tabId);
+    if (!tab) return;
+    state.pinnedMustDoCriterionId = state.pinnedMustDoCriterionId === tabId ? '' : tabId;
+    closeTabDialog();
+    renderPinnedTabList();
     saveState();
 }
 
-function deleteMustDoCriterion(criterionId) {
-    ensureMustDoCriteria();
-    if (isInboxMustDoCriterion(criterionId)) {
-        openCriterionMessageDialog('不能删除', 'Inbox 是默认 Tab');
+function deleteTab(tabId) {
+    ensureItemTabs();
+    if (isInboxTab(tabId)) {
+        openTabMessageDialog('不能删除', 'Inbox 是默认 Tab');
         return;
     }
     if (state.mustDoCriteria.length <= 1) {
-        openCriterionMessageDialog('不能删除', '至少保留一个 Tab');
+        openTabMessageDialog('不能删除', '至少保留一个 Tab');
         return;
     }
 
-    const criterionIndex = state.mustDoCriteria.findIndex(item => item.id === criterionId);
-    if (criterionIndex === -1) return;
+    const tabIndex = state.mustDoCriteria.findIndex(item => item.id === tabId);
+    if (tabIndex === -1) return;
 
-    const criterion = state.mustDoCriteria[criterionIndex];
-    openCriterionDeleteDialog(criterion);
+    const tab = state.mustDoCriteria[tabIndex];
+    openTabDeleteDialog(tab);
 }
 
-function manageMustDoCriterion(criterionId) {
-    ensureMustDoCriteria();
-    if (isInboxMustDoCriterion(criterionId)) return;
-    const criterion = state.mustDoCriteria.find(item => item.id === criterionId);
-    if (!criterion) return;
-    openCriterionManageDialog(criterion);
+function manageTab(tabId) {
+    ensureItemTabs();
+    if (isInboxTab(tabId)) return;
+    const tab = state.mustDoCriteria.find(item => item.id === tabId);
+    if (!tab) return;
+    openTabManageDialog(tab);
 }
 
-function handleCriterionDeleteDialogAction() {
-    if (criterionDialogMode === 'manage') {
-        const criterionId = criterionDialogCriterionId;
-        closeCriterionDialog();
-        deleteMustDoCriterion(criterionId);
+function handleTabDeleteDialogAction() {
+    if (tabDialogMode === 'manage') {
+        const tabId = tabDialogTabId;
+        closeTabDialog();
+        deleteTab(tabId);
         return;
     }
-    confirmDeleteMustDoCriterion();
+    confirmDeleteTab();
 }
 
-function handleCriterionPinDialogAction() {
-    if (criterionDialogMode !== 'manage') return;
-    togglePinnedMustDoCriterion(criterionDialogCriterionId);
+function handleTabPinDialogAction() {
+    if (tabDialogMode !== 'manage') return;
+    togglePinnedTab(tabDialogTabId);
 }
 
-function confirmDeleteMustDoCriterion() {
-    ensureMustDoCriteria();
-    const criterionId = criterionDialogCriterionId;
-    if (isInboxMustDoCriterion(criterionId)) {
-        closeCriterionDialog();
+function confirmDeleteTab() {
+    ensureItemTabs();
+    const tabId = tabDialogTabId;
+    if (isInboxTab(tabId)) {
+        closeTabDialog();
         return;
     }
-    const criterionIndex = state.mustDoCriteria.findIndex(item => item.id === criterionId);
-    if (criterionIndex === -1) {
-        closeCriterionDialog();
+    const tabIndex = state.mustDoCriteria.findIndex(item => item.id === tabId);
+    if (tabIndex === -1) {
+        closeTabDialog();
         return;
     }
 
-    state.mustDoCriteria.splice(criterionIndex, 1);
+    state.mustDoCriteria.splice(tabIndex, 1);
     Object.keys(state.mustDoTaskGroups).forEach(task => {
-        if (state.mustDoTaskGroups[task] === criterionId) {
+        if (state.mustDoTaskGroups[task] === tabId) {
             delete state.mustDoTaskGroups[task];
         }
     });
-    delete state.mustDoTaskOrder[criterionId];
-    Object.values(state.mustDoHiddenByDate).forEach(hiddenByCriterion => {
-        if (hiddenByCriterion && typeof hiddenByCriterion === 'object') {
-            delete hiddenByCriterion[criterionId];
+    delete state.mustDoTaskOrder[tabId];
+    Object.values(state.mustDoHiddenByDate).forEach(hiddenByTab => {
+        if (hiddenByTab && typeof hiddenByTab === 'object') {
+            delete hiddenByTab[tabId];
         }
     });
 
-    if (state.activeMustDoCriterionId === criterionId) {
-        state.activeMustDoCriterionId = MUST_DO_INBOX_CRITERION.id;
+    if (state.activeMustDoCriterionId === tabId) {
+        state.activeMustDoCriterionId = INBOX_TAB.id;
     }
-    if (state.pinnedMustDoCriterionId === criterionId) {
+    if (state.pinnedMustDoCriterionId === tabId) {
         state.pinnedMustDoCriterionId = '';
     }
-    closeCriterionDialog();
-    refreshMustDoOverlayState();
+    closeTabDialog();
+    refreshItemManagerState();
 }
 
-function renderMustDoCriteria() {
-    ensureMustDoCriteria();
-    MustDo.renderCriteria();
+function renderItemTabs() {
+    ensureItemTabs();
+    ItemTabs.renderTabs();
 }
 
-function addMustDoCriterion() {
-    openCriterionNameDialog('add');
+function addTab() {
+    openTabNameDialog('add');
 }
 
 function getMoveTaskGroups() {
-    ensureMustDoCriteria();
-    return [MUST_DO_INBOX_CRITERION, ...state.mustDoCriteria];
+    ensureItemTabs();
+    return [INBOX_TAB, ...state.mustDoCriteria];
 }
 
 function replaceTaskTextInList(list, previousText, nextText) {
@@ -985,7 +978,7 @@ Settings.configure({
         deleteSpaceBtn,
         migrateSourceSpaceSelect,
         migrateTargetSpaceSelect,
-        transferSpaceNotesBtn,
+        transferSpaceContentBtn,
         spaceTransferStatus,
         spaceStatus,
         migrateLocalBtn,
@@ -1031,7 +1024,7 @@ TaskActions.configure({
             selected: state.mustDoTasks.includes(task),
             daily,
             dailyDoneToday: daily && isDailyTaskDoneToday(task),
-            canStar: state.mustDoTasks.length < MUST_DO_TASK_LIMIT
+            canStar: state.mustDoTasks.length < STAR_TASK_LIMIT
         };
     },
     editTask: ({ row, label, task, editMode, rerender }) => {
@@ -1039,32 +1032,29 @@ TaskActions.configure({
             startSearchItemTextEdit(row, label, task);
             return;
         }
-        startMustDoItemTextEdit(row, label, task, rerender);
+        startItemManagerTextEdit(row, label, task, rerender);
     },
     copyTask: ({ button, task }) => handleCopyTask(button, task),
     moveTask: task => openMoveTaskDialog(task),
     completeTask: ({ task, rerender }) => {
         completeTask(task);
         rerender();
-        updateMustDoSummary();
-        renderMustDoList();
+        renderStarList();
         renderNow();
     },
     toggleStar: ({ task, selected, rerender }) => {
         if (selected) {
             state.mustDoTasks = state.mustDoTasks.filter(t => t !== task);
-        } else if (state.mustDoTasks.length < MUST_DO_TASK_LIMIT) {
+        } else if (state.mustDoTasks.length < STAR_TASK_LIMIT) {
             state.mustDoTasks.push(task);
         }
         rerender();
-        updateMustDoSummary();
-        renderMustDoList();
+        renderStarList();
         saveState();
     },
     toggleDaily: ({ task, rerender }) => {
         toggleDailyTask(task);
         rerender();
-        updateMustDoSummary();
         renderDailyList();
         saveState();
     }
@@ -1072,8 +1062,8 @@ TaskActions.configure({
 
 HomeLists.configure({
     elements: {
-        mustDoPanel,
-        mustDoList,
+        starPanel,
+        starList,
         dailyPanel,
         dailyList,
         pinnedPanel,
@@ -1089,32 +1079,32 @@ HomeLists.configure({
     appendTaskToBox,
     getTaskGroupIdRaw,
     getTodayKey,
-    getPinnedMustDoCriterion,
-    getTasksForMustDoCriterion,
-    setCriterionTaskOrder,
-    buildMustDoCandidates,
-    getActiveMustDoCriterionId: () => state.activeMustDoCriterionId,
-    tapMovePx: MUST_DO_CRITERION_TAP_MOVE_PX
+    getPinnedTab,
+    getTasksForTab,
+    setTabTaskOrder,
+    renderItemManagerItems,
+    getActiveTabId: () => state.activeMustDoCriterionId,
+    tapMovePx: TAB_TAP_MOVE_PX
 });
 
-MustDo.configure({
+ItemTabs.configure({
     elements: {
-        mustDoCriteriaBar
+        itemTabsBar
     },
     getState: () => state,
-    inboxCriterion: MUST_DO_INBOX_CRITERION,
-    isInboxCriterion: isInboxMustDoCriterion,
+    inboxTab: INBOX_TAB,
+    isInboxTab: isInboxTab,
     getTaskGroupCount,
-    activateCriterion: activateMustDoCriterion,
-    manageCriterion: manageMustDoCriterion,
-    reorderCriterion: reorderMustDoCriterion,
+    activateTab,
+    manageTab,
+    reorderTab,
     moveTaskToGroup,
-    addCriterion: addMustDoCriterion,
-    tapMovePx: MUST_DO_CRITERION_TAP_MOVE_PX,
-    doubleTapMs: MUST_DO_CRITERION_DOUBLE_TAP_MS
+    addTab,
+    tapMovePx: TAB_TAP_MOVE_PX,
+    doubleTapMs: TAB_DOUBLE_TAP_MS
 });
 
-function bindMustDoItemMoveInteractions(row, task) {
+function bindItemManagerMoveInteractions(row, task) {
     let pointerId = null;
     let startX = 0;
     let startY = 0;
@@ -1133,11 +1123,11 @@ function bindMustDoItemMoveInteractions(row, task) {
         const deltaX = event.clientX - startX;
         const deltaY = event.clientY - startY;
         pointerId = null;
-        if (event.pointerType === 'mouse' || Math.abs(deltaY) >= MUST_DO_ITEM_SWIPE_PX) return;
-        if (deltaX <= -MUST_DO_ITEM_SWIPE_PX) {
+        if (event.pointerType === 'mouse' || Math.abs(deltaY) >= ITEM_SWIPE_PX) return;
+        if (deltaX <= -ITEM_SWIPE_PX) {
             row.classList.add('is-actions-revealed');
         }
-        if (deltaX >= MUST_DO_ITEM_SWIPE_PX) {
+        if (deltaX >= ITEM_SWIPE_PX) {
             row.classList.remove('is-actions-revealed');
         }
     });
@@ -1152,7 +1142,7 @@ function bindMustDoItemMoveInteractions(row, task) {
     });
 }
 
-function bindMustDoItemDragInteractions(row, task) {
+function bindItemManagerDragInteractions(row, task) {
     row.draggable = true;
     row.dataset.task = task;
 
@@ -1170,7 +1160,7 @@ function bindMustDoItemDragInteractions(row, task) {
 
     row.addEventListener('dragover', event => {
         event.preventDefault();
-        autoScrollMustDoSelection(event.clientY);
+        autoScrollItemManagerList(event.clientY);
         const draggingTask = event.dataTransfer.getData('text/plain');
         if (!draggingTask || draggingTask === task) return;
         row.classList.add('is-drag-over');
@@ -1185,31 +1175,31 @@ function bindMustDoItemDragInteractions(row, task) {
         row.classList.remove('is-drag-over');
         const draggingTask = event.dataTransfer.getData('text/plain');
         if (!draggingTask || draggingTask === task) return;
-        const tasks = getGroupedMustDoCandidates();
+        const tasks = getActiveTabItems();
         const fromIndex = tasks.indexOf(draggingTask);
         const toIndex = tasks.indexOf(task);
         if (fromIndex === -1 || toIndex === -1) return;
         tasks.splice(fromIndex, 1);
         tasks.splice(toIndex, 0, draggingTask);
         setActiveGroupTaskOrder(tasks);
-        buildMustDoCandidates();
+        renderItemManagerItems();
         saveState();
     });
 }
 
-function autoScrollMustDoSelection(clientY) {
-    const rect = mustDoSelection.getBoundingClientRect();
+function autoScrollItemManagerList(clientY) {
+    const rect = itemManagerList.getBoundingClientRect();
     const distanceToTop = clientY - rect.top;
     const distanceToBottom = rect.bottom - clientY;
     let delta = 0;
 
-    if (distanceToTop < MUST_DO_AUTO_SCROLL_EDGE_PX) {
-        delta = -Math.ceil((1 - Math.max(distanceToTop, 0) / MUST_DO_AUTO_SCROLL_EDGE_PX) * MUST_DO_AUTO_SCROLL_MAX_PX);
-    } else if (distanceToBottom < MUST_DO_AUTO_SCROLL_EDGE_PX) {
-        delta = Math.ceil((1 - Math.max(distanceToBottom, 0) / MUST_DO_AUTO_SCROLL_EDGE_PX) * MUST_DO_AUTO_SCROLL_MAX_PX);
+    if (distanceToTop < ITEM_MANAGER_AUTO_SCROLL_EDGE_PX) {
+        delta = -Math.ceil((1 - Math.max(distanceToTop, 0) / ITEM_MANAGER_AUTO_SCROLL_EDGE_PX) * ITEM_MANAGER_AUTO_SCROLL_MAX_PX);
+    } else if (distanceToBottom < ITEM_MANAGER_AUTO_SCROLL_EDGE_PX) {
+        delta = Math.ceil((1 - Math.max(distanceToBottom, 0) / ITEM_MANAGER_AUTO_SCROLL_EDGE_PX) * ITEM_MANAGER_AUTO_SCROLL_MAX_PX);
     }
 
-    if (delta) mustDoSelection.scrollTop += delta;
+    if (delta) itemManagerList.scrollTop += delta;
 }
 
 function resetEditableTaskLabel(label) {
@@ -1290,14 +1280,13 @@ function startTaskTextEdit({ row, label, task, rerender, onAfterSave }) {
     label.addEventListener('blur', () => finish(true, 'blur'), { once: true });
 }
 
-function startMustDoItemTextEdit(row, label, task, rerender = buildMustDoCandidates) {
+function startItemManagerTextEdit(row, label, task, rerender = renderItemManagerItems) {
     startTaskTextEdit({
         row,
         label,
         task,
         rerender,
         onAfterSave: () => {
-            updateMustDoSummary();
             renderNow();
         }
     });
@@ -1310,34 +1299,33 @@ function startSearchItemTextEdit(row, label, task) {
         task,
         rerender: () => renderSearchResults(searchInput.value),
         onAfterSave: () => {
-            updateMustDoSummary();
             renderNow();
         }
     });
 }
 
-function addTaskToActiveMustDoGroup(value) {
+function addItemToActiveTab(value) {
     const text = value.trim();
     if (!text) return { ok: false, message: 'item 内容不能为空' };
     if (taskTextExists(text)) return { ok: false, message: '已存在同名 item' };
-    const groupId = state.activeMustDoCriterionId || MUST_DO_INBOX_CRITERION.id;
+    const groupId = state.activeMustDoCriterionId || INBOX_TAB.id;
     appendTaskToBox(text, groupId);
     saveState();
     renderFabState();
-    renderPinnedCriterionList();
+    renderPinnedTabList();
     return { ok: true };
 }
 
-function createMustDoAddItemRow() {
+function createItemManagerAddRow() {
     const row = document.createElement('div');
-    row.className = 'must-do-add-item';
+    row.className = 'item-manager-add';
     row.tabIndex = 0;
     row.setAttribute('role', 'button');
     row.setAttribute('aria-label', '添加新 item');
 
     const renderPrompt = () => {
         row.classList.remove('is-editing');
-        row.innerHTML = '<span class="must-do-add-plus">+</span><span>新建 item</span>';
+        row.innerHTML = '<span class="item-manager-add-plus">+</span><span>新建 item</span>';
     };
 
     const startEdit = () => {
@@ -1345,7 +1333,7 @@ function createMustDoAddItemRow() {
         row.classList.add('is-editing');
         row.innerHTML = '';
         const input = document.createElement('input');
-        input.className = 'must-do-inline-input';
+        input.className = 'item-manager-inline-input';
         input.placeholder = '输入新 item…';
         input.setAttribute('aria-label', '新 item 内容');
         row.appendChild(input);
@@ -1360,7 +1348,7 @@ function createMustDoAddItemRow() {
                 renderPrompt();
                 return;
             }
-            const result = addTaskToActiveMustDoGroup(value);
+            const result = addItemToActiveTab(value);
             if (!result.ok) {
                 finished = false;
                 input.setCustomValidity(result.message);
@@ -1369,9 +1357,8 @@ function createMustDoAddItemRow() {
                 return;
             }
             finished = true;
-            renderMustDoCriteria();
-            buildMustDoCandidates();
-            updateMustDoSummary();
+            renderItemTabs();
+            renderItemManagerItems();
         };
 
         input.addEventListener('pointerdown', event => event.stopPropagation());
@@ -1402,15 +1389,15 @@ function createMustDoAddItemRow() {
     return row;
 }
 
-function buildMustDoCandidates() {
-    mustDoSelection.innerHTML = '';
-    const isInbox = isInboxMustDoCriterion(state.activeMustDoCriterionId);
-    const tasks = getGroupedMustDoCandidates();
+function renderItemManagerItems() {
+    itemManagerList.innerHTML = '';
+    const isInbox = isInboxTab(state.activeMustDoCriterionId);
+    const tasks = getActiveTabItems();
     if (!tasks.length) {
         const empty = document.createElement('div');
         empty.className = 'reflection-empty';
         empty.textContent = isInbox ? 'Inbox 为空' : '这个 Tab 还没有 item';
-        mustDoSelection.appendChild(empty);
+        itemManagerList.appendChild(empty);
     }
     tasks.forEach(task => {
         const selected = state.mustDoTasks.includes(task);
@@ -1435,37 +1422,36 @@ function buildMustDoCandidates() {
             row,
             label,
             task,
-            rerender: buildMustDoCandidates
+            rerender: renderItemManagerItems
         });
         row.append(label, starBadge, dailyBadge, moreButton, actions);
-        bindMustDoItemMoveInteractions(row, task);
-        bindMustDoItemDragInteractions(row, task);
+        bindItemManagerMoveInteractions(row, task);
+        bindItemManagerDragInteractions(row, task);
 
-        mustDoSelection.appendChild(row);
+        itemManagerList.appendChild(row);
     });
-    mustDoSelection.appendChild(createMustDoAddItemRow());
+    itemManagerList.appendChild(createItemManagerAddRow());
 }
 
-function openMustDoOverlay() {
-    ensureMustDoCriteria();
-    renderMustDoCriteria();
-    updateMustDoSummary();
-    buildMustDoCandidates();
-    openOverlay(mustDoOverlay);
+function openItemManager() {
+    ensureItemTabs();
+    renderItemTabs();
+    renderItemManagerItems();
+    openOverlay(itemManagerOverlay);
 }
 
-function updateMustDoState() {
-    renderMustDoList();
+function updateStarState() {
+    renderStarList();
     saveState();
 }
 
 function completeTask(task) {
     if (!task) return;
-    const isMustDo = state.mustDoTasks.includes(task);
+    const isStarred = state.mustDoTasks.includes(task);
     const isDaily = isDailyTask(task);
     lastCompletedTask = task;
     const completionTags = [
-        isMustDo ? 'Star' : '',
+        isStarred ? 'Star' : '',
         isDaily ? 'Daily' : ''
     ].filter(Boolean);
     state.completedTasks.push(completionTags.length ? `${task}【${completionTags.join(' · ')}】` : task);
@@ -1478,7 +1464,7 @@ function completeTask(task) {
             state.mustDoTaskOrder[groupId] = state.mustDoTaskOrder[groupId].filter(item => item !== task);
         });
     }
-    if (isMustDo) {
+    if (isStarred) {
         state.mustDoTasks = state.mustDoTasks.filter(item => item !== task);
     }
     if (state.nowTask === task) {
@@ -1598,9 +1584,9 @@ function finishInlineEdit() {
     const previousText = state.nowTask;
     const nextText = nowTaskText.textContent.trim();
     const wasEmpty = !state.nowTask;
-    const wasMustDo = state.mustDoTasks.includes(previousText);
+    const wasStarred = state.mustDoTasks.includes(previousText);
     const wasDaily = state.dailyTasks.includes(previousText);
-    if (wasMustDo && previousText !== nextText) {
+    if (wasStarred && previousText !== nextText) {
         if (nextText) {
             state.mustDoTasks = [...new Set(state.mustDoTasks.map(task => task === previousText ? nextText : task))];
         } else {
@@ -1695,8 +1681,8 @@ function openRenameSpaceDialog() {
     Settings.openRenameSpaceDialog();
 }
 
-async function transferSelectedSpaceNotes() {
-    return Settings.transferSelectedSpaceNotes();
+async function transferSelectedSpaceContent() {
+    return Settings.transferSelectedSpaceContent();
 }
 
 async function deleteCurrentSpace() {
@@ -1711,7 +1697,7 @@ completeNowBtn.addEventListener('click', () => {
     if (!state.nowTask) return;
     completeTask(state.nowTask);
     renderNow();
-    renderMustDoList();
+    renderStarList();
 });
 
 function undoLastComplete() {
@@ -1772,18 +1758,18 @@ searchResults.addEventListener('click', event => {
     });
 });
 
-ambientHint.addEventListener('dblclick', openMustDoOverlay);
+ambientHint.addEventListener('dblclick', openItemManager);
 
-mustDoSelection.addEventListener('dragover', event => {
+itemManagerList.addEventListener('dragover', event => {
     const dragTypes = Array.from(event.dataTransfer?.types || []);
     if (!dragTypes.includes('text/plain')) return;
     event.preventDefault();
-    autoScrollMustDoSelection(event.clientY);
+    autoScrollItemManagerList(event.clientY);
 });
 
-mustDoSelection.addEventListener('click', event => {
+itemManagerList.addEventListener('click', event => {
     if (event.target.closest('.candidate-more-btn, .candidate-actions')) return;
-    mustDoSelection.querySelectorAll('.candidate-item.is-menu-open').forEach(item => {
+    itemManagerList.querySelectorAll('.candidate-item.is-menu-open').forEach(item => {
         item.classList.remove('is-menu-open');
     });
 });
@@ -1860,25 +1846,25 @@ Settings.bindEvents();
 
 undoFab.addEventListener('click', undoLastComplete);
 
-criterionDialogSaveBtn.addEventListener('click', saveCriterionNameDialog);
-criterionDialogPinBtn.addEventListener('click', handleCriterionPinDialogAction);
-criterionDialogDeleteBtn.addEventListener('click', handleCriterionDeleteDialogAction);
-criterionDialogCancelBtn.addEventListener('click', closeCriterionDialog);
+tabDialogSaveBtn.addEventListener('click', saveTabNameDialog);
+tabDialogPinBtn.addEventListener('click', handleTabPinDialogAction);
+tabDialogDeleteBtn.addEventListener('click', handleTabDeleteDialogAction);
+tabDialogCancelBtn.addEventListener('click', closeTabDialog);
 moveTaskCancelBtn.addEventListener('click', closeMoveTaskDialog);
 
-criterionDialogInput.addEventListener('input', () => {
-    criterionDialogMessage.textContent = '';
+tabDialogInput.addEventListener('input', () => {
+    tabDialogMessage.textContent = '';
 });
 
-criterionDialogInput.addEventListener('keydown', event => {
+tabDialogInput.addEventListener('keydown', event => {
     if (isTextCompositionEvent(event)) return;
     if (event.key === 'Enter') {
         event.preventDefault();
-        saveCriterionNameDialog();
+        saveTabNameDialog();
     }
     if (event.key === 'Escape') {
         event.preventDefault();
-        closeCriterionDialog();
+        closeTabDialog();
     }
 });
 

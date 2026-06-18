@@ -1,5 +1,5 @@
 const UPDATE_PING_KEY = 'activation-task-demo-last-updated';
-const MUST_DO_INBOX_CRITERION_ID = '__inbox__';
+const INBOX_TAB_ID = '__inbox__';
 const { normalizeState } = window.EmptyBoxState;
 const StorageService = window.EmptyBoxStorage;
 
@@ -22,7 +22,7 @@ async function saveState(state) {
   localStorage.setItem(UPDATE_PING_KEY, String(Date.now()));
 }
 
-async function addToBoxQuick(value) {
+async function addToInboxQuick(value) {
   const text = value.trim();
   if (!text) {
     return { ok: false, reason: 'empty' };
@@ -46,9 +46,9 @@ async function addToBoxQuick(value) {
       ? state.mustDoTaskOrder[groupId].filter(task => task !== text)
       : [];
   });
-  state.mustDoTaskOrder[MUST_DO_INBOX_CRITERION_ID] = [
-    ...(Array.isArray(state.mustDoTaskOrder[MUST_DO_INBOX_CRITERION_ID])
-      ? state.mustDoTaskOrder[MUST_DO_INBOX_CRITERION_ID]
+  state.mustDoTaskOrder[INBOX_TAB_ID] = [
+    ...(Array.isArray(state.mustDoTaskOrder[INBOX_TAB_ID])
+      ? state.mustDoTaskOrder[INBOX_TAB_ID]
       : []),
     text
   ];
@@ -83,7 +83,7 @@ async function submit() {
 
   let result;
   try {
-    result = await addToBoxQuick(taskInput.value);
+    result = await addToInboxQuick(taskInput.value);
   } catch (error) {
     console.error(error);
     setSubmitting(false);

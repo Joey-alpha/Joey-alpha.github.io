@@ -34,7 +34,7 @@
             spaceStatus,
             renameSpaceBtn,
             deleteSpaceBtn,
-            transferSpaceNotesBtn,
+            transferSpaceContentBtn,
             spaceTransferStatus
         } = config.elements;
         const spaces = config.storage.getSpaces();
@@ -87,7 +87,7 @@
         spaceStatus.textContent = `${currentName} · ${label} · 本地 ${localCount} / 云端 ${cloudCount}`;
         renameSpaceBtn.disabled = !current;
         deleteSpaceBtn.disabled = !current;
-        transferSpaceNotesBtn.disabled = spaces.length < 2;
+        transferSpaceContentBtn.disabled = spaces.length < 2;
         if (!spaceTransferStatus.textContent && spaces.length < 2) {
             spaceTransferStatus.textContent = '至少需要两个 Space 才能迁移。';
         } else if (spaces.length >= 2 && spaceTransferStatus.textContent === '至少需要两个 Space 才能迁移。') {
@@ -194,11 +194,11 @@
         openSpaceNameDialog('rename', current);
     }
 
-    async function transferSelectedSpaceNotes() {
+    async function transferSelectedSpaceContent() {
         const {
             migrateSourceSpaceSelect,
             migrateTargetSpaceSelect,
-            transferSpaceNotesBtn,
+            transferSpaceContentBtn,
             spaceTransferStatus
         } = config.elements;
         const sourceId = migrateSourceSpaceSelect.value;
@@ -222,9 +222,9 @@
         if (!ok) return;
 
         try {
-            transferSpaceNotesBtn.disabled = true;
+            transferSpaceContentBtn.disabled = true;
             spaceTransferStatus.textContent = '正在迁移...';
-            const result = await config.storage.transferSpaceNotes(source.id, target.id);
+            const result = await config.storage.transferSpaceContent(source.id, target.id);
             config.setState(result.state);
             renderSpaceSettings();
             config.renderNow();
@@ -326,7 +326,7 @@
             renameSpaceBtn,
             refreshCloudSpacesBtn,
             deleteSpaceBtn,
-            transferSpaceNotesBtn,
+            transferSpaceContentBtn,
             migrateSourceSpaceSelect,
             migrateTargetSpaceSelect,
             spaceTransferStatus,
@@ -362,7 +362,7 @@
         renameSpaceBtn.addEventListener('click', openRenameSpaceDialog);
         refreshCloudSpacesBtn.addEventListener('click', () => refreshCloudSpaces(true));
         deleteSpaceBtn.addEventListener('click', deleteCurrentSpace);
-        transferSpaceNotesBtn.addEventListener('click', transferSelectedSpaceNotes);
+        transferSpaceContentBtn.addEventListener('click', transferSelectedSpaceContent);
         migrateSourceSpaceSelect.addEventListener('change', () => {
             spaceTransferStatus.textContent = '';
             if (migrateSourceSpaceSelect.value === migrateTargetSpaceSelect.value) {
@@ -411,7 +411,7 @@
         closeSpaceNameDialog,
         saveNamedSpace,
         openRenameSpaceDialog,
-        transferSelectedSpaceNotes,
+        transferSelectedSpaceContent,
         deleteCurrentSpace,
         finishMigration
     };

@@ -683,7 +683,7 @@
             return space;
         },
     
-        async transferSpaceNotes(sourceSpaceId, targetSpaceId) {
+        async transferSpaceContent(sourceSpaceId, targetSpaceId) {
             const source = this.getSpaceById(sourceSpaceId);
             const target = this.getSpaceById(targetSpaceId);
             if (!source || !target) throw new Error('请选择有效的源 Space 和目标 Space');

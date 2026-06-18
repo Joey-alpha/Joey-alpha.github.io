@@ -31,11 +31,11 @@
                     </div>
                 </section>
 
-                <section class="must-do-panel" id="mustDoPanel">
-                    <div class="must-do-head">
+                <section class="star-panel" id="starPanel">
+                    <div class="star-head">
                         <h3>Star</h3>
                     </div>
-                    <div class="must-do-list" id="mustDoList"></div>
+                    <div class="star-list" id="starList"></div>
                 </section>
 
                 <section class="daily-panel" id="dailyPanel">
@@ -76,19 +76,19 @@
                     </div>
                 </div>
 
-                <div class="overlay" id="criterionOverlay">
+                <div class="overlay" id="tabOverlay">
                     <div class="overlay-card">
                         <div class="overlay-head">
-                            <h3 class="overlay-title" id="criterionDialogTitle">Tab</h3>
-                            <button class="close-btn" data-close="criterionOverlay">×</button>
+                            <h3 class="overlay-title" id="tabDialogTitle">Tab</h3>
+                            <button class="close-btn" data-close="tabOverlay">×</button>
                         </div>
-                        <input class="search-input" id="criterionDialogInput" placeholder="Tab 名称…" />
-                        <div class="criterion-dialog-message" id="criterionDialogMessage"></div>
+                        <input class="search-input" id="tabDialogInput" placeholder="Tab 名称…" />
+                        <div class="tab-dialog-message" id="tabDialogMessage"></div>
                         <div class="actions">
-                            <button class="btn primary" id="criterionDialogSaveBtn">确定</button>
-                            <button class="btn secondary" id="criterionDialogPinBtn">Pin 到首页</button>
-                            <button class="btn secondary danger" id="criterionDialogDeleteBtn">删除</button>
-                            <button class="btn secondary" id="criterionDialogCancelBtn">取消</button>
+                            <button class="btn primary" id="tabDialogSaveBtn">确定</button>
+                            <button class="btn secondary" id="tabDialogPinBtn">Pin 到首页</button>
+                            <button class="btn secondary danger" id="tabDialogDeleteBtn">删除</button>
+                            <button class="btn secondary" id="tabDialogCancelBtn">取消</button>
                         </div>
                     </div>
                 </div>
@@ -160,7 +160,7 @@
                                     <select class="settings-select" id="migrateTargetSpaceSelect"></select>
                                 </div>
                                 <div class="settings-inline">
-                                    <button class="btn primary" id="transferSpaceNotesBtn">迁移内容</button>
+                                    <button class="btn primary" id="transferSpaceContentBtn">迁移内容</button>
                                 </div>
                                 <div class="settings-status" id="spaceTransferStatus"></div>
                             </div>
@@ -226,14 +226,14 @@
                 </div>
             </main>
         </div>
-        <div class="overlay must-do-overlay" id="mustDoOverlay">
+        <div class="overlay item-manager-overlay" id="itemManagerOverlay">
             <div class="overlay-card">
                 <div class="overlay-head">
                     <h3 class="overlay-title">管理 items</h3>
-                    <button class="close-btn" data-close="mustDoOverlay">×</button>
+                    <button class="close-btn" data-close="itemManagerOverlay">×</button>
                 </div>
-                <div class="must-do-criteria" id="mustDoCriteriaBar"></div>
-                <div class="must-do-selection" id="mustDoSelection"></div>
+                <div class="item-tabs" id="itemTabsBar"></div>
+                <div class="item-manager-list" id="itemManagerList"></div>
             </div>
         </div>
         <div class="fab-group">
@@ -253,7 +253,7 @@
     <script src="js/empty-box-settings.js"></script>
     <script src="js/empty-box-task-actions.js"></script>
     <script src="js/empty-box-home-lists.js"></script>
-    <script src="js/empty-box-must-do.js"></script>
+    <script src="js/empty-box-item-tabs.js"></script>
     <script src="js/empty-box.js"></script>
 </body>
 </html>

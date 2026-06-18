@@ -2,14 +2,14 @@
     const config = {
         elements: {},
         getState: () => null,
-        inboxCriterion: { id: '__inbox__', name: 'Inbox' },
-        isInboxCriterion: id => id === '__inbox__',
+        inboxTab: { id: '__inbox__', name: 'Inbox' },
+        isInboxTab: id => id === '__inbox__',
         getTaskGroupCount: () => 0,
-        activateCriterion: () => {},
-        manageCriterion: () => {},
-        reorderCriterion: () => {},
+        activateTab: () => {},
+        manageTab: () => {},
+        reorderTab: () => {},
         moveTaskToGroup: () => {},
-        addCriterion: () => {},
+        addTab: () => {},
         tapMovePx: 12,
         doubleTapMs: 360
     };
@@ -23,8 +23,8 @@
         return config.getState();
     }
 
-    function bindCriterionInteractions(button, criterion) {
-        const { mustDoCriteriaBar } = config.elements;
+    function bindTabInteractions(button, tab) {
+        const { itemTabsBar } = config.elements;
 
         button.addEventListener('dragover', event => {
             event.preventDefault();
@@ -39,22 +39,22 @@
             event.preventDefault();
             event.stopPropagation();
             button.classList.remove('is-drop-target');
-            const draggedCriterionId = event.dataTransfer.getData('application/x-empty-box-criterion');
-            if (draggedCriterionId) {
+            const draggedTabId = event.dataTransfer.getData('application/x-empty-box-tab');
+            if (draggedTabId) {
                 const rect = button.getBoundingClientRect();
                 const position = event.clientX > rect.left + rect.width / 2 ? 'after' : 'before';
-                config.reorderCriterion(draggedCriterionId, criterion.id, position);
+                config.reorderTab(draggedTabId, tab.id, position);
                 return;
             }
             const task = event.dataTransfer.getData('application/x-empty-box-task') || event.dataTransfer.getData('text/plain');
             if (!task) return;
-            config.moveTaskToGroup(task, criterion.id);
+            config.moveTaskToGroup(task, tab.id);
         });
 
-        if (config.isInboxCriterion(criterion.id)) {
+        if (config.isInboxTab(tab.id)) {
             button.addEventListener('click', event => {
                 event.preventDefault();
-                config.activateCriterion(criterion.id);
+                config.activateTab(tab.id);
             });
             button.addEventListener('dblclick', event => {
                 event.preventDefault();
@@ -70,17 +70,17 @@
         button.addEventListener('dragstart', event => {
             button.classList.add('is-dragging');
             event.dataTransfer.effectAllowed = 'move';
-            event.dataTransfer.setData('application/x-empty-box-criterion', criterion.id);
+            event.dataTransfer.setData('application/x-empty-box-tab', tab.id);
         });
         button.addEventListener('dragend', () => {
             button.classList.remove('is-dragging');
-            mustDoCriteriaBar.querySelectorAll('.is-drop-target').forEach(item => item.classList.remove('is-drop-target'));
+            itemTabsBar.querySelectorAll('.is-drop-target').forEach(item => item.classList.remove('is-drop-target'));
         });
 
         button.addEventListener('contextmenu', event => {
             event.preventDefault();
             event.stopPropagation();
-            config.manageCriterion(criterion.id);
+            config.manageTab(tab.id);
         });
         button.addEventListener('selectstart', event => event.preventDefault());
 
@@ -91,7 +91,7 @@
                 return;
             }
             event.preventDefault();
-            config.activateCriterion(criterion.id);
+            config.activateTab(tab.id);
         });
 
         button.addEventListener('pointerup', event => {
@@ -103,7 +103,7 @@
                 event.stopPropagation();
                 lastTouchTap = { ts: 0, x: 0, y: 0 };
                 suppressClickUntil = Date.now() + 350;
-                config.manageCriterion(criterion.id);
+                config.manageTab(tab.id);
             } else {
                 lastTouchTap = { ts: now, x: event.clientX, y: event.clientY };
             }
@@ -112,59 +112,59 @@
         button.addEventListener('dblclick', event => {
             event.preventDefault();
             event.stopPropagation();
-            config.manageCriterion(criterion.id);
+            config.manageTab(tab.id);
         });
     }
 
-    function renderCriteria() {
+    function renderTabs() {
         const state = getState();
-        const { mustDoCriteriaBar } = config.elements;
-        const inboxCriterion = config.inboxCriterion;
-        mustDoCriteriaBar.innerHTML = '';
+        const { itemTabsBar } = config.elements;
+        const inboxTab = config.inboxTab;
+        itemTabsBar.innerHTML = '';
 
-        const inboxCount = config.getTaskGroupCount(inboxCriterion.id);
+        const inboxCount = config.getTaskGroupCount(inboxTab.id);
         const inboxButton = document.createElement('button');
         inboxButton.type = 'button';
-        inboxButton.className = `must-do-criterion fixed${inboxCount ? ' has-tasks' : ''}${config.isInboxCriterion(state.activeMustDoCriterionId) ? ' active' : ''}`;
-        inboxButton.dataset.criterionId = inboxCriterion.id;
+        inboxButton.className = `item-tab fixed${inboxCount ? ' has-tasks' : ''}${config.isInboxTab(state.activeMustDoCriterionId) ? ' active' : ''}`;
+        inboxButton.dataset.tabId = inboxTab.id;
         inboxButton.dataset.count = String(inboxCount);
-        inboxButton.setAttribute('aria-pressed', config.isInboxCriterion(state.activeMustDoCriterionId) ? 'true' : 'false');
+        inboxButton.setAttribute('aria-pressed', config.isInboxTab(state.activeMustDoCriterionId) ? 'true' : 'false');
         inboxButton.title = inboxCount ? `Inbox items · ${inboxCount} 项` : 'Inbox items';
-        inboxButton.textContent = inboxCriterion.name;
-        bindCriterionInteractions(inboxButton, inboxCriterion);
-        mustDoCriteriaBar.appendChild(inboxButton);
+        inboxButton.textContent = inboxTab.name;
+        bindTabInteractions(inboxButton, inboxTab);
+        itemTabsBar.appendChild(inboxButton);
 
-        state.mustDoCriteria.forEach(criterion => {
-            const taskCount = config.getTaskGroupCount(criterion.id);
-            const pinned = criterion.id === state.pinnedMustDoCriterionId;
+        state.mustDoCriteria.forEach(tab => {
+            const taskCount = config.getTaskGroupCount(tab.id);
+            const pinned = tab.id === state.pinnedMustDoCriterionId;
             const button = document.createElement('button');
             button.type = 'button';
-            button.className = `must-do-criterion${taskCount ? ' has-tasks' : ''}${criterion.id === state.activeMustDoCriterionId ? ' active' : ''}${pinned ? ' is-pinned' : ''}`;
-            button.dataset.criterionId = criterion.id;
+            button.className = `item-tab${taskCount ? ' has-tasks' : ''}${tab.id === state.activeMustDoCriterionId ? ' active' : ''}${pinned ? ' is-pinned' : ''}`;
+            button.dataset.tabId = tab.id;
             button.dataset.count = String(taskCount);
-            button.setAttribute('aria-pressed', criterion.id === state.activeMustDoCriterionId ? 'true' : 'false');
+            button.setAttribute('aria-pressed', tab.id === state.activeMustDoCriterionId ? 'true' : 'false');
             button.title = [
-                criterion.name,
+                tab.name,
                 taskCount ? `${taskCount} 项` : '',
                 pinned ? '已 Pin 到首页' : ''
             ].filter(Boolean).join(' · ');
-            button.textContent = criterion.name;
-            bindCriterionInteractions(button, criterion);
-            mustDoCriteriaBar.appendChild(button);
+            button.textContent = tab.name;
+            bindTabInteractions(button, tab);
+            itemTabsBar.appendChild(button);
         });
 
         const addButton = document.createElement('button');
         addButton.type = 'button';
-        addButton.className = 'must-do-criterion add';
+        addButton.className = 'item-tab add';
         addButton.setAttribute('aria-label', '新增 Tab');
         addButton.title = '新增 Tab';
         addButton.textContent = '+';
-        addButton.addEventListener('click', config.addCriterion);
-        mustDoCriteriaBar.appendChild(addButton);
+        addButton.addEventListener('click', config.addTab);
+        itemTabsBar.appendChild(addButton);
     }
 
-    window.EmptyBoxMustDo = {
+    window.EmptyBoxItemTabs = {
         configure,
-        renderCriteria
+        renderTabs
     };
 })();

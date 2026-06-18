@@ -12,11 +12,11 @@
         appendTaskToBox: () => {},
         getTaskGroupIdRaw: () => '',
         getTodayKey: () => '',
-        getPinnedMustDoCriterion: () => null,
-        getTasksForMustDoCriterion: () => [],
-        setCriterionTaskOrder: () => {},
-        buildMustDoCandidates: () => {},
-        getActiveMustDoCriterionId: () => '',
+        getPinnedTab: () => null,
+        getTasksForTab: () => [],
+        setTabTaskOrder: () => {},
+        renderItemManagerItems: () => {},
+        getActiveTabId: () => '',
         tapMovePx: 12
     };
 
@@ -40,12 +40,12 @@
         return reorderedTasks;
     }
 
-    function reorderSelectedMustDoTask(draggedTask, targetTask) {
+    function reorderStarTask(draggedTask, targetTask) {
         const state = getState();
         const tasks = reorderTaskList(state.mustDoTasks, draggedTask, targetTask);
         if (!tasks) return false;
         state.mustDoTasks = tasks;
-        renderMustDoList();
+        renderStarList();
         config.saveState();
         return true;
     }
@@ -60,12 +60,12 @@
         return true;
     }
 
-    function reorderPinnedCriterionTask(criterionId, draggedTask, targetTask) {
-        const tasks = reorderTaskList(config.getTasksForMustDoCriterion(criterionId), draggedTask, targetTask);
+    function reorderPinnedTabTask(tabId, draggedTask, targetTask) {
+        const tasks = reorderTaskList(config.getTasksForTab(tabId), draggedTask, targetTask);
         if (!tasks) return false;
-        config.setCriterionTaskOrder(criterionId, tasks);
-        renderPinnedCriterionList();
-        if (criterionId === config.getActiveMustDoCriterionId()) config.buildMustDoCandidates();
+        config.setTabTaskOrder(tabId, tasks);
+        renderPinnedTabList();
+        if (tabId === config.getActiveTabId()) config.renderItemManagerItems();
         config.saveState();
         return true;
     }
@@ -155,11 +155,11 @@
         });
     }
 
-    function bindMustDoListItemDragInteractions(item, task) {
+    function bindStarListItemDragInteractions(item, task) {
         bindHomeListItemDragInteractions(item, task, {
-            selector: '.must-do-item',
+            selector: '.star-item',
             dataType: 'application/x-empty-box-selected-task',
-            reorder: reorderSelectedMustDoTask
+            reorder: reorderStarTask
         });
     }
 
@@ -171,11 +171,11 @@
         });
     }
 
-    function bindPinnedListItemDragInteractions(item, task, criterionId) {
+    function bindPinnedListItemDragInteractions(item, task, tabId) {
         bindHomeListItemDragInteractions(item, task, {
             selector: '.pinned-item',
             dataType: 'application/x-empty-box-pinned-task',
-            reorder: (draggedTask, targetTask) => reorderPinnedCriterionTask(criterionId, draggedTask, targetTask)
+            reorder: (draggedTask, targetTask) => reorderPinnedTabTask(tabId, draggedTask, targetTask)
         });
     }
 
@@ -201,35 +201,35 @@
         return normalizeTaskList(getState().dailyTasks).filter(task => !isDailyTaskDoneToday(task));
     }
 
-    function renderMustDoList() {
+    function renderStarList() {
         const state = getState();
-        const { mustDoPanel, mustDoList } = config.elements;
-        mustDoList.innerHTML = '';
+        const { starPanel, starList } = config.elements;
+        starList.innerHTML = '';
         if (!state.mustDoTasks.length) {
-            mustDoPanel.classList.remove('active');
-            mustDoList.innerHTML = '<div class="reflection-empty">当前没有 Star item</div>';
+            starPanel.classList.remove('active');
+            starList.innerHTML = '<div class="reflection-empty">当前没有 Star item</div>';
             return;
         }
-        mustDoPanel.classList.add('active');
+        starPanel.classList.add('active');
         state.mustDoTasks.forEach((task, index) => {
             const item = document.createElement('div');
-            item.className = `must-do-item candidate-item has-actions${state.nowTask === task ? ' is-current' : ''}`;
+            item.className = `star-item candidate-item has-actions${state.nowTask === task ? ' is-current' : ''}`;
             const taskText = document.createElement('span');
             taskText.className = 'candidate-text';
             config.renderTaskText(taskText, task);
             const orderText = document.createElement('span');
-            orderText.className = 'must-do-order';
+            orderText.className = 'star-order';
             orderText.textContent = String(index + 1);
             const { moreButton, actions } = config.createTaskActionMenu({
                 row: item,
                 label: taskText,
                 task,
-                rerender: renderMustDoList
+                rerender: renderStarList
             });
             item.append(taskText, orderText, moreButton, actions);
-            bindMustDoListItemDragInteractions(item, task);
+            bindStarListItemDragInteractions(item, task);
             bindHomeItemClick(item, task);
-            mustDoList.appendChild(item);
+            starList.appendChild(item);
         });
     }
 
@@ -268,23 +268,23 @@
         });
     }
 
-    function renderPinnedCriterionList() {
+    function renderPinnedTabList() {
         const state = getState();
         const { pinnedPanel, pinnedTitle, pinnedList } = config.elements;
         pinnedList.innerHTML = '';
-        const criterion = config.getPinnedMustDoCriterion();
-        if (!criterion) {
+        const tab = config.getPinnedTab();
+        if (!tab) {
             pinnedPanel.classList.remove('active');
             return;
         }
 
-        const tasks = config.getTasksForMustDoCriterion(criterion.id);
+        const tasks = config.getTasksForTab(tab.id);
         if (!tasks.length) {
             pinnedPanel.classList.remove('active');
             return;
         }
 
-        pinnedTitle.textContent = criterion.name;
+        pinnedTitle.textContent = tab.name;
         pinnedPanel.classList.add('active');
         tasks.forEach(task => {
             const item = document.createElement('div');
@@ -296,10 +296,10 @@
                 row: item,
                 label: taskText,
                 task,
-                rerender: renderPinnedCriterionList
+                rerender: renderPinnedTabList
             });
             item.append(taskText, moreButton, actions);
-            bindPinnedListItemDragInteractions(item, task, criterion.id);
+            bindPinnedListItemDragInteractions(item, task, tab.id);
             bindHomeItemClick(item, task);
             pinnedList.appendChild(item);
         });
@@ -307,15 +307,15 @@
 
     function renderAll() {
         renderDailyList();
-        renderPinnedCriterionList();
-        renderMustDoList();
+        renderPinnedTabList();
+        renderStarList();
     }
 
     window.EmptyBoxHomeLists = {
         configure,
         renderAll,
-        renderMustDoList,
+        renderStarList,
         renderDailyList,
-        renderPinnedCriterionList
+        renderPinnedTabList
     };
 })();
