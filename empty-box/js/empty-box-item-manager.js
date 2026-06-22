@@ -38,6 +38,25 @@
         return config.getState();
     }
 
+    function isTaskLineBreakShortcut(event) {
+        return (event.key === 'Enter' || event.code === 'Enter' || event.keyCode === 13 || event.keyCode === 229) &&
+            (event.metaKey || event.ctrlKey);
+    }
+
+    function insertTextareaLineBreak(input) {
+        const start = input.selectionStart ?? input.value.length;
+        const end = input.selectionEnd ?? input.value.length;
+        if (typeof input.setRangeText === 'function') {
+            input.setRangeText('\n', start, end, 'end');
+        } else {
+            input.value = `${input.value.slice(0, start)}\n${input.value.slice(end)}`;
+            const nextCursor = start + 1;
+            input.selectionStart = nextCursor;
+            input.selectionEnd = nextCursor;
+        }
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+
     function bindListEvents() {
         const { itemManagerList } = config.elements;
         if (!itemManagerList || itemManagerList.dataset.itemManagerBound === 'true') return;
@@ -187,7 +206,7 @@
             if (row.classList.contains('is-editing')) return;
             row.classList.add('is-editing');
             row.innerHTML = '';
-            const input = document.createElement('input');
+            const input = document.createElement('textarea');
             input.className = 'item-manager-inline-input';
             input.placeholder = '输入新 item…';
             input.setAttribute('aria-label', '新 item 内容');
@@ -218,6 +237,11 @@
             input.addEventListener('pointerdown', event => event.stopPropagation());
             input.addEventListener('click', event => event.stopPropagation());
             input.addEventListener('keydown', event => {
+                if (isTaskLineBreakShortcut(event)) {
+                    event.preventDefault();
+                    insertTextareaLineBreak(input);
+                    return;
+                }
                 if (config.isTextCompositionEvent(event)) return;
                 if (event.key === 'Enter') {
                     event.preventDefault();

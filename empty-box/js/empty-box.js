@@ -22,6 +22,7 @@ const TAB_DOUBLE_TAP_MS = 360;
 const TAB_TAP_MOVE_PX = 12;
 const TAB_HIDDEN_RETENTION_DAYS = 30;
 const QUOTE_ROTATION_MS = 2 * 60 * 60 * 1000;
+const EDITING_LINE_BREAK_PLACEHOLDER = '\u200b';
 const QUOTES = [
     { theme: '斯多葛', text: '控制可控，接受不可控。' },
     { theme: '斯多葛', text: '外界不可测，心境可调。' },
@@ -250,6 +251,49 @@ StorageService.configure({
 
 function isTextCompositionEvent(event) {
     return event.isComposing || event.keyCode === 229;
+}
+
+function isTaskLineBreakShortcut(event) {
+    return (event.key === 'Enter' || event.code === 'Enter' || event.keyCode === 13 || event.keyCode === 229) &&
+        (event.metaKey || event.ctrlKey);
+}
+
+function insertTextareaLineBreak(input) {
+    const start = input.selectionStart ?? input.value.length;
+    const end = input.selectionEnd ?? input.value.length;
+    if (typeof input.setRangeText === 'function') {
+        input.setRangeText('\n', start, end, 'end');
+    } else {
+        input.value = `${input.value.slice(0, start)}\n${input.value.slice(end)}`;
+        const nextCursor = start + 1;
+        input.selectionStart = nextCursor;
+        input.selectionEnd = nextCursor;
+    }
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+function insertContentEditableLineBreak(element) {
+    let selection = window.getSelection();
+    if (!selection || !selection.rangeCount || !element.contains(selection.getRangeAt(0).commonAncestorContainer)) {
+        placeContentEditableCursorAtEnd(element);
+        selection = window.getSelection();
+    }
+    if (!selection || !selection.rangeCount) return;
+    if (document.execCommand && document.execCommand('insertText', false, `\n${EDITING_LINE_BREAK_PLACEHOLDER}`)) {
+        return;
+    }
+    const range = selection.getRangeAt(0);
+    range.deleteContents();
+    const lineBreak = document.createTextNode(`\n${EDITING_LINE_BREAK_PLACEHOLDER}`);
+    range.insertNode(lineBreak);
+    range.setStart(lineBreak, lineBreak.length);
+    range.setEnd(lineBreak, lineBreak.length);
+    selection.removeAllRanges();
+    selection.addRange(range);
+}
+
+function cleanEditableTaskText(text) {
+    return String(text || '').replaceAll(EDITING_LINE_BREAK_PLACEHOLDER, '').trim();
 }
 
 function saveState() {
@@ -1170,7 +1214,7 @@ function startTaskTextEdit({ row, label, task, rerender, onAfterSave }) {
             rerender();
             return;
         }
-        const result = renameTaskText(task, label.textContent);
+        const result = renameTaskText(task, cleanEditableTaskText(label.textContent));
         if (!result.ok) {
             if (source === 'blur') {
                 resetEditableTaskLabel(label);
@@ -1196,6 +1240,11 @@ function startTaskTextEdit({ row, label, task, rerender, onAfterSave }) {
     label.addEventListener('click', stopEditingEvent);
     label.addEventListener('dblclick', stopEditingEvent);
     label.addEventListener('keydown', event => {
+        if (isTaskLineBreakShortcut(event)) {
+            event.preventDefault();
+            insertContentEditableLineBreak(label);
+            return;
+        }
         if (isTextCompositionEvent(event)) return;
         if (event.key === 'Enter') {
             event.preventDefault();
@@ -1376,6 +1425,9 @@ function startInlineEdit() {
     nowTaskText.classList.remove('is-empty');
     nowTaskText.classList.add('is-editing');
     nowTaskText.contentEditable = 'true';
+    if (!nowTaskText.textContent) {
+        nowTaskText.textContent = EDITING_LINE_BREAK_PLACEHOLDER;
+    }
     nowTaskText.focus();
 
     placeContentEditableCursorAtEnd(nowTaskText);
@@ -1387,7 +1439,7 @@ function finishInlineEdit() {
     nowTaskText.contentEditable = 'false';
     nowTaskText.classList.remove('is-editing');
     const previousText = state.nowTask;
-    const nextText = nowTaskText.textContent.trim();
+    const nextText = cleanEditableTaskText(nowTaskText.textContent);
     const wasEmpty = !state.nowTask;
     const wasStarred = state.mustDoTasks.includes(previousText);
     const wasDaily = state.dailyTasks.includes(previousText);
@@ -1529,6 +1581,11 @@ confirmAddBtn.addEventListener('click', () => {
 });
 
 addInput.addEventListener('keydown', e => {
+    if (isTaskLineBreakShortcut(e)) {
+        e.preventDefault();
+        insertTextareaLineBreak(addInput);
+        return;
+    }
     if (isTextCompositionEvent(e)) return;
     if (e.key === 'Enter') {
         e.preventDefault();
@@ -1652,6 +1709,11 @@ tabDialogInput.addEventListener('keydown', event => {
 nowTaskText.addEventListener('click', startInlineEdit);
 nowTaskText.addEventListener('blur', finishInlineEdit);
 nowTaskText.addEventListener('keydown', e => {
+    if (isTaskLineBreakShortcut(e)) {
+        e.preventDefault();
+        insertContentEditableLineBreak(nowTaskText);
+        return;
+    }
     if (isTextCompositionEvent(e)) return;
     if (e.key === 'Enter') {
         e.preventDefault();

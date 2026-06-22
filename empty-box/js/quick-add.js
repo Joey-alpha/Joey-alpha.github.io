@@ -81,6 +81,25 @@ function tryCloseWindow() {
   }, 200);
 }
 
+function isTaskLineBreakShortcut(event) {
+  return (event.key === 'Enter' || event.code === 'Enter' || event.keyCode === 13 || event.keyCode === 229) &&
+    (event.metaKey || event.ctrlKey);
+}
+
+function insertTextareaLineBreak(input) {
+  const start = input.selectionStart ?? input.value.length;
+  const end = input.selectionEnd ?? input.value.length;
+  if (typeof input.setRangeText === 'function') {
+    input.setRangeText('\n', start, end, 'end');
+  } else {
+    input.value = `${input.value.slice(0, start)}\n${input.value.slice(end)}`;
+    const nextCursor = start + 1;
+    input.selectionStart = nextCursor;
+    input.selectionEnd = nextCursor;
+  }
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
 async function submit() {
   if (isSubmitting) return;
   setSubmitting(true);
@@ -133,6 +152,11 @@ addBtn.addEventListener('click', submit);
 closeBtn.addEventListener('click', () => window.close());
 
 taskInput.addEventListener('keydown', e => {
+  if (isTaskLineBreakShortcut(e)) {
+    e.preventDefault();
+    insertTextareaLineBreak(taskInput);
+    return;
+  }
   if (e.isComposing) return;
   if (e.key === 'Enter') {
     e.preventDefault();
