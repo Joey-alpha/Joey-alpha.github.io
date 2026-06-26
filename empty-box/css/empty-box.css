@@ -808,14 +808,11 @@
         overflow-wrap: anywhere;
     }
 
-    .task-wording-badge,
-    .task-wording-input-hint {
+    .task-wording-badge {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        position: relative;
-        width: max-content;
-        max-width: 100%;
+        margin-left: 8px;
         padding: 3px 7px;
         border: 1px solid rgba(245, 158, 11, 0.32);
         border-radius: 999px;
@@ -826,20 +823,19 @@
         line-height: 1;
         vertical-align: middle;
         white-space: nowrap;
-        cursor: help;
-    }
-
-    .task-wording-badge {
-        margin-left: 8px;
     }
 
     .candidate-text.task-wording-needs-work,
-    .now-task h3.task-wording-needs-work {
-        position: static;
+    .now-task h3.task-wording-needs-work,
+    .candidate-text.task-wording-editing-hint,
+    .now-task h3.task-wording-editing-hint {
+        position: relative;
     }
 
-    .task-wording-badge::before,
-    .task-wording-input-hint::before {
+    .candidate-text.task-wording-needs-work::before,
+    .now-task h3.task-wording-needs-work::before,
+    .candidate-text.task-wording-editing-hint::before,
+    .now-task h3.task-wording-editing-hint::before {
         content: attr(data-wording-hint);
         position: absolute;
         left: 0;
@@ -863,29 +859,24 @@
         white-space: pre-line;
     }
 
-    .task-wording-badge:hover::before,
-    .task-wording-badge:focus::before,
-    .task-wording-badge.is-open::before,
-    .task-wording-input-hint:hover::before,
-    .task-wording-input-hint:focus::before,
-    .task-wording-input-hint.is-open::before {
+    .candidate-text.task-wording-needs-work.is-open::before,
+    .candidate-text.task-wording-needs-work:focus::before,
+    .now-task h3.task-wording-needs-work.is-open::before,
+    .now-task h3.task-wording-needs-work:focus::before,
+    .candidate-text.task-wording-editing-hint::before,
+    .now-task h3.task-wording-editing-hint::before {
         opacity: 1;
         transform: translateY(0);
     }
 
-    .task-wording-badge:focus,
-    .task-wording-input-hint:focus {
+    .candidate-text.task-wording-needs-work:focus,
+    .now-task h3.task-wording-needs-work:focus {
         outline: none;
     }
 
     .item-manager-list .candidate-item:hover,
     .item-manager-list .candidate-item:focus-within {
         z-index: 6;
-    }
-
-    .item-manager-list .task-wording-badge::before {
-        top: calc(100% + 10px);
-        bottom: auto;
     }
 
     .candidate-text.task-wording-needs-work {
@@ -895,23 +886,21 @@
         text-underline-offset: 5px;
     }
 
-    .candidate-text[contenteditable="true"] .task-wording-badge,
-    .now-task h3[contenteditable="true"] .task-wording-badge {
-        display: none;
-    }
-
     .task-wording-input-hint {
-        flex: 0 0 auto;
-        margin-left: 0;
+        width: 100%;
+        padding: 9px 11px;
+        border: 1px solid rgba(245, 158, 11, 0.26);
+        border-radius: 12px;
+        background: rgba(255, 251, 235, 0.78);
+        color: #78350f;
+        font-size: 13px;
+        font-weight: 650;
+        line-height: 1.45;
+        white-space: pre-line;
     }
 
     .task-wording-input-hint.is-hidden {
         display: none;
-    }
-
-    .candidate-item.is-editing .task-wording-input-hint,
-    .item-manager-add.is-editing .task-wording-input-hint {
-        order: 20;
     }
 
     .item-manager-add.is-editing {
@@ -1070,19 +1059,26 @@
         color: #eef2ff;
     }
 
-    body.night .task-wording-badge,
-    body.night .task-wording-input-hint {
+    body.night .task-wording-badge {
         background: rgba(251, 191, 36, 0.18);
         border-color: rgba(251, 191, 36, 0.34);
         color: #fde68a;
     }
 
-    body.night .task-wording-badge::before,
-    body.night .task-wording-input-hint::before {
+    body.night .candidate-text.task-wording-needs-work::before,
+    body.night .now-task h3.task-wording-needs-work::before,
+    body.night .candidate-text.task-wording-editing-hint::before,
+    body.night .now-task h3.task-wording-editing-hint::before {
         background: rgba(24, 30, 46, 0.98);
         border-color: rgba(251, 191, 36, 0.34);
         color: #fde68a;
         box-shadow: 0 18px 38px rgba(0, 0, 0, 0.34);
+    }
+
+    body.night .task-wording-input-hint {
+        background: rgba(251, 191, 36, 0.12);
+        border-color: rgba(251, 191, 36, 0.28);
+        color: #fde68a;
     }
 
     body.night #tabOverlay .actions .btn.secondary {

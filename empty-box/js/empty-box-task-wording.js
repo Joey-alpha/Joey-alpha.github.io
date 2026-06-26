@@ -160,22 +160,16 @@
         if (result.ok) {
             element.removeAttribute('data-wording-hint');
             element.removeAttribute('aria-label');
+            element.removeAttribute('tabindex');
             element.removeAttribute('title');
         } else {
             const hint = result.suggestion ? `${result.reason}\n建议：${result.suggestion}` : result.reason;
             element.dataset.wordingHint = hint;
+            element.tabIndex = 0;
             const badge = document.createElement('span');
             badge.className = 'task-wording-badge';
             badge.textContent = '改写';
-            badge.tabIndex = 0;
-            badge.setAttribute('role', 'button');
-            badge.setAttribute('aria-label', hint);
-            badge.title = hint;
-            badge.addEventListener('click', event => {
-                event.preventDefault();
-                event.stopPropagation();
-                badge.classList.toggle('is-open');
-            });
+            badge.setAttribute('aria-hidden', 'true');
             element.appendChild(badge);
         }
         return result;
@@ -192,44 +186,51 @@
         const result = analyze(value);
         const hint = value ? formatHint(result) : '';
         element.classList.toggle('is-hidden', !hint);
-        element.classList.toggle('is-open', Boolean(hint));
-        element.textContent = hint ? '建议' : '';
+        element.textContent = hint;
         if (hint) {
-            element.dataset.wordingHint = hint;
-            element.tabIndex = 0;
-            element.setAttribute('role', 'button');
-            element.setAttribute('aria-label', hint);
-            element.title = hint;
+            element.setAttribute('role', 'note');
         } else {
-            element.removeAttribute('data-wording-hint');
-            element.removeAttribute('tabindex');
             element.removeAttribute('role');
-            element.removeAttribute('aria-label');
-            element.removeAttribute('title');
         }
     }
 
-    document.addEventListener('pointerdown', event => {
-        if (event.pointerType === 'mouse') return;
-        const target = event.target.closest('.task-wording-badge, .task-wording-input-hint');
-        if (!target) return;
-        target.focus({ preventScroll: true });
-        target.classList.add('is-open');
-        target.dataset.wordingTouchHintUntil = String(Date.now() + 650);
-    }, true);
+    function updateTextBoxHint(element, text) {
+        if (!element) return;
+        const value = normalize(text);
+        const result = analyze(value);
+        const hint = value ? formatHint(result) : '';
+        element.classList.toggle('task-wording-editing-hint', Boolean(hint));
+        element.classList.toggle('is-open', Boolean(hint));
+        if (hint) {
+            element.dataset.wordingHint = hint;
+            element.setAttribute('aria-label', hint);
+        } else {
+            element.removeAttribute('data-wording-hint');
+            element.removeAttribute('aria-label');
+        }
+    }
 
     document.addEventListener('click', event => {
-        const target = event.target.closest('.task-wording-badge, .task-wording-input-hint');
-        if (!target) return;
+        document.querySelectorAll('.task-wording-needs-work.is-open').forEach(item => {
+            if (!item.contains(event.target)) item.classList.remove('is-open');
+        });
+        const target = event.target.closest('.task-wording-needs-work');
+        if (!target || target.isContentEditable) return;
+        target.focus({ preventScroll: true });
+        target.classList.add('is-open');
         event.preventDefault();
         event.stopImmediatePropagation();
-        if (Date.now() < Number(target.dataset.wordingTouchHintUntil || 0)) return;
-        target.classList.toggle('is-open');
     }, true);
+
+    document.addEventListener('focusout', event => {
+        const target = event.target.closest?.('.task-wording-needs-work');
+        if (target) target.classList.remove('is-open');
+    });
 
     window.EmptyBoxTaskWording = {
         analyze,
         applyToElement,
-        updateInputHint
+        updateInputHint,
+        updateTextBoxHint
     };
 })();

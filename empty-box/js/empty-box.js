@@ -1188,7 +1188,8 @@ function resetEditableTaskLabel(label) {
     label.removeAttribute('role');
     label.removeAttribute('aria-label');
     label.removeAttribute('spellcheck');
-    label.classList.remove('is-edit-invalid');
+    label.classList.remove('is-edit-invalid', 'task-wording-editing-hint', 'is-open');
+    label.removeAttribute('data-wording-hint');
     label.title = '';
     delete label.dataset.originalText;
 }
@@ -1210,10 +1211,7 @@ function startTaskTextEdit({ row, label, task, rerender, onAfterSave }) {
     label.dataset.originalText = task;
     label.focus();
     placeContentEditableCursorAtEnd(label);
-    const wordingHint = document.createElement('div');
-    wordingHint.className = 'task-wording-input-hint';
-    window.EmptyBoxTaskWording?.updateInputHint(wordingHint, cleanEditableTaskText(label.textContent));
-    row.appendChild(wordingHint);
+    window.EmptyBoxTaskWording?.updateTextBoxHint(label, cleanEditableTaskText(label.textContent));
 
     let finished = false;
     const finish = (shouldSave, source = 'commit') => {
@@ -1255,7 +1253,7 @@ function startTaskTextEdit({ row, label, task, rerender, onAfterSave }) {
         if (isTaskLineBreakShortcut(event)) {
             event.preventDefault();
             insertContentEditableLineBreak(label);
-            window.EmptyBoxTaskWording?.updateInputHint(wordingHint, cleanEditableTaskText(label.textContent));
+            window.EmptyBoxTaskWording?.updateTextBoxHint(label, cleanEditableTaskText(label.textContent));
             return;
         }
         if (isTextCompositionEvent(event)) return;
@@ -1271,7 +1269,7 @@ function startTaskTextEdit({ row, label, task, rerender, onAfterSave }) {
     label.addEventListener('input', () => {
         label.classList.remove('is-edit-invalid');
         label.title = '';
-        window.EmptyBoxTaskWording?.updateInputHint(wordingHint, cleanEditableTaskText(label.textContent));
+        window.EmptyBoxTaskWording?.updateTextBoxHint(label, cleanEditableTaskText(label.textContent));
     });
     label.addEventListener('blur', () => finish(true, 'blur'), { once: true });
 }
@@ -1451,12 +1449,7 @@ function startInlineEdit() {
     nowTaskText.focus();
 
     placeContentEditableCursorAtEnd(nowTaskText);
-    if (!nowTaskText.nextElementSibling?.classList.contains('task-wording-input-hint')) {
-        const wordingHint = document.createElement('div');
-        wordingHint.className = 'task-wording-input-hint now-wording-input-hint';
-        nowTaskText.insertAdjacentElement('afterend', wordingHint);
-    }
-    window.EmptyBoxTaskWording?.updateInputHint(nowTaskText.nextElementSibling, cleanEditableTaskText(nowTaskText.textContent));
+    window.EmptyBoxTaskWording?.updateTextBoxHint(nowTaskText, cleanEditableTaskText(nowTaskText.textContent));
 }
 
 function finishInlineEdit() {
@@ -1464,9 +1457,8 @@ function finishInlineEdit() {
     isEditing = false;
     nowTaskText.contentEditable = 'false';
     nowTaskText.classList.remove('is-editing');
-    if (nowTaskText.nextElementSibling?.classList.contains('task-wording-input-hint')) {
-        nowTaskText.nextElementSibling.remove();
-    }
+    nowTaskText.classList.remove('task-wording-editing-hint', 'is-open');
+    nowTaskText.removeAttribute('data-wording-hint');
     const previousText = state.nowTask;
     const nextText = cleanEditableTaskText(nowTaskText.textContent);
     const wasEmpty = !state.nowTask;
@@ -1747,7 +1739,7 @@ nowTaskText.addEventListener('keydown', e => {
     if (isTaskLineBreakShortcut(e)) {
         e.preventDefault();
         insertContentEditableLineBreak(nowTaskText);
-        window.EmptyBoxTaskWording?.updateInputHint(nowTaskText.nextElementSibling, cleanEditableTaskText(nowTaskText.textContent));
+        window.EmptyBoxTaskWording?.updateTextBoxHint(nowTaskText, cleanEditableTaskText(nowTaskText.textContent));
         return;
     }
     if (isTextCompositionEvent(e)) return;
@@ -1757,7 +1749,7 @@ nowTaskText.addEventListener('keydown', e => {
     }
 });
 nowTaskText.addEventListener('input', () => {
-    window.EmptyBoxTaskWording?.updateInputHint(nowTaskText.nextElementSibling, cleanEditableTaskText(nowTaskText.textContent));
+    window.EmptyBoxTaskWording?.updateTextBoxHint(nowTaskText, cleanEditableTaskText(nowTaskText.textContent));
 });
 
 Dialogs.bindCloseEvents();
