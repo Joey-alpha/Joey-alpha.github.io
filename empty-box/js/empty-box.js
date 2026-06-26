@@ -320,6 +320,7 @@ function renderFabState() {
 
 function renderNow() {
     nowTaskText.textContent = state.nowTask || '';
+    window.EmptyBoxTaskWording?.applyToElement(nowTaskText, state.nowTask);
     nowTaskText.classList.toggle('is-empty', !state.nowTask);
     completeNowBtn.style.visibility = state.nowTask ? 'visible' : 'hidden';
     undoFab.style.display = lastCompletedTask ? 'inline-flex' : 'none';
@@ -357,6 +358,7 @@ function splitTrailingLinkPunctuation(value) {
 
 function renderTaskText(element, text) {
     element.textContent = '';
+    window.EmptyBoxTaskWording?.applyToElement(element, text);
     const source = String(text || '');
     const linkPattern = /(https?:\/\/[^\s<]+|www\.[^\s<]+)/gi;
     let cursor = 0;
@@ -386,7 +388,7 @@ function renderTaskText(element, text) {
 }
 
 function isTaskItemControlTarget(target) {
-    return Boolean(target.closest('.candidate-more-btn, .candidate-actions, .candidate-text a'));
+    return Boolean(target.closest('.candidate-more-btn, .candidate-actions, .candidate-text a, .task-wording-needs-work'));
 }
 
 const createTaskActionMenu = options => TaskActions.createMenu(options);
