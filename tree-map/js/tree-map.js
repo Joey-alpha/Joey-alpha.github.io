@@ -118,6 +118,7 @@
     let pendingNewNodeId = null;
     let pendingNewNodePreviousSelectedId = null;
     let pinchState = null;
+    let suppressTitleBlurSave = false;
     let searchState = { query: '', matches: [], index: -1, focused: false };
     let searchCollapseTimer = 0;
     let quickActionsRestoreTimer = 0;
@@ -180,6 +181,10 @@
     function safeTimestamp(value) {
         const number = Number(value);
         return Number.isFinite(number) ? number : Date.now();
+    }
+
+    function isTouchLikeDevice() {
+        return window.matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
     }
 
     function normalizeParentImpact(value) {
@@ -1919,8 +1924,10 @@
         setEditorStatsOpen(false);
         updateParentImpactUI();
         updateEditorStats();
-        titleInput.focus({ preventScroll: true });
-        titleInput.setSelectionRange(titleInput.value.length, titleInput.value.length);
+        if (!isTouchLikeDevice()) {
+            titleInput.focus({ preventScroll: true });
+            titleInput.setSelectionRange(titleInput.value.length, titleInput.value.length);
+        }
     }
 
     function closeEditor() {
@@ -1970,9 +1977,19 @@
     function shouldSaveEditorOnTitleBlur() {
         if (!editorBackdrop.classList.contains('open')) return false;
         if (!editingId) return false;
-        if (!window.matchMedia('(pointer: coarse)').matches && !('ontouchstart' in window)) return false;
+        if (suppressTitleBlurSave) return false;
+        if (!isTouchLikeDevice()) return false;
         const active = document.activeElement;
         return !active || !editorForm.contains(active);
+    }
+
+    function blurTitleInputForKeyboardDismiss() {
+        if (document.activeElement !== titleInput) return;
+        suppressTitleBlurSave = true;
+        titleInput.blur();
+        window.setTimeout(() => {
+            suppressTitleBlurSave = false;
+        }, 0);
     }
 
     function pushActivity(id, count, minutes) {
@@ -2552,6 +2569,11 @@
     editorForm.addEventListener('submit', function (e) {
         e.preventDefault();
         saveEditor();
+    });
+    editorForm.addEventListener('pointerdown', function (e) {
+        if (!isTouchLikeDevice()) return;
+        if (closestElement(e.target, 'input, textarea, select, label')) return;
+        blurTitleInputForKeyboardDismiss();
     });
     cancelNodeBtn.addEventListener('click', closeEditor);
     editorBackdrop.addEventListener('click', function (e) {
