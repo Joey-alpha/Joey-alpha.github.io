@@ -210,7 +210,10 @@
             input.className = 'item-manager-inline-input';
             input.placeholder = '输入新 item…';
             input.setAttribute('aria-label', '新 item 内容');
+            const wordingHint = document.createElement('div');
+            wordingHint.className = 'task-wording-input-hint is-hidden';
             row.appendChild(input);
+            row.appendChild(wordingHint);
             input.focus();
 
             let finished = false;
@@ -252,7 +255,10 @@
                     finish(false);
                 }
             });
-            input.addEventListener('input', () => input.setCustomValidity(''));
+            input.addEventListener('input', () => {
+                input.setCustomValidity('');
+                window.EmptyBoxTaskWording?.updateInputHint(wordingHint, input.value);
+            });
             input.addEventListener('blur', () => finish(true));
         };
 

@@ -120,6 +120,7 @@ const confirmOverlay = document.getElementById('confirmOverlay');
 const searchInput = document.getElementById('searchInput');
 const searchResults = document.getElementById('searchResults');
 const addInput = document.getElementById('addInput');
+const addInputWordingHint = document.getElementById('addInputWordingHint');
 const confirmAddBtn = document.getElementById('confirmAddBtn');
 
 const blindboxTaskText = document.getElementById('blindboxTaskText');
@@ -358,7 +359,6 @@ function splitTrailingLinkPunctuation(value) {
 
 function renderTaskText(element, text) {
     element.textContent = '';
-    window.EmptyBoxTaskWording?.applyToElement(element, text);
     const source = String(text || '');
     const linkPattern = /(https?:\/\/[^\s<]+|www\.[^\s<]+)/gi;
     let cursor = 0;
@@ -385,6 +385,7 @@ function renderTaskText(element, text) {
     if (cursor < source.length) {
         element.appendChild(document.createTextNode(source.slice(cursor)));
     }
+    window.EmptyBoxTaskWording?.applyToElement(element, text);
 }
 
 function isTaskItemControlTarget(target) {
@@ -1196,6 +1197,11 @@ function startTaskTextEdit({ row, label, task, rerender, onAfterSave }) {
     row.draggable = false;
     row.classList.remove('is-menu-open', 'is-actions-revealed');
     row.classList.add('is-editing');
+    label.querySelectorAll('.task-wording-badge').forEach(item => item.remove());
+    label.classList.remove('task-wording-needs-work');
+    label.removeAttribute('data-wording-hint');
+    label.removeAttribute('aria-label');
+    label.removeAttribute('title');
     label.textContent = task;
     label.contentEditable = 'true';
     label.setAttribute('role', 'textbox');
@@ -1204,6 +1210,10 @@ function startTaskTextEdit({ row, label, task, rerender, onAfterSave }) {
     label.dataset.originalText = task;
     label.focus();
     placeContentEditableCursorAtEnd(label);
+    const wordingHint = document.createElement('div');
+    wordingHint.className = 'task-wording-input-hint';
+    window.EmptyBoxTaskWording?.updateInputHint(wordingHint, cleanEditableTaskText(label.textContent));
+    row.appendChild(wordingHint);
 
     let finished = false;
     const finish = (shouldSave, source = 'commit') => {
@@ -1245,6 +1255,7 @@ function startTaskTextEdit({ row, label, task, rerender, onAfterSave }) {
         if (isTaskLineBreakShortcut(event)) {
             event.preventDefault();
             insertContentEditableLineBreak(label);
+            window.EmptyBoxTaskWording?.updateInputHint(wordingHint, cleanEditableTaskText(label.textContent));
             return;
         }
         if (isTextCompositionEvent(event)) return;
@@ -1260,6 +1271,7 @@ function startTaskTextEdit({ row, label, task, rerender, onAfterSave }) {
     label.addEventListener('input', () => {
         label.classList.remove('is-edit-invalid');
         label.title = '';
+        window.EmptyBoxTaskWording?.updateInputHint(wordingHint, cleanEditableTaskText(label.textContent));
     });
     label.addEventListener('blur', () => finish(true, 'blur'), { once: true });
 }
@@ -1426,6 +1438,12 @@ function startInlineEdit() {
     isEditing = true;
     nowTaskText.classList.remove('is-empty');
     nowTaskText.classList.add('is-editing');
+    nowTaskText.querySelectorAll('.task-wording-badge').forEach(item => item.remove());
+    nowTaskText.classList.remove('task-wording-needs-work');
+    nowTaskText.removeAttribute('data-wording-hint');
+    nowTaskText.removeAttribute('aria-label');
+    nowTaskText.removeAttribute('title');
+    nowTaskText.textContent = state.nowTask || '';
     nowTaskText.contentEditable = 'true';
     if (!nowTaskText.textContent) {
         nowTaskText.textContent = EDITING_LINE_BREAK_PLACEHOLDER;
@@ -1433,6 +1451,12 @@ function startInlineEdit() {
     nowTaskText.focus();
 
     placeContentEditableCursorAtEnd(nowTaskText);
+    if (!nowTaskText.nextElementSibling?.classList.contains('task-wording-input-hint')) {
+        const wordingHint = document.createElement('div');
+        wordingHint.className = 'task-wording-input-hint now-wording-input-hint';
+        nowTaskText.insertAdjacentElement('afterend', wordingHint);
+    }
+    window.EmptyBoxTaskWording?.updateInputHint(nowTaskText.nextElementSibling, cleanEditableTaskText(nowTaskText.textContent));
 }
 
 function finishInlineEdit() {
@@ -1440,6 +1464,9 @@ function finishInlineEdit() {
     isEditing = false;
     nowTaskText.contentEditable = 'false';
     nowTaskText.classList.remove('is-editing');
+    if (nowTaskText.nextElementSibling?.classList.contains('task-wording-input-hint')) {
+        nowTaskText.nextElementSibling.remove();
+    }
     const previousText = state.nowTask;
     const nextText = cleanEditableTaskText(nowTaskText.textContent);
     const wasEmpty = !state.nowTask;
@@ -1572,6 +1599,7 @@ function undoLastComplete() {
 
 addFab.addEventListener('click', () => {
     openOverlay(addOverlay);
+    window.EmptyBoxTaskWording?.updateInputHint(addInputWordingHint, addInput.value);
     addInput.focus();
 });
 
@@ -1579,7 +1607,12 @@ confirmAddBtn.addEventListener('click', () => {
     const added = addToBox(addInput.value);
     if (!added) return;
     addInput.value = '';
+    window.EmptyBoxTaskWording?.updateInputHint(addInputWordingHint, addInput.value);
     closeOverlay(addOverlay);
+});
+
+addInput.addEventListener('input', () => {
+    window.EmptyBoxTaskWording?.updateInputHint(addInputWordingHint, addInput.value);
 });
 
 addInput.addEventListener('keydown', e => {
@@ -1714,6 +1747,7 @@ nowTaskText.addEventListener('keydown', e => {
     if (isTaskLineBreakShortcut(e)) {
         e.preventDefault();
         insertContentEditableLineBreak(nowTaskText);
+        window.EmptyBoxTaskWording?.updateInputHint(nowTaskText.nextElementSibling, cleanEditableTaskText(nowTaskText.textContent));
         return;
     }
     if (isTextCompositionEvent(e)) return;
@@ -1721,6 +1755,9 @@ nowTaskText.addEventListener('keydown', e => {
         e.preventDefault();
         nowTaskText.blur();
     }
+});
+nowTaskText.addEventListener('input', () => {
+    window.EmptyBoxTaskWording?.updateInputHint(nowTaskText.nextElementSibling, cleanEditableTaskText(nowTaskText.textContent));
 });
 
 Dialogs.bindCloseEvents();

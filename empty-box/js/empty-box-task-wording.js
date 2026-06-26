@@ -13,6 +13,7 @@
     const TIMEBOX_PATTERN = /(\d+\s*(分钟|小时|分|h|hour|hours|min|mins|minutes)|限时|番茄钟|timer|timebox)/i;
     const QUESTION_PATTERN = /[?？]|^(决定|判断|确认)[:：]/;
     const MONEY_PATTERN = /(要钱|还钱|欠款|欠钱|报销|付款|打款|转账|账单|发票|\d+\s*(元|块|万|美元|人民币))/;
+    const WEAK_OBJECTS = ['电脑', '手机', '微信', '邮箱', '文档', '文件', '网页', 'app', '软件', '资料', '材料'];
 
     function normalize(text) {
         return String(text || '').trim().replace(/\s+/g, ' ');
@@ -23,15 +24,39 @@
         return starters.some(starter => lower.startsWith(starter.toLowerCase()));
     }
 
+    function getMatchingStarter(text, starters) {
+        const lower = text.toLowerCase();
+        return starters.find(starter => lower.startsWith(starter.toLowerCase())) || '';
+    }
+
+    function getActionStarter(text) {
+        return getMatchingStarter(text, ACTION_STARTERS);
+    }
+
+    function getActionBody(text) {
+        const starter = getActionStarter(text);
+        return starter ? text.slice(starter.length).trim().replace(/^[:：,，]/, '').trim() : text;
+    }
+
+    function hasConcreteObject(text) {
+        const body = getActionBody(text);
+        if (!body || body.length < 3) return false;
+        if (WEAK_OBJECTS.some(item => body.toLowerCase() === item.toLowerCase())) return false;
+        return /[\u4e00-\u9fa5]{2,}|[a-z0-9][a-z0-9\s._-]{2,}/i.test(body);
+    }
+
+    function hasOutcomeCue(text) {
+        return /(先|只|列|写|补|改|发|问|确认|判断|决定|下载|复制|完成|提交|发给|放进|整理到|做到|拿到|找到|选出|\d+\s*(条|个|张|分钟|小时|页|次))/i.test(text) ||
+            /\b(first|only|draft|list|send|ask|confirm|decide|finish|submit|copy|download|fix|update)\b/i.test(text);
+    }
+
     function hasConcreteCue(text) {
-        return /[,，:：]/.test(text) ||
-            /(打开|搜索|复制|下载|发给|给.+发|问.+|到|在|把|先|只|前|后)/.test(text) ||
-            /\b(file|doc|email|folder|app|page|link|before|after|first|only)\b/i.test(text);
+        return hasConcreteObject(text) && hasOutcomeCue(text);
     }
 
     function stripAbstractStarter(text) {
         const starter = ABSTRACT_STARTERS.find(item => text.startsWith(item));
-        return starter ? text.slice(starter.length).trim() || text : text;
+        return starter ? text.slice(starter.length).trim().replace(/^[:：,，]/, '').trim() || text : text;
     }
 
     function createSuggestion(text, type) {
@@ -61,6 +86,11 @@
             return `打开相关入口，先写下${value}的下一步动作`;
         }
 
+        if (type === 'weak-action') {
+            const body = getActionBody(value);
+            return body ? `补上对「${body}」要做出的第一个小结果` : '补上要打开/搜索/联系的对象，以及第一小步';
+        }
+
         return `改成：打开/搜索/发给 + 具体对象 + 第一小步`;
     }
 
@@ -69,6 +99,14 @@
         if (!value) return { ok: true, reason: '', suggestion: '' };
 
         if (QUESTION_PATTERN.test(value)) {
+            const questionBody = value.replace(/^(决定|判断|确认)[:：]/, '').trim();
+            if (questionBody.length < 6) {
+                return {
+                    ok: false,
+                    reason: '判断题还太空，问题本身需要更具体',
+                    suggestion: '写成：决定/判断/确认 + 一个具体选择或具体问题'
+                };
+            }
             return { ok: true, reason: '判断题写法清楚', suggestion: '' };
         }
 
@@ -85,6 +123,14 @@
                 ok: false,
                 reason: '这更像项目标题',
                 suggestion: createSuggestion(value, 'abstract')
+            };
+        }
+
+        if (startsWithAny(value, ACTION_STARTERS) && !hasConcreteCue(value)) {
+            return {
+                ok: false,
+                reason: hasConcreteObject(value) ? '还缺少一个可完成的小结果' : '动作太空，缺少具体对象或入口',
+                suggestion: createSuggestion(value, 'weak-action')
             };
         }
 
@@ -108,40 +154,82 @@
     }
 
     function applyToElement(element, text) {
+        element.querySelectorAll('.task-wording-badge').forEach(item => item.remove());
         const result = analyze(text);
         element.classList.toggle('task-wording-needs-work', !result.ok);
         if (result.ok) {
             element.removeAttribute('data-wording-hint');
             element.removeAttribute('aria-label');
-            element.removeAttribute('tabindex');
             element.removeAttribute('title');
         } else {
             const hint = result.suggestion ? `${result.reason}\n建议：${result.suggestion}` : result.reason;
             element.dataset.wordingHint = hint;
-            element.setAttribute('aria-label', hint);
-            element.setAttribute('tabindex', '0');
-            element.title = hint;
+            const badge = document.createElement('span');
+            badge.className = 'task-wording-badge';
+            badge.textContent = '改写';
+            badge.tabIndex = 0;
+            badge.setAttribute('role', 'button');
+            badge.setAttribute('aria-label', hint);
+            badge.title = hint;
+            badge.addEventListener('click', event => {
+                event.preventDefault();
+                event.stopPropagation();
+                badge.classList.toggle('is-open');
+            });
+            element.appendChild(badge);
         }
         return result;
     }
 
+    function formatHint(result) {
+        if (!result || result.ok) return '';
+        return result.suggestion ? `${result.reason}\n建议：${result.suggestion}` : result.reason;
+    }
+
+    function updateInputHint(element, text) {
+        if (!element) return;
+        const value = normalize(text);
+        const result = analyze(value);
+        const hint = value ? formatHint(result) : '';
+        element.classList.toggle('is-hidden', !hint);
+        element.classList.toggle('is-open', Boolean(hint));
+        element.textContent = hint ? '建议' : '';
+        if (hint) {
+            element.dataset.wordingHint = hint;
+            element.tabIndex = 0;
+            element.setAttribute('role', 'button');
+            element.setAttribute('aria-label', hint);
+            element.title = hint;
+        } else {
+            element.removeAttribute('data-wording-hint');
+            element.removeAttribute('tabindex');
+            element.removeAttribute('role');
+            element.removeAttribute('aria-label');
+            element.removeAttribute('title');
+        }
+    }
+
     document.addEventListener('pointerdown', event => {
         if (event.pointerType === 'mouse') return;
-        const target = event.target.closest('.task-wording-needs-work');
-        if (!target || target.isContentEditable) return;
+        const target = event.target.closest('.task-wording-badge, .task-wording-input-hint');
+        if (!target) return;
         target.focus({ preventScroll: true });
+        target.classList.add('is-open');
         target.dataset.wordingTouchHintUntil = String(Date.now() + 650);
     }, true);
 
     document.addEventListener('click', event => {
-        const target = event.target.closest('.task-wording-needs-work');
-        if (!target || Date.now() > Number(target.dataset.wordingTouchHintUntil || 0)) return;
+        const target = event.target.closest('.task-wording-badge, .task-wording-input-hint');
+        if (!target) return;
         event.preventDefault();
         event.stopImmediatePropagation();
+        if (Date.now() < Number(target.dataset.wordingTouchHintUntil || 0)) return;
+        target.classList.toggle('is-open');
     }, true);
 
     window.EmptyBoxTaskWording = {
         analyze,
-        applyToElement
+        applyToElement,
+        updateInputHint
     };
 })();

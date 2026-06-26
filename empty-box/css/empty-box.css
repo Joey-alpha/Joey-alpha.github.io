@@ -209,6 +209,7 @@
         display: flex;
         align-items: center;
         gap: 12px;
+        flex-wrap: wrap;
     }
 
     .now-task h3 {
@@ -807,12 +808,14 @@
         overflow-wrap: anywhere;
     }
 
-    .candidate-text.task-wording-needs-work::after,
-    .now-task h3.task-wording-needs-work::after {
-        content: '改写';
+    .task-wording-badge,
+    .task-wording-input-hint {
         display: inline-flex;
         align-items: center;
-        margin-left: 8px;
+        justify-content: center;
+        position: relative;
+        width: max-content;
+        max-width: 100%;
         padding: 3px 7px;
         border: 1px solid rgba(245, 158, 11, 0.32);
         border-radius: 999px;
@@ -823,16 +826,20 @@
         line-height: 1;
         vertical-align: middle;
         white-space: nowrap;
+        cursor: help;
+    }
+
+    .task-wording-badge {
+        margin-left: 8px;
     }
 
     .candidate-text.task-wording-needs-work,
     .now-task h3.task-wording-needs-work {
-        position: relative;
-        cursor: help;
+        position: static;
     }
 
-    .candidate-text.task-wording-needs-work::before,
-    .now-task h3.task-wording-needs-work::before {
+    .task-wording-badge::before,
+    .task-wording-input-hint::before {
         content: attr(data-wording-hint);
         position: absolute;
         left: 0;
@@ -856,16 +863,18 @@
         white-space: pre-line;
     }
 
-    .candidate-text.task-wording-needs-work:hover::before,
-    .candidate-text.task-wording-needs-work:focus::before,
-    .now-task h3.task-wording-needs-work:hover::before,
-    .now-task h3.task-wording-needs-work:focus::before {
+    .task-wording-badge:hover::before,
+    .task-wording-badge:focus::before,
+    .task-wording-badge.is-open::before,
+    .task-wording-input-hint:hover::before,
+    .task-wording-input-hint:focus::before,
+    .task-wording-input-hint.is-open::before {
         opacity: 1;
         transform: translateY(0);
     }
 
-    .candidate-text.task-wording-needs-work:focus,
-    .now-task h3.task-wording-needs-work:focus {
+    .task-wording-badge:focus,
+    .task-wording-input-hint:focus {
         outline: none;
     }
 
@@ -874,7 +883,7 @@
         z-index: 6;
     }
 
-    .item-manager-list .candidate-text.task-wording-needs-work::before {
+    .item-manager-list .task-wording-badge::before {
         top: calc(100% + 10px);
         bottom: auto;
     }
@@ -886,9 +895,33 @@
         text-underline-offset: 5px;
     }
 
-    .candidate-text[contenteditable="true"].task-wording-needs-work::after,
-    .now-task h3[contenteditable="true"].task-wording-needs-work::after {
-        content: none;
+    .candidate-text[contenteditable="true"] .task-wording-badge,
+    .now-task h3[contenteditable="true"] .task-wording-badge {
+        display: none;
+    }
+
+    .task-wording-input-hint {
+        flex: 0 0 auto;
+        margin-left: 0;
+    }
+
+    .task-wording-input-hint.is-hidden {
+        display: none;
+    }
+
+    .candidate-item.is-editing .task-wording-input-hint,
+    .item-manager-add.is-editing .task-wording-input-hint {
+        order: 20;
+    }
+
+    .item-manager-add.is-editing {
+        flex-wrap: wrap;
+        align-items: flex-start;
+    }
+
+    .now-wording-input-hint {
+        order: 3;
+        margin-top: 2px;
     }
 
     .candidate-more-btn {
@@ -1037,15 +1070,15 @@
         color: #eef2ff;
     }
 
-    body.night .candidate-text.task-wording-needs-work::after,
-    body.night .now-task h3.task-wording-needs-work::after {
+    body.night .task-wording-badge,
+    body.night .task-wording-input-hint {
         background: rgba(251, 191, 36, 0.18);
         border-color: rgba(251, 191, 36, 0.34);
         color: #fde68a;
     }
 
-    body.night .candidate-text.task-wording-needs-work::before,
-    body.night .now-task h3.task-wording-needs-work::before {
+    body.night .task-wording-badge::before,
+    body.night .task-wording-input-hint::before {
         background: rgba(24, 30, 46, 0.98);
         border-color: rgba(251, 191, 36, 0.34);
         color: #fde68a;
