@@ -320,8 +320,9 @@ function renderFabState() {
 }
 
 function renderNow() {
-    nowTaskText.textContent = state.nowTask || '';
-    window.EmptyBoxTaskWording?.applyToElement(nowTaskText, state.nowTask);
+    const displayText = String(state.nowTask || '').replace(/\s+$/, '');
+    nowTaskText.textContent = displayText;
+    window.EmptyBoxTaskWording?.applyToElement(nowTaskText, displayText);
     nowTaskText.classList.toggle('is-empty', !state.nowTask);
     completeNowBtn.style.visibility = state.nowTask ? 'visible' : 'hidden';
     undoFab.style.display = lastCompletedTask ? 'inline-flex' : 'none';
@@ -359,7 +360,7 @@ function splitTrailingLinkPunctuation(value) {
 
 function renderTaskText(element, text) {
     element.textContent = '';
-    const source = String(text || '');
+    const source = String(text || '').replace(/\s+$/, '');
     const linkPattern = /(https?:\/\/[^\s<]+|www\.[^\s<]+)/gi;
     let cursor = 0;
     source.replace(linkPattern, (match, _unused, offset) => {
@@ -385,7 +386,7 @@ function renderTaskText(element, text) {
     if (cursor < source.length) {
         element.appendChild(document.createTextNode(source.slice(cursor)));
     }
-    window.EmptyBoxTaskWording?.applyToElement(element, text);
+    window.EmptyBoxTaskWording?.applyToElement(element, source);
 }
 
 function isTaskItemControlTarget(target) {

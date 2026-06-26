@@ -166,11 +166,6 @@
             const hint = result.suggestion ? `${result.reason}\n建议：${result.suggestion}` : result.reason;
             element.dataset.wordingHint = hint;
             element.tabIndex = 0;
-            const badge = document.createElement('span');
-            badge.className = 'task-wording-badge';
-            badge.textContent = '改写';
-            badge.setAttribute('aria-hidden', 'true');
-            element.appendChild(badge);
         }
         return result;
     }

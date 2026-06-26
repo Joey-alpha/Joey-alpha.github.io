@@ -808,10 +808,10 @@
         overflow-wrap: anywhere;
     }
 
-    .task-wording-badge {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
+    .candidate-text.task-wording-needs-work:not(.task-wording-editing-hint)::after,
+    .now-task h3.task-wording-needs-work:not(.task-wording-editing-hint)::after {
+        content: '改写';
+        display: inline-block;
         margin-left: 8px;
         padding: 3px 7px;
         border: 1px solid rgba(245, 158, 11, 0.32);
@@ -860,9 +860,7 @@
     }
 
     .candidate-text.task-wording-needs-work.is-open::before,
-    .candidate-text.task-wording-needs-work:focus::before,
     .now-task h3.task-wording-needs-work.is-open::before,
-    .now-task h3.task-wording-needs-work:focus::before,
     .candidate-text.task-wording-editing-hint::before,
     .now-task h3.task-wording-editing-hint::before {
         opacity: 1;
@@ -1059,7 +1057,8 @@
         color: #eef2ff;
     }
 
-    body.night .task-wording-badge {
+    body.night .candidate-text.task-wording-needs-work:not(.task-wording-editing-hint)::after,
+    body.night .now-task h3.task-wording-needs-work:not(.task-wording-editing-hint)::after {
         background: rgba(251, 191, 36, 0.18);
         border-color: rgba(251, 191, 36, 0.34);
         color: #fde68a;
