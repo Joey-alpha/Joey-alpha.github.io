@@ -88,19 +88,32 @@
         let startX = 0;
         let startY = 0;
         let didPointerDrag = false;
+        const isEditing = () => item.classList.contains('is-editing');
 
         item.addEventListener('pointerdown', event => {
+            if (isEditing()) {
+                item.draggable = false;
+                return;
+            }
             item.draggable = !config.isTaskItemControlTarget(event.target);
         }, true);
         item.addEventListener('pointerup', () => {
+            if (isEditing()) {
+                item.draggable = false;
+                return;
+            }
             item.draggable = true;
         }, true);
         item.addEventListener('pointercancel', () => {
+            if (isEditing()) {
+                item.draggable = false;
+                return;
+            }
             item.draggable = true;
         }, true);
 
         item.addEventListener('dragstart', event => {
-            if (config.isTaskItemControlTarget(event.target)) {
+            if (isEditing() || config.isTaskItemControlTarget(event.target)) {
                 event.preventDefault();
                 event.stopPropagation();
                 return;
@@ -113,6 +126,7 @@
             item.classList.remove('is-dragging');
         });
         item.addEventListener('dragover', event => {
+            if (isEditing()) return;
             event.preventDefault();
             const draggedTask = event.dataTransfer.getData(dataType);
             if (!draggedTask || draggedTask === task) return;
@@ -122,6 +136,7 @@
             item.classList.remove('is-drag-over');
         });
         item.addEventListener('drop', event => {
+            if (isEditing()) return;
             event.preventDefault();
             item.classList.remove('is-drag-over');
             const draggedTask = event.dataTransfer.getData(dataType);
@@ -129,7 +144,7 @@
         });
 
         item.addEventListener('pointerdown', event => {
-            if (event.pointerType === 'mouse' || config.isTaskItemControlTarget(event.target)) return;
+            if (isEditing() || event.pointerType === 'mouse' || config.isTaskItemControlTarget(event.target)) return;
             pointerId = event.pointerId;
             startX = event.clientX;
             startY = event.clientY;
@@ -137,6 +152,7 @@
             if (item.setPointerCapture) item.setPointerCapture(event.pointerId);
         });
         item.addEventListener('pointermove', event => {
+            if (isEditing()) return;
             if (pointerId !== event.pointerId) return;
             const moved = Math.hypot(event.clientX - startX, event.clientY - startY);
             if (moved <= config.tapMovePx) return;
