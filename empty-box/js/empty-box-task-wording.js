@@ -209,6 +209,7 @@
         document.querySelectorAll('.task-wording-needs-work.is-open').forEach(item => {
             if (!item.contains(event.target)) item.classList.remove('is-open');
         });
+        if (event.target.closest('a')) return;
         const target = event.target.closest('.task-wording-needs-work');
         if (!target || target.isContentEditable) return;
         target.focus({ preventScroll: true });

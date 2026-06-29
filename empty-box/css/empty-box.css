@@ -867,6 +867,17 @@
         transform: translateY(0);
     }
 
+    .item-manager-list .candidate-item:first-child .candidate-text.task-wording-needs-work::before,
+    .item-manager-list .candidate-item:first-child .candidate-text.task-wording-editing-hint::before {
+        top: calc(100% + 10px);
+        bottom: auto;
+    }
+
+    .item-manager-list .candidate-item:has(.candidate-text.task-wording-needs-work.is-open),
+    .item-manager-list .candidate-item:has(.candidate-text.task-wording-editing-hint) {
+        z-index: var(--layer-priority);
+    }
+
     .candidate-text.task-wording-needs-work:focus,
     .now-task h3.task-wording-needs-work:focus {
         outline: none;

@@ -78,3 +78,11 @@ module or Supabase RPC instead of duplicating state normalization.
 ## Next Split Candidates
 
 - Move Tab dialogs and mutations behind `empty-box-item-tabs.js` or a dedicated tab model.
+
+## Backlog Notes
+
+- AI-assisted task organization:
+  Add a way to copy/export all tasks in one action so an AI can regroup them,
+  then rebuild tabs and tasks from the AI result. Also support AI rewriting for
+  an individual task. This will likely need an API key configuration flow before
+  implementation.
