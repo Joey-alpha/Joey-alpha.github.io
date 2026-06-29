@@ -9,6 +9,7 @@ const SPACE_LIST_KEY = "five-process-spaces-v1";
 const CURRENT_SPACE_ID_KEY = "five_process_current_space_id";
 const CURRENT_CONTENT_ID_KEY = "five_process_current_content_id";
 const CURRENT_STORAGE_MODE_KEY = "five_process_current_storage_mode";
+const PENDING_CLOUD_CHANGES_KEY = "five-process-pending-cloud-changes-v1";
 const SUPABASE_URL = "https://ufwvkabshfrrodmtycjj.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVmd3ZrYWJzaGZycm9kbXR5Y2pqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkxNjg4NjMsImV4cCI6MjA5NDc0NDg2M30.kSQJBTLSjd5XhLX0cddqjUfSw0QXt-Ilr2UsGPMamIo";
 const SAVE_DEBOUNCE_MS = 500;
@@ -102,6 +103,98 @@ function writeJson(key, value) {
     localStorage.setItem(key, JSON.stringify(value));
 }
 
+function createPendingChanges() {
+    return { version: 1, spaces: {}, contents: {} };
+}
+
+function readPendingChanges() {
+    const pending = readJson(PENDING_CLOUD_CHANGES_KEY, createPendingChanges());
+    return {
+        version: 1,
+        spaces: pending && typeof pending.spaces === "object" && pending.spaces ? pending.spaces : {},
+        contents: pending && typeof pending.contents === "object" && pending.contents ? pending.contents : {},
+    };
+}
+
+function writePendingChanges(pending) {
+    const normalized = {
+        version: 1,
+        spaces: pending && typeof pending.spaces === "object" && pending.spaces ? pending.spaces : {},
+        contents: pending && typeof pending.contents === "object" && pending.contents ? pending.contents : {},
+    };
+    if (!Object.keys(normalized.spaces).length && !Object.keys(normalized.contents).length) {
+        localStorage.removeItem(PENDING_CLOUD_CHANGES_KEY);
+        return;
+    }
+    writeJson(PENDING_CLOUD_CHANGES_KEY, normalized);
+}
+
+function hasPendingChanges() {
+    const pending = readPendingChanges();
+    return Boolean(Object.keys(pending.spaces).length || Object.keys(pending.contents).length);
+}
+
+function markPendingSpaceUpsert(space) {
+    const pending = readPendingChanges();
+    pending.spaces[space.id] = {
+        action: "upsert",
+        space: { owner_id: null, storage_mode: "cloud_sync", created_at: new Date().toISOString(), ...space },
+        updated_at: new Date().toISOString(),
+    };
+    writePendingChanges(pending);
+}
+
+function markPendingSpaceDelete(space) {
+    const pending = readPendingChanges();
+    pending.spaces[space.id] = {
+        action: "delete",
+        space: { owner_id: null, storage_mode: "cloud_sync", created_at: new Date().toISOString(), ...space },
+        updated_at: new Date().toISOString(),
+    };
+    Object.entries(pending.contents).forEach(([contentId, change]) => {
+        if (change?.item?.space_id === space.id) delete pending.contents[contentId];
+    });
+    writePendingChanges(pending);
+}
+
+function markPendingContentUpsert(item) {
+    const pending = readPendingChanges();
+    if (pending.spaces[item.space_id]?.action === "delete") return;
+    pending.contents[item.id] = {
+        action: "upsert",
+        item,
+        updated_at: new Date().toISOString(),
+    };
+    writePendingChanges(pending);
+}
+
+function markPendingContentDelete(item) {
+    const pending = readPendingChanges();
+    if (pending.spaces[item.space_id]?.action === "delete") return;
+    pending.contents[item.id] = {
+        action: "delete",
+        item,
+        updated_at: new Date().toISOString(),
+    };
+    writePendingChanges(pending);
+}
+
+function removePendingSpaceChange(spaceId, expectedChange = null) {
+    const pending = readPendingChanges();
+    if (expectedChange && pending.spaces[spaceId]?.updated_at !== expectedChange.updated_at) return false;
+    delete pending.spaces[spaceId];
+    writePendingChanges(pending);
+    return true;
+}
+
+function removePendingContentChange(contentId, expectedChange = null) {
+    const pending = readPendingChanges();
+    if (expectedChange && pending.contents[contentId]?.updated_at !== expectedChange.updated_at) return false;
+    delete pending.contents[contentId];
+    writePendingChanges(pending);
+    return true;
+}
+
 function createId(prefix) {
     if (crypto && crypto.randomUUID) return crypto.randomUUID();
     return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
@@ -129,6 +222,67 @@ async function supabaseRequest(path, options = {}) {
     return text ? JSON.parse(text) : null;
 }
 
+async function ensureCloudSpace(space) {
+    const normalized = {
+        owner_id: null,
+        storage_mode: "cloud_sync",
+        created_at: new Date().toISOString(),
+        ...space,
+    };
+    const rows = await supabaseRequest(`five_process_spaces?id=eq.${encodeURIComponent(normalized.id)}&select=id`);
+    if (Array.isArray(rows) && rows.length) {
+        await supabaseRequest(`five_process_spaces?id=eq.${encodeURIComponent(normalized.id)}`, {
+            method: "PATCH",
+            body: JSON.stringify({
+                name: normalized.name,
+                storage_mode: "cloud_sync",
+            }),
+        });
+        return;
+    }
+    await supabaseRequest("five_process_spaces", {
+        method: "POST",
+        body: JSON.stringify({
+            id: normalized.id,
+            owner_id: normalized.owner_id,
+            name: normalized.name,
+            storage_mode: "cloud_sync",
+            created_at: normalized.created_at,
+        }),
+    });
+}
+
+async function upsertCloudContent(item) {
+    const rows = await supabaseRequest(`five_process_contents?id=eq.${encodeURIComponent(item.id)}&select=id`);
+    const body = {
+        space_id: item.space_id,
+        owner_id: item.owner_id,
+        title: item.title,
+        content: item.content,
+        updated_at: item.updated_at,
+    };
+    if (Array.isArray(rows) && rows.length) {
+        await supabaseRequest(`five_process_contents?id=eq.${encodeURIComponent(item.id)}`, {
+            method: "PATCH",
+            body: JSON.stringify(body),
+        });
+        return;
+    }
+    await supabaseRequest("five_process_contents", {
+        method: "POST",
+        body: JSON.stringify({
+            ...body,
+            id: item.id,
+            created_at: item.created_at,
+        }),
+    });
+}
+
+async function deleteCloudSpace(spaceId) {
+    await supabaseRequest(`five_process_contents?space_id=eq.${encodeURIComponent(spaceId)}`, { method: "DELETE" });
+    await supabaseRequest(`five_process_spaces?id=eq.${encodeURIComponent(spaceId)}`, { method: "DELETE" });
+}
+
 function formatErrorMessage(error) {
     try {
         const detail = JSON.parse(String(error.message).replace(/^Supabase \d+:\s*/, ""));
@@ -137,6 +291,8 @@ function formatErrorMessage(error) {
         return error && error.message ? error.message : String(error);
     }
 }
+
+let cloudFlushPromise = null;
 
 function localContentsKey(spaceId) {
     return `${STORAGE_KEY}::space::${spaceId}::contents`;
@@ -238,9 +394,21 @@ const FiveProcessStorage = {
     },
 
     async syncCloudSpaces() {
+        if (hasPendingChanges()) await this.flushPendingCloudChanges();
         const rows = await supabaseRequest("five_process_spaces?select=id,owner_id,name,storage_mode,created_at&order=created_at.asc");
         const localSpaces = this.getSpaces().filter(space => space.storage_mode !== "cloud_sync");
-        const cloudSpaces = (Array.isArray(rows) ? rows : []).filter(space => space.storage_mode === "cloud_sync");
+        const byId = new Map((Array.isArray(rows) ? rows : [])
+            .filter(space => space.storage_mode === "cloud_sync")
+            .map(space => [space.id, space]));
+        Object.values(readPendingChanges().spaces).forEach(change => {
+            if (!change?.space || change.space.storage_mode !== "cloud_sync") return;
+            if (change.action === "delete") {
+                byId.delete(change.space.id);
+                return;
+            }
+            byId.set(change.space.id, change.space);
+        });
+        const cloudSpaces = [...byId.values()];
         const merged = [...localSpaces, ...cloudSpaces].sort((a, b) => String(a.created_at || "").localeCompare(String(b.created_at || "")));
         this.saveSpaces(merged);
         return merged;
@@ -256,9 +424,10 @@ const FiveProcessStorage = {
             created_at: now
         };
         if (storageMode === "cloud_sync") {
-            await supabaseRequest("five_process_spaces", {
-                method: "POST",
-                body: JSON.stringify(space)
+            markPendingSpaceUpsert(space);
+            this.flushPendingCloudChanges().catch(error => {
+                console.error("Cloud sync failed:", error);
+                setSaveStatus("error", "Cloud sync pending");
             });
         }
         this.saveSpaces([...this.getSpaces().filter(item => item.id !== space.id), space]);
@@ -273,15 +442,17 @@ const FiveProcessStorage = {
         const space = this.getSpaces().find(item => item.id === spaceId);
         if (!space) throw new Error("Space was not found.");
 
+        const updated = { ...space, name: nextName };
         if (space.storage_mode === "cloud_sync") {
-            await supabaseRequest(`five_process_spaces?id=eq.${encodeURIComponent(space.id)}`, {
-                method: "PATCH",
-                body: JSON.stringify({ name: nextName })
+            markPendingSpaceUpsert(updated);
+            this.flushPendingCloudChanges().catch(error => {
+                console.error("Cloud sync failed:", error);
+                setSaveStatus("error", "Cloud sync pending");
             });
         }
 
-        this.saveSpaces(this.getSpaces().map(item => item.id === space.id ? { ...item, name: nextName } : item));
-        return { ...space, name: nextName };
+        this.saveSpaces(this.getSpaces().map(item => item.id === space.id ? updated : item));
+        return updated;
     },
 
     getCurrentContentId(spaceId) {
@@ -295,15 +466,34 @@ const FiveProcessStorage = {
     async getContents(space) {
         if (!space) return [];
         if (space.storage_mode === "cloud_sync") {
-            const rows = await supabaseRequest(`five_process_contents?space_id=eq.${encodeURIComponent(space.id)}&select=id,space_id,owner_id,title,content,created_at,updated_at&order=updated_at.desc`);
-            return Array.isArray(rows) ? rows : [];
+            let contents = [];
+            try {
+                const rows = await supabaseRequest(`five_process_contents?space_id=eq.${encodeURIComponent(space.id)}&select=id,space_id,owner_id,title,content,created_at,updated_at&order=updated_at.desc`);
+                contents = Array.isArray(rows) ? rows : [];
+                writeJson(localContentsKey(space.id), contents);
+            } catch (error) {
+                const cached = readJson(localContentsKey(space.id), []);
+                contents = Array.isArray(cached) ? cached : [];
+                if (contents.length) setSaveStatus("error", "Cloud read failed, using cache");
+                else setSaveStatus("error", "Cloud read failed");
+            }
+            const byId = new Map(contents.map(item => [item.id, item]));
+            Object.values(readPendingChanges().contents).forEach(change => {
+                if (!change?.item || change.item.space_id !== space.id) return;
+                if (change.action === "delete") {
+                    byId.delete(change.item.id);
+                    return;
+                }
+                byId.set(change.item.id, change.item);
+            });
+            return [...byId.values()].sort((a, b) => String(b.updated_at || "").localeCompare(String(a.updated_at || "")));
         }
         const contents = readJson(localContentsKey(space.id), []);
         return Array.isArray(contents) ? contents : [];
     },
 
     async saveLocalContents(space, contents) {
-        if (space.storage_mode === "local_only") writeJson(localContentsKey(space.id), contents);
+        writeJson(localContentsKey(space.id), contents);
     },
 
     async createContent(space, title, payload = createPayloadFromTree()) {
@@ -326,9 +516,13 @@ const FiveProcessStorage = {
             updated_at: now
         };
         if (space.storage_mode === "cloud_sync") {
-            await supabaseRequest("five_process_contents", {
-                method: "POST",
-                body: JSON.stringify(item)
+            const contents = await this.getContents(space);
+            await this.saveLocalContents(space, [item, ...contents.filter(content => content.id !== item.id)]);
+            markPendingSpaceUpsert(space);
+            markPendingContentUpsert(item);
+            this.flushPendingCloudChanges().catch(error => {
+                console.error("Cloud sync failed:", error);
+                setSaveStatus("error", "Cloud sync pending");
             });
         } else {
             const contents = await this.getContents(space);
@@ -363,9 +557,13 @@ const FiveProcessStorage = {
         };
 
         if (targetSpace.storage_mode === "cloud_sync") {
-            await supabaseRequest("five_process_contents", {
-                method: "POST",
-                body: JSON.stringify(item)
+            const contents = await this.getContents(targetSpace);
+            await this.saveLocalContents(targetSpace, [item, ...contents.filter(content => content.id !== item.id)]);
+            markPendingSpaceUpsert(targetSpace);
+            markPendingContentUpsert(item);
+            this.flushPendingCloudChanges().catch(error => {
+                console.error("Cloud sync failed:", error);
+                setSaveStatus("error", "Cloud sync pending");
             });
         } else {
             const contents = await this.getContents(targetSpace);
@@ -397,9 +595,14 @@ const FiveProcessStorage = {
         };
 
         if (space.storage_mode === "cloud_sync") {
-            await supabaseRequest(`five_process_contents?id=eq.${encodeURIComponent(item.id)}`, {
-                method: "PATCH",
-                body: JSON.stringify(patch)
+            const nextItem = { ...item, ...patch };
+            const contents = await this.getContents(space);
+            await this.saveLocalContents(space, contents.map(content => content.id === item.id ? nextItem : content));
+            markPendingSpaceUpsert(space);
+            markPendingContentUpsert(nextItem);
+            this.flushPendingCloudChanges().catch(error => {
+                console.error("Cloud sync failed:", error);
+                setSaveStatus("error", "Cloud sync pending");
             });
         } else {
             const contents = await this.getContents(space);
@@ -433,9 +636,14 @@ const FiveProcessStorage = {
         }
         const now = new Date().toISOString();
         if (space.storage_mode === "cloud_sync") {
-            await supabaseRequest(`five_process_contents?id=eq.${encodeURIComponent(item.id)}`, {
-                method: "PATCH",
-                body: JSON.stringify({ title: payload.root?.title || item.title, content: payload, updated_at: now })
+            const nextItem = { ...item, title: payload.root?.title || item.title, content: payload, updated_at: now };
+            const contents = await this.getContents(space);
+            await this.saveLocalContents(space, contents.map(content => content.id === item.id ? nextItem : content));
+            markPendingSpaceUpsert(space);
+            markPendingContentUpsert(nextItem);
+            this.flushPendingCloudChanges().catch(error => {
+                console.error("Cloud sync failed:", error);
+                setSaveStatus("error", "Cloud sync pending");
             });
         } else {
             const contents = await this.getContents(space);
@@ -464,7 +672,13 @@ const FiveProcessStorage = {
         const item = space ? await this.getCurrentContent(space) : null;
         if (!space || !item) return;
         if (space.storage_mode === "cloud_sync") {
-            await supabaseRequest(`five_process_contents?id=eq.${encodeURIComponent(item.id)}`, { method: "DELETE" });
+            await this.saveLocalContents(space, (await this.getContents(space)).filter(content => content.id !== item.id));
+            markPendingSpaceUpsert(space);
+            markPendingContentDelete(item);
+            this.flushPendingCloudChanges().catch(error => {
+                console.error("Cloud sync failed:", error);
+                setSaveStatus("error", "Cloud sync pending");
+            });
         } else {
             await this.saveLocalContents(space, (await this.getContents(space)).filter(content => content.id !== item.id));
         }
@@ -475,16 +689,88 @@ const FiveProcessStorage = {
         const space = this.getCurrentSpace();
         if (!space) return;
         if (space.storage_mode === "cloud_sync") {
-            await supabaseRequest(`five_process_contents?space_id=eq.${encodeURIComponent(space.id)}`, { method: "DELETE" });
-            await supabaseRequest(`five_process_spaces?id=eq.${encodeURIComponent(space.id)}`, { method: "DELETE" });
+            localStorage.removeItem(localContentsKey(space.id));
+            markPendingSpaceDelete(space);
         } else {
             localStorage.removeItem(localContentsKey(space.id));
         }
         this.saveSpaces(this.getSpaces().filter(item => item.id !== space.id));
         localStorage.removeItem(CURRENT_SPACE_ID_KEY);
         localStorage.removeItem(CURRENT_STORAGE_MODE_KEY);
+        if (space.storage_mode === "cloud_sync") {
+            this.flushPendingCloudChanges().catch(error => {
+                console.error("Cloud sync failed:", error);
+                setSaveStatus("error", "Cloud sync pending");
+            });
+        }
+    },
+
+    async flushPendingCloudChanges() {
+        if (!hasPendingChanges()) return readPendingChanges();
+        if (cloudFlushPromise) return cloudFlushPromise;
+        cloudFlushPromise = (async () => {
+            while (hasPendingChanges()) {
+                const pending = readPendingChanges();
+                let processed = false;
+                const spaceEntries = Object.entries(pending.spaces);
+                const deleteEntries = spaceEntries.filter(([, change]) => change?.action === "delete");
+                const upsertEntries = spaceEntries.filter(([, change]) => change?.action === "upsert" && change.space);
+
+                for (const [spaceId, change] of deleteEntries) {
+                    await deleteCloudSpace(spaceId);
+                    removePendingSpaceChange(spaceId, change);
+                    processed = true;
+                }
+
+                for (const [spaceId, change] of upsertEntries) {
+                    await ensureCloudSpace(change.space);
+                    removePendingSpaceChange(spaceId, change);
+                    processed = true;
+                }
+
+                const latestPending = readPendingChanges();
+                for (const [contentId, change] of Object.entries(latestPending.contents)) {
+                    if (!change?.item) continue;
+                    const spaceChange = readPendingChanges().spaces[change.item.space_id];
+                    if (spaceChange?.action === "delete") continue;
+                    const space = this.getSpaces().find(item => item.id === change.item.space_id) || spaceChange?.space;
+                    if (space && space.storage_mode === "cloud_sync") await ensureCloudSpace(space);
+                    if (change.action === "delete") {
+                        await supabaseRequest(`five_process_contents?id=eq.${encodeURIComponent(contentId)}`, { method: "DELETE" });
+                    } else if (change.action === "upsert") {
+                        await upsertCloudContent(change.item);
+                    }
+                    removePendingContentChange(contentId, change);
+                    processed = true;
+                }
+
+                if (!processed) break;
+            }
+            return readPendingChanges();
+        })();
+        try {
+            return await cloudFlushPromise;
+        } finally {
+            cloudFlushPromise = null;
+        }
     }
 };
+
+window.addEventListener("online", () => {
+    if (!hasPendingChanges()) return;
+    FiveProcessStorage.flushPendingCloudChanges().catch(error => {
+        console.error("Cloud sync retry failed:", error);
+        setSaveStatus("error", "Cloud sync pending");
+    });
+});
+
+setTimeout(() => {
+    if (!hasPendingChanges() || navigator.onLine === false) return;
+    FiveProcessStorage.flushPendingCloudChanges().catch(error => {
+        console.error("Cloud sync startup retry failed:", error);
+        setSaveStatus("error", "Cloud sync pending");
+    });
+}, 0);
 
 function autoSave(immediate = false) {
     const doSave = () => {

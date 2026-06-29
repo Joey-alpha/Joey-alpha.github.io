@@ -5,6 +5,7 @@
     const SPACE_LIST_KEY = 'mind-jump-spaces-v1';
     const CURRENT_SPACE_ID_KEY = 'mind_jump_current_space_id';
     const CURRENT_STORAGE_MODE_KEY = 'mind_jump_current_storage_mode';
+    const PENDING_CLOUD_CHANGES_KEY = 'mind-jump-pending-cloud-changes-v1';
     const SUPABASE_URL = 'https://ufwvkabshfrrodmtycjj.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVmd3ZrYWJzaGZycm9kbXR5Y2pqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkxNjg4NjMsImV4cCI6MjA5NDc0NDg2M30.kSQJBTLSjd5XhLX0cddqjUfSw0QXt-Ilr2UsGPMamIo';
 
@@ -69,6 +70,89 @@
         localStorage.setItem(key, JSON.stringify(value));
     }
 
+    function createPendingChanges() {
+        return { version: 1, spaces: {}, states: {} };
+    }
+
+    function readPendingChanges() {
+        const pending = readJson(PENDING_CLOUD_CHANGES_KEY, createPendingChanges());
+        return {
+            version: 1,
+            spaces: pending && typeof pending.spaces === 'object' && pending.spaces ? pending.spaces : {},
+            states: pending && typeof pending.states === 'object' && pending.states ? pending.states : {},
+        };
+    }
+
+    function writePendingChanges(pending) {
+        const normalized = {
+            version: 1,
+            spaces: pending && typeof pending.spaces === 'object' && pending.spaces ? pending.spaces : {},
+            states: pending && typeof pending.states === 'object' && pending.states ? pending.states : {},
+        };
+        if (!Object.keys(normalized.spaces).length && !Object.keys(normalized.states).length) {
+            localStorage.removeItem(PENDING_CLOUD_CHANGES_KEY);
+            return;
+        }
+        writeJson(PENDING_CLOUD_CHANGES_KEY, normalized);
+    }
+
+    function hasPendingChanges() {
+        const pending = readPendingChanges();
+        return Boolean(Object.keys(pending.spaces).length || Object.keys(pending.states).length);
+    }
+
+    function pendingStateChange(spaceId) {
+        return readPendingChanges().states[spaceId] || null;
+    }
+
+    function markPendingSpaceUpsert(space) {
+        const pending = readPendingChanges();
+        pending.spaces[space.id] = {
+            action: 'upsert',
+            space: { owner_id: null, storage_mode: 'cloud_sync', created_at: new Date().toISOString(), ...space },
+            updated_at: new Date().toISOString(),
+        };
+        writePendingChanges(pending);
+    }
+
+    function markPendingSpaceDelete(space) {
+        const pending = readPendingChanges();
+        pending.spaces[space.id] = {
+            action: 'delete',
+            space: { owner_id: null, storage_mode: 'cloud_sync', created_at: new Date().toISOString(), ...space },
+            updated_at: new Date().toISOString(),
+        };
+        delete pending.states[space.id];
+        writePendingChanges(pending);
+    }
+
+    function markPendingStateSave(spaceId, nextState) {
+        const pending = readPendingChanges();
+        if (pending.spaces[spaceId]?.action === 'delete') return;
+        pending.states[spaceId] = {
+            action: 'save',
+            state: normalizeState(nextState),
+            updated_at: new Date().toISOString(),
+        };
+        writePendingChanges(pending);
+    }
+
+    function removePendingSpaceChange(spaceId, expectedChange = null) {
+        const pending = readPendingChanges();
+        if (expectedChange && pending.spaces[spaceId]?.updated_at !== expectedChange.updated_at) return false;
+        delete pending.spaces[spaceId];
+        writePendingChanges(pending);
+        return true;
+    }
+
+    function removePendingStateChange(spaceId, expectedChange = null) {
+        const pending = readPendingChanges();
+        if (expectedChange && pending.states[spaceId]?.updated_at !== expectedChange.updated_at) return false;
+        delete pending.states[spaceId];
+        writePendingChanges(pending);
+        return true;
+    }
+
     function createId(prefix) {
         if (window.crypto && window.crypto.randomUUID) return window.crypto.randomUUID();
         return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
@@ -128,6 +212,53 @@
         return text ? JSON.parse(text) : null;
     }
 
+    async function ensureCloudSpace(space) {
+        const normalized = {
+            owner_id: null,
+            storage_mode: 'cloud_sync',
+            created_at: new Date().toISOString(),
+            ...space,
+        };
+        const rows = await supabaseRequest(`mind_jump_spaces?id=eq.${encodeURIComponent(normalized.id)}&select=id`);
+        if (Array.isArray(rows) && rows.length) {
+            await supabaseRequest(`mind_jump_spaces?id=eq.${encodeURIComponent(normalized.id)}`, {
+                method: 'PATCH',
+                body: JSON.stringify({
+                    name: normalized.name,
+                    storage_mode: 'cloud_sync',
+                }),
+            });
+            return;
+        }
+        await supabaseRequest('mind_jump_spaces', {
+            method: 'POST',
+            body: JSON.stringify({
+                id: normalized.id,
+                owner_id: normalized.owner_id,
+                name: normalized.name,
+                storage_mode: 'cloud_sync',
+                created_at: normalized.created_at,
+            }),
+        });
+    }
+
+    async function deleteCloudSpace(spaceId) {
+        await supabaseRequest(`mind_jump_states?space_id=eq.${encodeURIComponent(spaceId)}`, {
+            method: 'DELETE',
+            headers: { Prefer: 'return=representation' },
+        });
+        const deletedSpaces = await supabaseRequest(`mind_jump_spaces?id=eq.${encodeURIComponent(spaceId)}&select=id`, {
+            method: 'DELETE',
+            headers: { Prefer: 'return=representation' },
+        });
+        if (!Array.isArray(deletedSpaces) || !deletedSpaces.length) {
+            const stillExists = await supabaseRequest(`mind_jump_spaces?id=eq.${encodeURIComponent(spaceId)}&select=id`);
+            if (Array.isArray(stillExists) && stillExists.length) {
+                throw new Error('Remote space was not deleted. Check Supabase DELETE policy for mind_jump_spaces.');
+            }
+        }
+    }
+
     function formatErrorMessage(error) {
         try {
             const detail = JSON.parse(String(error.message).replace(/^Supabase \d+:\s*/, ''));
@@ -136,6 +267,8 @@
             return error && error.message ? error.message : String(error);
         }
     }
+
+    let cloudFlushPromise = null;
 
     const MindJumpStorage = {
         getSpaces() {
@@ -160,6 +293,14 @@
                     ...space,
                 });
             });
+            Object.values(readPendingChanges().spaces).forEach(change => {
+                if (!change?.space || change.space.storage_mode !== 'cloud_sync') return;
+                if (change.action === 'delete') {
+                    byId.delete(change.space.id);
+                    return;
+                }
+                byId.set(change.space.id, change.space);
+            });
             const merged = [...byId.values()].sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')));
             this.saveSpaces(merged);
             this.ensureValidCurrentSpace();
@@ -167,6 +308,7 @@
         },
 
         async syncCloudSpaces() {
+            if (hasPendingChanges()) await this.flushPendingCloudChanges();
             const rows = await supabaseRequest('mind_jump_spaces?select=id,owner_id,name,storage_mode,created_at&order=created_at.asc');
             const cloudSpaces = (Array.isArray(rows) ? rows : [])
                 .filter(space => space && space.storage_mode === 'cloud_sync');
@@ -216,13 +358,6 @@
                 created_at: now,
             };
 
-            if (storage_mode === 'cloud_sync') {
-                await supabaseRequest('mind_jump_spaces', {
-                    method: 'POST',
-                    body: JSON.stringify(space),
-                });
-            }
-
             const spaces = this.getSpaces().filter(item => item.id !== space.id);
             spaces.push(space);
             this.saveSpaces(spaces);
@@ -239,14 +374,11 @@
             const updated = { ...space, name: nextName };
 
             if (space.storage_mode === 'cloud_sync') {
-                const rows = await supabaseRequest(`mind_jump_spaces?id=eq.${encodeURIComponent(space.id)}&select=id,name`, {
-                    method: 'PATCH',
-                    headers: { Prefer: 'return=representation' },
-                    body: JSON.stringify({ name: nextName }),
+                markPendingSpaceUpsert(updated);
+                this.flushPendingCloudChanges().catch(error => {
+                    console.error('Mind Jump cloud sync failed:', error);
+                    if (spaceStatus) spaceStatus.textContent = `Cloud sync pending: ${formatErrorMessage(error)}`;
                 });
-                if (!Array.isArray(rows) || !rows.some(row => row.id === space.id && row.name === nextName)) {
-                    throw new Error('Remote rename was not applied. Check Supabase UPDATE policy for mind_jump_spaces.');
-                }
             }
 
             this.saveSpaces(this.getSpaces().map(item => item.id === space.id ? updated : item));
@@ -258,20 +390,8 @@
             if (!space) return null;
 
             if (space.storage_mode === 'cloud_sync') {
-                await supabaseRequest(`mind_jump_states?space_id=eq.${encodeURIComponent(space.id)}`, {
-                    method: 'DELETE',
-                    headers: { Prefer: 'return=representation' },
-                });
-                const deletedSpaces = await supabaseRequest(`mind_jump_spaces?id=eq.${encodeURIComponent(space.id)}&select=id`, {
-                    method: 'DELETE',
-                    headers: { Prefer: 'return=representation' },
-                });
-                if (!Array.isArray(deletedSpaces) || !deletedSpaces.length) {
-                    const stillExists = await supabaseRequest(`mind_jump_spaces?id=eq.${encodeURIComponent(space.id)}&select=id`);
-                    if (Array.isArray(stillExists) && stillExists.length) {
-                        throw new Error('Remote space was not deleted. Check Supabase DELETE policy for mind_jump_spaces.');
-                    }
-                }
+                localStorage.removeItem(spaceStateKey(space.id));
+                markPendingSpaceDelete(space);
             } else {
                 localStorage.removeItem(spaceStateKey(space.id));
             }
@@ -280,6 +400,12 @@
             localStorage.removeItem(CURRENT_SPACE_ID_KEY);
             localStorage.removeItem(CURRENT_STORAGE_MODE_KEY);
             this.ensureValidCurrentSpace();
+            if (space.storage_mode === 'cloud_sync') {
+                this.flushPendingCloudChanges().catch(error => {
+                    console.error('Mind Jump cloud sync failed:', error);
+                    if (spaceStatus) spaceStatus.textContent = `Cloud sync pending: ${formatErrorMessage(error)}`;
+                });
+            }
             return space;
         },
 
@@ -309,9 +435,22 @@
         },
 
         async getCloudState(space) {
-            const rows = await supabaseRequest(`mind_jump_states?space_id=eq.${encodeURIComponent(space.id)}&select=content,updated_at`);
-            const snapshot = Array.isArray(rows) ? rows[0] : null;
-            return snapshot && snapshot.content ? normalizeState(snapshot.content) : createEmptyState();
+            const pendingState = pendingStateChange(space.id);
+            if (pendingState?.action === 'save') return normalizeState(pendingState.state);
+            try {
+                const rows = await supabaseRequest(`mind_jump_states?space_id=eq.${encodeURIComponent(space.id)}&select=content,updated_at`);
+                const snapshot = Array.isArray(rows) ? rows[0] : null;
+                const cloudState = snapshot && snapshot.content ? normalizeState(snapshot.content) : createEmptyState();
+                writeJson(spaceStateKey(space.id), cloudState);
+                return cloudState;
+            } catch (error) {
+                const cached = readJson(spaceStateKey(space.id), null);
+                if (cached) {
+                    if (spaceStatus) spaceStatus.textContent = `Cloud read failed, using local cache: ${formatErrorMessage(error)}`;
+                    return normalizeState(cached);
+                }
+                throw error;
+            }
         },
 
         async saveCloudState(nextState, space) {
@@ -346,15 +485,81 @@
                 return;
             }
             if (space.storage_mode === 'cloud_sync') {
-                this.saveCloudState(normalized, space).catch(error => {
+                writeJson(spaceStateKey(space.id), normalized);
+                markPendingSpaceUpsert(space);
+                markPendingStateSave(space.id, normalized);
+                this.flushPendingCloudChanges().catch(error => {
                     console.error('Mind Jump cloud sync failed:', error);
-                    if (spaceStatus) spaceStatus.textContent = `Cloud sync failed: ${formatErrorMessage(error)}`;
+                    if (spaceStatus) spaceStatus.textContent = `Cloud sync pending: ${formatErrorMessage(error)}`;
                 });
             } else {
                 writeJson(spaceStateKey(space.id), normalized);
             }
         },
+
+        async flushPendingCloudChanges() {
+            if (!hasPendingChanges()) return readPendingChanges();
+            if (cloudFlushPromise) return cloudFlushPromise;
+            cloudFlushPromise = (async () => {
+                while (hasPendingChanges()) {
+                    const pending = readPendingChanges();
+                    let processed = false;
+                    const spaceEntries = Object.entries(pending.spaces);
+                    const deleteEntries = spaceEntries.filter(([, change]) => change?.action === 'delete');
+                    const upsertEntries = spaceEntries.filter(([, change]) => change?.action === 'upsert' && change.space);
+
+                    for (const [spaceId, change] of deleteEntries) {
+                        await deleteCloudSpace(spaceId);
+                        removePendingSpaceChange(spaceId, change);
+                        removePendingStateChange(spaceId);
+                        processed = true;
+                    }
+
+                    for (const [spaceId, change] of upsertEntries) {
+                        await ensureCloudSpace(change.space);
+                        removePendingSpaceChange(spaceId, change);
+                        processed = true;
+                    }
+
+                    const latestPending = readPendingChanges();
+                    for (const [spaceId, change] of Object.entries(latestPending.states)) {
+                        const spaceChange = readPendingChanges().spaces[spaceId];
+                        if (spaceChange?.action === 'delete') continue;
+                        const space = this.getSpaces().find(item => item.id === spaceId) || spaceChange?.space;
+                        if (!space || space.storage_mode !== 'cloud_sync') continue;
+                        await ensureCloudSpace(space);
+                        await this.saveCloudState(normalizeState(change.state), space);
+                        removePendingStateChange(spaceId, change);
+                        processed = true;
+                    }
+
+                    if (!processed) break;
+                }
+                return readPendingChanges();
+            })();
+            try {
+                return await cloudFlushPromise;
+            } finally {
+                cloudFlushPromise = null;
+            }
+        },
     };
+
+    window.addEventListener('online', () => {
+        if (!hasPendingChanges()) return;
+        MindJumpStorage.flushPendingCloudChanges().catch(error => {
+            console.error('Mind Jump cloud sync retry failed:', error);
+            if (spaceStatus) spaceStatus.textContent = `Cloud sync pending: ${formatErrorMessage(error)}`;
+        });
+    });
+
+    setTimeout(() => {
+        if (!hasPendingChanges() || navigator.onLine === false) return;
+        MindJumpStorage.flushPendingCloudChanges().catch(error => {
+            console.error('Mind Jump cloud sync startup retry failed:', error);
+            if (spaceStatus) spaceStatus.textContent = `Cloud sync pending: ${formatErrorMessage(error)}`;
+        });
+    }, 0);
 
     function collectStateFromDom() {
         const nodes = Array.from(document.querySelectorAll('.node-container')).map(container => {
