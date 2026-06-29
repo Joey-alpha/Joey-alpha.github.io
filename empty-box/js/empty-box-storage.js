@@ -8,11 +8,13 @@
     const CURRENT_SPACE_ID_KEY = 'current_space_id';
     const CURRENT_STORAGE_MODE_KEY = 'current_storage_mode';
     const CLOUD_BACKUP_PREFIX = 'empty-box-v2::cloud-backup::';
+    const PENDING_CLOUD_CHANGES_KEY = 'empty-box-v2::pending-cloud-changes';
     const keys = {
         UPDATE_PING_KEY,
         V2_SPACE_LIST_KEY,
         CURRENT_SPACE_ID_KEY,
-        CURRENT_STORAGE_MODE_KEY
+        CURRENT_STORAGE_MODE_KEY,
+        PENDING_CLOUD_CHANGES_KEY
     };
 
     let getAppState = createEmptyState;
@@ -42,6 +44,113 @@
     
     function writeJson(key, value) {
         localStorage.setItem(key, JSON.stringify(value));
+    }
+
+    function createPendingChanges() {
+        return {
+            version: 1,
+            spaces: {},
+            states: {}
+        };
+    }
+
+    function readPendingChanges() {
+        const pending = readJson(PENDING_CLOUD_CHANGES_KEY, createPendingChanges());
+        return {
+            version: 1,
+            spaces: pending && typeof pending.spaces === 'object' && pending.spaces ? pending.spaces : {},
+            states: pending && typeof pending.states === 'object' && pending.states ? pending.states : {}
+        };
+    }
+
+    function writePendingChanges(pending) {
+        const normalized = {
+            version: 1,
+            spaces: pending && typeof pending.spaces === 'object' && pending.spaces ? pending.spaces : {},
+            states: pending && typeof pending.states === 'object' && pending.states ? pending.states : {}
+        };
+        if (!Object.keys(normalized.spaces).length && !Object.keys(normalized.states).length) {
+            localStorage.removeItem(PENDING_CLOUD_CHANGES_KEY);
+            return;
+        }
+        writeJson(PENDING_CLOUD_CHANGES_KEY, normalized);
+    }
+
+    function hasPendingChanges() {
+        const pending = readPendingChanges();
+        return Boolean(Object.keys(pending.spaces).length || Object.keys(pending.states).length);
+    }
+
+    function pendingSpaceChange(spaceId) {
+        return readPendingChanges().spaces[spaceId] || null;
+    }
+
+    function pendingStateChange(spaceId) {
+        return readPendingChanges().states[spaceId] || null;
+    }
+
+    function markPendingSpaceUpsert(space) {
+        const pending = readPendingChanges();
+        pending.spaces[space.id] = {
+            action: 'upsert',
+            space: normalizeSpace(space),
+            updated_at: new Date().toISOString()
+        };
+        writePendingChanges(pending);
+    }
+
+    function markPendingSpaceDelete(space) {
+        const pending = readPendingChanges();
+        pending.spaces[space.id] = {
+            action: 'delete',
+            space: normalizeSpace(space),
+            updated_at: new Date().toISOString()
+        };
+        delete pending.states[space.id];
+        writePendingChanges(pending);
+    }
+
+    function markPendingStateSave(spaceId, state) {
+        const pending = readPendingChanges();
+        const spaceChange = pending.spaces[spaceId];
+        if (spaceChange && spaceChange.action === 'delete') return;
+        pending.states[spaceId] = {
+            action: 'save',
+            state: normalizeState(state),
+            updated_at: new Date().toISOString()
+        };
+        writePendingChanges(pending);
+    }
+
+    function markPendingStateClear(spaceId) {
+        const pending = readPendingChanges();
+        const spaceChange = pending.spaces[spaceId];
+        if (spaceChange && spaceChange.action === 'delete') return;
+        pending.states[spaceId] = {
+            action: 'clear',
+            updated_at: new Date().toISOString()
+        };
+        writePendingChanges(pending);
+    }
+
+    function removePendingSpaceChange(spaceId, expectedChange = null) {
+        const pending = readPendingChanges();
+        if (expectedChange && pending.spaces[spaceId]?.updated_at !== expectedChange.updated_at) {
+            return false;
+        }
+        delete pending.spaces[spaceId];
+        writePendingChanges(pending);
+        return true;
+    }
+
+    function removePendingStateChange(spaceId, expectedChange = null) {
+        const pending = readPendingChanges();
+        if (expectedChange && pending.states[spaceId]?.updated_at !== expectedChange.updated_at) {
+            return false;
+        }
+        delete pending.states[spaceId];
+        writePendingChanges(pending);
+        return true;
     }
     
     function v2SpaceCollectionKey(spaceId, collection) {
@@ -389,6 +498,39 @@
         });
     }
 
+    async function ensureCloudSpace(space) {
+        const normalized = normalizeSpace(space);
+        const rows = await supabaseRequest(`empty_box_spaces?id=eq.${encodeURIComponent(normalized.id)}&select=id`);
+        if (Array.isArray(rows) && rows.length) {
+            await supabaseRequest(`empty_box_spaces?id=eq.${encodeURIComponent(normalized.id)}`, {
+                method: 'PATCH',
+                body: JSON.stringify({
+                    name: normalized.name,
+                    storage_mode: 'cloud_sync',
+                    updated_at: normalized.updated_at || new Date().toISOString()
+                })
+            });
+            return;
+        }
+        await supabaseRequest('empty_box_spaces', {
+            method: 'POST',
+            body: JSON.stringify({
+                id: normalized.id,
+                owner_id: normalized.owner_id,
+                name: normalized.name,
+                storage_mode: 'cloud_sync',
+                created_at: normalized.created_at,
+                updated_at: normalized.updated_at || new Date().toISOString()
+            })
+        });
+    }
+
+    function clearLocalV2State(spaceId) {
+        ['groups', 'tasks', 'daily_completions', 'task_completions', 'reflections'].forEach(collection => {
+            localStorage.removeItem(v2SpaceCollectionKey(spaceId, collection));
+        });
+    }
+
     function isInboxGroup(group) {
         return group?.kind === 'inbox' || group?.is_default === true;
     }
@@ -527,6 +669,8 @@
             return error && error.message ? error.message : String(error);
         }
     }
+
+    let cloudFlushPromise = null;
     
     const StorageService = {
         configure,
@@ -556,6 +700,15 @@
                     ...space
                 });
             });
+            const pending = readPendingChanges();
+            Object.values(pending.spaces).forEach(change => {
+                if (!change || !change.space || change.space.storage_mode !== 'cloud_sync') return;
+                if (change.action === 'delete') {
+                    byId.delete(change.space.id);
+                    return;
+                }
+                byId.set(change.space.id, normalizeSpace(change.space));
+            });
             const merged = [...byId.values()].sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')));
             this.saveSpaces(merged);
             this.ensureValidCurrentSpace();
@@ -564,6 +717,9 @@
     
         async syncCloudSpaces() {
             // Cloud spaces are shared through Supabase; local_only spaces remain browser-local.
+            if (hasPendingChanges()) {
+                await this.flushPendingCloudChanges();
+            }
             const rows = await supabaseRequest('empty_box_spaces?select=*&deleted_at=is.null&order=created_at.asc');
             const cloudSpaces = (Array.isArray(rows) ? rows : [])
                 .filter(space => space && space.storage_mode === 'cloud_sync');
@@ -600,22 +756,23 @@
                 owner_id: null,
                 name: name || (storage_mode === 'cloud_sync' ? '云端 Space' : '本地 Space'),
                 storage_mode,
-                created_at: now
+                created_at: now,
+                updated_at: now
             };
-    
-            if (storage_mode === 'cloud_sync') {
-                await supabaseRequest('empty_box_spaces', {
-                    method: 'POST',
-                    body: JSON.stringify(normalizeSpace(space))
-                });
-            }
-    
+
             const spaces = this.getSpaces().filter(item => item.id !== space.id);
             spaces.push(space);
             this.saveSpaces(spaces);
             await this.setCurrentSpace(space.id);
             if (space.storage_mode === 'cloud_sync') {
-                await this.saveCloudState(normalizeState(initialState), space);
+                const normalized = normalizeState(initialState);
+                this.saveLocalV2State(normalized, space);
+                markPendingSpaceUpsert(space);
+                markPendingStateSave(space.id, normalized);
+                this.flushPendingCloudChanges().catch(error => {
+                    console.error('Cloud sync failed:', error);
+                    reportCloudSyncError(`云端同步待重试：${formatErrorMessage(error)}`);
+                });
                 localStorage.setItem(UPDATE_PING_KEY, String(Date.now()));
             } else {
                 await this.saveAppState(initialState, space);
@@ -630,16 +787,17 @@
             const space = this.getSpaceById(spaceId);
             if (!space) throw new Error('找不到要重命名的 Space');
     
-            const updated = { ...space, name: nextName };
-            if (space.storage_mode === 'cloud_sync') {
-                await supabaseRequest(`empty_box_spaces?id=eq.${encodeURIComponent(space.id)}`, {
-                    method: 'PATCH',
-                    body: JSON.stringify({ name: nextName })
-                });
-            }
+            const updated = { ...space, name: nextName, updated_at: new Date().toISOString() };
     
             const spaces = this.getSpaces().map(item => item.id === space.id ? updated : item);
             this.saveSpaces(spaces);
+            if (space.storage_mode === 'cloud_sync') {
+                markPendingSpaceUpsert(updated);
+                this.flushPendingCloudChanges().catch(error => {
+                    console.error('Cloud sync failed:', error);
+                    reportCloudSyncError(`云端同步待重试：${formatErrorMessage(error)}`);
+                });
+            }
             localStorage.setItem(UPDATE_PING_KEY, String(Date.now()));
             return updated;
         },
@@ -669,7 +827,13 @@
             if (!space) return;
             const normalized = normalizeState(nextState);
             if (space.storage_mode === 'cloud_sync') {
-                await this.saveCloudState(normalized, space);
+                this.saveLocalV2State(normalized, space);
+                markPendingSpaceUpsert(this.getSpaceById(space.id) || space);
+                markPendingStateSave(space.id, normalized);
+                await this.flushPendingCloudChanges().catch(error => {
+                    console.error('Cloud sync failed:', error);
+                    reportCloudSyncError(`云端同步待重试：${formatErrorMessage(error)}`);
+                });
             } else {
                 this.saveLocalV2State(normalized, space);
             }
@@ -679,11 +843,15 @@
         async clearSpaceState(space) {
             if (!space) return;
             if (space.storage_mode === 'cloud_sync') {
-                await this.clearCloudV2State(space.id);
-            } else {
-                ['groups', 'tasks', 'daily_completions', 'task_completions', 'reflections'].forEach(collection => {
-                    localStorage.removeItem(v2SpaceCollectionKey(space.id, collection));
+                clearLocalV2State(space.id);
+                markPendingSpaceUpsert(space);
+                markPendingStateClear(space.id);
+                await this.flushPendingCloudChanges().catch(error => {
+                    console.error('Cloud sync failed:', error);
+                    reportCloudSyncError(`云端同步待重试：${formatErrorMessage(error)}`);
                 });
+            } else {
+                clearLocalV2State(space.id);
             }
             localStorage.setItem(UPDATE_PING_KEY, String(Date.now()));
         },
@@ -705,9 +873,12 @@
             if (!space) return;
     
             if (space.storage_mode === 'cloud_sync') {
-                this.saveCloudState(normalized, space).catch(error => {
+                this.saveLocalV2State(normalized, space);
+                markPendingSpaceUpsert(this.getSpaceById(space.id) || space);
+                markPendingStateSave(space.id, normalized);
+                this.flushPendingCloudChanges().catch(error => {
                     console.error('Cloud sync failed:', error);
-                    reportCloudSyncError(`云端同步失败：${formatErrorMessage(error)}`);
+                    reportCloudSyncError(`云端同步待重试：${formatErrorMessage(error)}`);
                 });
             } else {
                 this.saveLocalV2State(normalized, space);
@@ -716,14 +887,29 @@
         },
     
         async getCloudState(space) {
-            const [groups, tasks, dailyCompletions, completions, reflections] = await Promise.all([
-                supabaseRequest(`empty_box_groups?space_id=eq.${encodeURIComponent(space.id)}&order=position.asc`),
-                supabaseRequest(`empty_box_tasks?space_id=eq.${encodeURIComponent(space.id)}&order=group_position.asc`),
-                supabaseRequest(`empty_box_daily_completions?space_id=eq.${encodeURIComponent(space.id)}&order=date_key.desc`),
-                supabaseRequest(`empty_box_task_completions?space_id=eq.${encodeURIComponent(space.id)}&order=completed_at.desc`),
-                supabaseRequest(`empty_box_reflections?space_id=eq.${encodeURIComponent(space.id)}&order=date_key.desc`)
-            ]);
-            return v2RecordsToState({ space, groups, tasks, dailyCompletions, completions, reflections });
+            const pendingState = pendingStateChange(space.id);
+            if (pendingState?.action === 'save') return normalizeState(pendingState.state);
+            if (pendingState?.action === 'clear') return createEmptyState();
+            try {
+                const [groups, tasks, dailyCompletions, completions, reflections] = await Promise.all([
+                    supabaseRequest(`empty_box_groups?space_id=eq.${encodeURIComponent(space.id)}&order=position.asc`),
+                    supabaseRequest(`empty_box_tasks?space_id=eq.${encodeURIComponent(space.id)}&order=group_position.asc`),
+                    supabaseRequest(`empty_box_daily_completions?space_id=eq.${encodeURIComponent(space.id)}&order=date_key.desc`),
+                    supabaseRequest(`empty_box_task_completions?space_id=eq.${encodeURIComponent(space.id)}&order=completed_at.desc`),
+                    supabaseRequest(`empty_box_reflections?space_id=eq.${encodeURIComponent(space.id)}&order=date_key.desc`)
+                ]);
+                const cloudState = v2RecordsToState({ space, groups, tasks, dailyCompletions, completions, reflections });
+                this.saveLocalV2State(cloudState, space);
+                return cloudState;
+            } catch (error) {
+                const cachedGroups = readJson(v2SpaceCollectionKey(space.id, 'groups'), null);
+                const cachedTasks = readJson(v2SpaceCollectionKey(space.id, 'tasks'), null);
+                if (Array.isArray(cachedGroups) && Array.isArray(cachedTasks)) {
+                    reportCloudSyncError(`云端读取失败，已使用本地缓存：${formatErrorMessage(error)}`);
+                    return this.getLocalV2State(space);
+                }
+                throw error;
+            }
         },
     
         async saveCloudState(nextState, space) {
@@ -855,6 +1041,67 @@
                 throw new Error('云端 Tab 清空未生效：请检查 empty_box_groups 的 DELETE policy 或外键约束。');
             }
         },
+
+        async flushPendingCloudChanges() {
+            if (!hasPendingChanges()) return readPendingChanges();
+            if (cloudFlushPromise) return cloudFlushPromise;
+            cloudFlushPromise = (async () => {
+                while (hasPendingChanges()) {
+                    const pending = readPendingChanges();
+                    let processed = false;
+                    const spaceEntries = Object.entries(pending.spaces);
+                    const deleteEntries = spaceEntries.filter(([, change]) => change?.action === 'delete');
+                    const upsertEntries = spaceEntries.filter(([, change]) => change?.action === 'upsert' && change.space);
+
+                    for (const [spaceId, change] of deleteEntries) {
+                        await this.clearCloudV2State(spaceId).catch(error => {
+                            if (!String(error.message || '').includes('404')) throw error;
+                        });
+                        await supabaseRequest(`empty_box_spaces?id=eq.${encodeURIComponent(spaceId)}`, {
+                            method: 'DELETE',
+                            headers: { Prefer: 'return=representation' }
+                        });
+                        await this.assertCloudSpaceDeleted(spaceId);
+                        removePendingSpaceChange(spaceId, change);
+                        removePendingStateChange(spaceId);
+                        processed = true;
+                    }
+
+                    for (const [spaceId, change] of upsertEntries) {
+                        await ensureCloudSpace(change.space);
+                        removePendingSpaceChange(spaceId, change);
+                        processed = true;
+                    }
+
+                    const latestPending = readPendingChanges();
+                    for (const [spaceId, change] of Object.entries(latestPending.states)) {
+                        const currentSpaceChange = pendingSpaceChange(spaceId);
+                        if (currentSpaceChange?.action === 'delete') continue;
+                        const space = this.getSpaceById(spaceId) || currentSpaceChange?.space;
+                        if (!space || space.storage_mode !== 'cloud_sync') continue;
+                        await ensureCloudSpace(space);
+                        if (change.action === 'save') {
+                            await this.saveCloudState(normalizeState(change.state), space);
+                        } else if (change.action === 'clear') {
+                            await this.clearCloudV2State(spaceId);
+                        }
+                        removePendingStateChange(spaceId, change);
+                        processed = true;
+                    }
+
+                    if (!processed) {
+                        break;
+                    }
+                }
+
+                return readPendingChanges();
+            })();
+            try {
+                return await cloudFlushPromise;
+            } finally {
+                cloudFlushPromise = null;
+            }
+        },
     
         async assertCloudSpaceDeleted(spaceId) {
             const [remainingTasks, remainingGroups, remainingSpaces] = await Promise.all([
@@ -874,16 +1121,10 @@
             if (!space) return null;
     
             if (space.storage_mode === 'cloud_sync') {
-                await this.clearCloudV2State(space.id);
-                await supabaseRequest(`empty_box_spaces?id=eq.${encodeURIComponent(space.id)}`, {
-                    method: 'DELETE',
-                    headers: { Prefer: 'return=representation' }
-                });
-                await this.assertCloudSpaceDeleted(space.id);
+                clearLocalV2State(space.id);
+                markPendingSpaceDelete(space);
             } else {
-                ['groups', 'tasks', 'daily_completions', 'task_completions', 'reflections'].forEach(collection => {
-                    localStorage.removeItem(v2SpaceCollectionKey(space.id, collection));
-                });
+                clearLocalV2State(space.id);
             }
     
             const nextSpaces = this.getSpaces().filter(item => item.id !== space.id);
@@ -900,6 +1141,12 @@
             }
     
             localStorage.setItem(UPDATE_PING_KEY, String(Date.now()));
+            if (space.storage_mode === 'cloud_sync') {
+                this.flushPendingCloudChanges().catch(error => {
+                    console.error('Cloud sync failed:', error);
+                    reportCloudSyncError(`云端同步待重试：${formatErrorMessage(error)}`);
+                });
+            }
             return space;
         },
     
@@ -1057,6 +1304,27 @@
     StorageService.formatErrorMessage = formatErrorMessage;
     StorageService.readJson = readJson;
     StorageService.writeJson = writeJson;
+    StorageService.hasPendingCloudChanges = hasPendingChanges;
+
+    window.addEventListener('online', () => {
+        if (!hasPendingChanges()) return;
+        StorageService.flushPendingCloudChanges()
+            .then(() => {
+                localStorage.setItem(UPDATE_PING_KEY, String(Date.now()));
+            })
+            .catch(error => {
+                console.error('Cloud sync retry failed:', error);
+                reportCloudSyncError(`云端同步待重试：${formatErrorMessage(error)}`);
+            });
+    });
 
     window.EmptyBoxStorage = StorageService;
+
+    setTimeout(() => {
+        if (!hasPendingChanges() || navigator.onLine === false) return;
+        StorageService.flushPendingCloudChanges().catch(error => {
+            console.error('Cloud sync startup retry failed:', error);
+            reportCloudSyncError(`云端同步待重试：${formatErrorMessage(error)}`);
+        });
+    }, 0);
 })();
