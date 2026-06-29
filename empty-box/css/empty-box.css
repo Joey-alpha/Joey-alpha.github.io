@@ -404,6 +404,7 @@
 
     .search-input,
     .reflection-textarea,
+    .settings-input,
     .settings-select {
         width: 100%;
         border: 1px solid var(--line);
@@ -696,6 +697,7 @@
         font-size: 14px;
         line-height: 1.6;
         word-break: break-word;
+        white-space: pre-line;
     }
 
     .item-manager-list {
@@ -1443,6 +1445,11 @@
         background-color: rgba(15, 23, 42, 0.86);
         color: #eef2ff;
         color-scheme: dark;
+    }
+
+    body.night .settings-input {
+        background-color: rgba(15, 23, 42, 0.86);
+        color: #eef2ff;
     }
 
     body.night select.settings-select option {

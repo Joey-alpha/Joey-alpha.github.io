@@ -6,6 +6,7 @@ const ItemTabs = window.EmptyBoxItemTabs;
 const ItemManager = window.EmptyBoxItemManager;
 const TaskModel = window.EmptyBoxTaskModel;
 const Settings = window.EmptyBoxSettings;
+const AI = window.EmptyBoxAI;
 const { UPDATE_PING_KEY } = StorageService.keys;
 const { formatErrorMessage } = StorageService;
 const {
@@ -152,6 +153,13 @@ const moveTaskCancelBtn = document.getElementById('moveTaskCancelBtn');
 
 const exportJsonBtn = document.getElementById('exportJsonBtn');
 const importJsonInput = document.getElementById('importJsonInput');
+const aiApiKeyInput = document.getElementById('aiApiKeyInput');
+const aiModelInput = document.getElementById('aiModelInput');
+const aiSettingsStatus = document.getElementById('aiSettingsStatus');
+const saveAiSettingsBtn = document.getElementById('saveAiSettingsBtn');
+const clearAiSettingsBtn = document.getElementById('clearAiSettingsBtn');
+const copyAiTasksPromptBtn = document.getElementById('copyAiTasksPromptBtn');
+const organizeTasksWithAiBtn = document.getElementById('organizeTasksWithAiBtn');
 const spaceSelect = document.getElementById('spaceSelect');
 const newLocalSpaceBtn = document.getElementById('newLocalSpaceBtn');
 const newCloudSpaceBtn = document.getElementById('newCloudSpaceBtn');
@@ -961,6 +969,52 @@ async function handleCopyTask(button, task) {
     }
 }
 
+async function handleAiRewriteTask({ task, rerender }) {
+    try {
+        if (!AI.hasApiKey()) {
+            await openConfirmDialog({
+                title: '需要 API Key',
+                message: '请先在设置里填写 DeepSeek API Key。',
+                confirmText: '知道了'
+            });
+            return;
+        }
+        const result = await AI.rewriteTask(task);
+        if (result.text === task) return;
+        const ok = await openConfirmDialog({
+            title: '应用 AI 改写？',
+            message: [
+                task,
+                '',
+                '改为：',
+                result.text,
+                result.reason ? `\n原因：${result.reason}` : ''
+            ].join('\n'),
+            confirmText: '应用'
+        });
+        if (!ok) return;
+        const renameResult = renameTaskText(task, result.text);
+        if (!renameResult.ok) {
+            await openConfirmDialog({
+                title: 'AI 改写未应用',
+                message: renameResult.message || '无法应用这次改写。',
+                confirmText: '知道了'
+            });
+            return;
+        }
+        rerender();
+        renderNow();
+        saveState();
+    } catch (error) {
+        console.error(error);
+        await openConfirmDialog({
+            title: 'AI 改写失败',
+            message: formatErrorMessage(error),
+            confirmText: '知道了'
+        });
+    }
+}
+
 function isDailyTask(task) {
     return TaskModel.isDailyTask(task);
 }
@@ -1044,7 +1098,14 @@ Settings.configure({
         spaceNameConfirmBtn,
         spaceNameCancelBtn,
         exportJsonBtn,
-        importJsonInput
+        importJsonInput,
+        aiApiKeyInput,
+        aiModelInput,
+        aiSettingsStatus,
+        saveAiSettingsBtn,
+        clearAiSettingsBtn,
+        copyAiTasksPromptBtn,
+        organizeTasksWithAiBtn
     },
     storage: StorageService,
     formatErrorMessage,
@@ -1058,10 +1119,13 @@ Settings.configure({
     },
     renderNow,
     renderReflectionFab,
+    renderItemManager: refreshItemManagerState,
+    saveState,
     openOverlay,
     closeOverlay,
     openConfirmDialog,
-    isTextCompositionEvent
+    isTextCompositionEvent,
+    copyText: copyTaskText
 });
 
 TaskActions.configure({
@@ -1082,6 +1146,7 @@ TaskActions.configure({
         startItemManagerTextEdit(row, label, task, rerender);
     },
     copyTask: ({ button, task }) => handleCopyTask(button, task),
+    rewriteTask: handleAiRewriteTask,
     moveTask: task => openMoveTaskDialog(task),
     completeTask: ({ task, rerender }) => {
         const affectedTabId = getTaskGroupIdRaw(task);

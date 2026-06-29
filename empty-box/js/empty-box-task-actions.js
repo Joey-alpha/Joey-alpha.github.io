@@ -10,6 +10,7 @@
         }),
         editTask: noop,
         copyTask: async () => {},
+        rewriteTask: noop,
         moveTask: noop,
         completeTask: noop,
         toggleStar: noop,
@@ -62,6 +63,7 @@
 
         const editButton = createButton('编辑');
         const copyButton = createButton('复制');
+        const rewriteButton = createButton('AI改写');
         const moveButton = createButton('移动');
         const completeButton = createButton(taskState.dailyDoneToday ? '今日已完成' : '完成');
         completeButton.disabled = taskState.dailyDoneToday;
@@ -75,7 +77,7 @@
             `btn ${taskState.daily ? 'primary' : 'secondary'} compact`
         );
 
-        actions.append(editButton, copyButton, moveButton, completeButton, starButton, dailyButton);
+        actions.append(editButton, copyButton, rewriteButton, moveButton, completeButton, starButton, dailyButton);
 
         moreButton.addEventListener('click', event => {
             event.stopPropagation();
@@ -93,6 +95,12 @@
         copyButton.addEventListener('click', async event => {
             event.stopPropagation();
             await hooks.copyTask({ button: copyButton, task });
+        });
+
+        rewriteButton.addEventListener('click', event => {
+            event.stopPropagation();
+            row.classList.remove('is-menu-open');
+            hooks.rewriteTask({ row, label, task, rerender: refreshList });
         });
 
         moveButton.addEventListener('click', event => {

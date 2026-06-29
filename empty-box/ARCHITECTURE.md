@@ -21,28 +21,33 @@ This app intentionally runs without a build step. Modules are loaded by
    - Owns task business rules that do not need DOM rendering.
    - Exposes `window.EmptyBoxTaskModel`.
    - Requires app hooks for the current state and small UI side effects during rename.
-5. `js/empty-box-settings.js`
+5. `js/empty-box-ai.js`
+   - Owns DeepSeek API settings, AI task organization prompts, task rewrite calls,
+     and applying AI tab/group organization results to state.
+   - Exposes `window.EmptyBoxAI`.
+   - Stores the DeepSeek API key only in browser localStorage, outside Space data.
+6. `js/empty-box-settings.js`
    - Owns settings UI, space management, space transfer, and import/export.
    - Exposes `window.EmptyBoxSettings`.
    - Requires app hooks for state updates, overlays, confirmations, and rendering refreshes.
-6. `js/empty-box-task-actions.js`
+7. `js/empty-box-task-actions.js`
    - Owns the shared item `...` action menu DOM and button wiring.
    - Exposes `window.EmptyBoxTaskActions`.
-   - Requires app hooks for editing, copying, moving, completing, Star, and Daily.
-7. `js/empty-box-home-lists.js`
+   - Requires app hooks for editing, copying, AI rewriting, moving, completing, Star, and Daily.
+8. `js/empty-box-home-lists.js`
    - Owns the home-page Must Do, Daily, and pinned tab list rendering.
    - Owns home-list item selection and drag sorting.
    - Exposes `window.EmptyBoxHomeLists`.
    - Requires app hooks for state, task menu creation, and group ordering.
-8. `js/empty-box-item-tabs.js`
+9. `js/empty-box-item-tabs.js`
    - Owns Must Do tab bar rendering and tab drag/tap interactions.
    - Exposes `window.EmptyBoxItemTabs`.
    - Requires app hooks for group actions and task moves.
-9. `js/empty-box-item-manager.js`
+10. `js/empty-box-item-manager.js`
    - Owns the item manager overlay list rendering, item drag sorting, mobile swipe actions, and bottom add row.
    - Exposes `window.EmptyBoxItemManager`.
    - Requires app hooks for task state, rendering, group ordering, and shared item menus.
-10. `js/empty-box.js`
+11. `js/empty-box.js`
    - Owns DOM, rendering, item interactions, and application boot.
 
 `quick-add.html` should load the shared state module before `quick-add.js`.
@@ -61,6 +66,8 @@ module or Supabase RPC instead of duplicating state normalization.
   Update `empty-box-task-actions.js`; update the hooks in `empty-box.js` when behavior changes.
 - Task business rules:
   Update `empty-box-task-model.js`; update hooks in `empty-box.js` when behavior needs UI side effects.
+- AI task organization and rewriting:
+  Update `empty-box-ai.js`; update settings/action hooks in `empty-box.js` when UI entry points change.
 - Settings, spaces, space transfer, import/export:
   Update `empty-box-settings.js`; update hooks in `empty-box.js` when state/render coordination changes.
 - Home-page Must Do, Daily list, pinned home list:
@@ -78,11 +85,3 @@ module or Supabase RPC instead of duplicating state normalization.
 ## Next Split Candidates
 
 - Move Tab dialogs and mutations behind `empty-box-item-tabs.js` or a dedicated tab model.
-
-## Backlog Notes
-
-- AI-assisted task organization:
-  Add a way to copy/export all tasks in one action so an AI can regroup them,
-  then rebuild tabs and tasks from the AI result. Also support AI rewriting for
-  an individual task. This will likely need an API key configuration flow before
-  implementation.

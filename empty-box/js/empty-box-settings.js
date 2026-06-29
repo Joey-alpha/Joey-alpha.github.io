@@ -9,10 +9,13 @@
         resetLastCompletedTask: () => {},
         renderNow: () => {},
         renderReflectionFab: () => {},
+        renderItemManager: () => {},
+        saveState: () => {},
         openOverlay: () => {},
         closeOverlay: () => {},
         openConfirmDialog: async () => false,
-        isTextCompositionEvent: () => false
+        isTextCompositionEvent: () => false,
+        copyText: async () => {}
     };
 
     let pendingSpaceMode = 'local_only';
@@ -284,6 +287,85 @@
         config.elements.importJsonInput.value = '';
     }
 
+    function renderAiSettings() {
+        const { aiApiKeyInput, aiModelInput, aiSettingsStatus } = config.elements;
+        if (!window.EmptyBoxAI || !aiApiKeyInput || !aiModelInput) return;
+        aiApiKeyInput.value = window.EmptyBoxAI.hasApiKey() ? '••••••••••••••••' : '';
+        aiModelInput.value = window.EmptyBoxAI.getModel();
+        if (!aiSettingsStatus.textContent) {
+            aiSettingsStatus.textContent = window.EmptyBoxAI.hasApiKey()
+                ? 'DeepSeek API Key 已保存在本机浏览器。'
+                : 'API Key 只会保存在本机浏览器，不会写入 Space 数据。';
+        }
+    }
+
+    function saveAiSettings() {
+        const { aiApiKeyInput, aiModelInput, aiSettingsStatus } = config.elements;
+        const value = aiApiKeyInput.value.trim();
+        if (value && !/^•+$/.test(value)) {
+            window.EmptyBoxAI.setApiKey(value);
+        }
+        window.EmptyBoxAI.setModel(aiModelInput.value);
+        renderAiSettings();
+        aiSettingsStatus.textContent = 'AI 设置已保存。';
+    }
+
+    function clearAiSettings() {
+        const { aiApiKeyInput, aiSettingsStatus } = config.elements;
+        window.EmptyBoxAI.setApiKey('');
+        aiApiKeyInput.value = '';
+        aiSettingsStatus.textContent = 'DeepSeek API Key 已清除。';
+    }
+
+    async function copyAiTasksPrompt() {
+        const { aiSettingsStatus } = config.elements;
+        try {
+            await config.copyText(window.EmptyBoxAI.buildOrganizationPrompt(config.getState()));
+            aiSettingsStatus.textContent = '已复制整理输入，可以粘贴给 AI。';
+        } catch (error) {
+            console.error(error);
+            aiSettingsStatus.textContent = `复制失败：${config.formatErrorMessage(error)}`;
+        }
+    }
+
+    async function organizeTasksWithAi() {
+        const { organizeTasksWithAiBtn, aiSettingsStatus } = config.elements;
+        try {
+            if (!window.EmptyBoxAI.hasApiKey()) {
+                aiSettingsStatus.textContent = '请先保存 DeepSeek API Key。';
+                return;
+            }
+            saveAiSettings();
+            organizeTasksWithAiBtn.disabled = true;
+            aiSettingsStatus.textContent = '正在请求 DeepSeek 重新归类...';
+            const result = await window.EmptyBoxAI.organizeTasks(config.getState());
+            const summaryLines = [
+                result.summary,
+                `将创建 ${result.tabs.length} 个 tab，Inbox 保留 ${result.inbox.length} 个 item。`,
+                '这会重建当前待办池的 tabs、分组和排序，但不会删除 item、Daily、Star 或完成记录。'
+            ].filter(Boolean);
+            const ok = await config.openConfirmDialog({
+                title: '应用 AI 归类？',
+                message: summaryLines.join('\n'),
+                confirmText: '应用归类'
+            });
+            if (!ok) {
+                aiSettingsStatus.textContent = '已取消应用 AI 归类。';
+                return;
+            }
+            window.EmptyBoxAI.applyOrganization(config.getState(), result);
+            config.saveState();
+            config.renderNow();
+            config.renderItemManager();
+            aiSettingsStatus.textContent = 'AI 归类已应用。';
+        } catch (error) {
+            console.error(error);
+            aiSettingsStatus.textContent = `AI 归类失败：${config.formatErrorMessage(error)}`;
+        } finally {
+            organizeTasksWithAiBtn.disabled = false;
+        }
+    }
+
     function bindEvents() {
         const {
             settingsOverlay,
@@ -303,11 +385,19 @@
             spaceNameInput,
             spaceNameMessage,
             exportJsonBtn,
-            importJsonInput
+            importJsonInput,
+            aiApiKeyInput,
+            aiModelInput,
+            aiSettingsStatus,
+            saveAiSettingsBtn,
+            clearAiSettingsBtn,
+            copyAiTasksPromptBtn,
+            organizeTasksWithAiBtn
         } = config.elements;
 
         settingsFab.addEventListener('click', async () => {
             renderSpaceSettings();
+            renderAiSettings();
             config.openOverlay(settingsOverlay);
             await refreshCloudSpaces();
         });
@@ -354,6 +444,16 @@
         });
         exportJsonBtn.addEventListener('click', exportJson);
         importJsonInput.addEventListener('change', importJson);
+        saveAiSettingsBtn.addEventListener('click', saveAiSettings);
+        clearAiSettingsBtn.addEventListener('click', clearAiSettings);
+        copyAiTasksPromptBtn.addEventListener('click', copyAiTasksPrompt);
+        organizeTasksWithAiBtn.addEventListener('click', organizeTasksWithAi);
+        aiApiKeyInput.addEventListener('input', () => {
+            aiSettingsStatus.textContent = '';
+        });
+        aiModelInput.addEventListener('input', () => {
+            aiSettingsStatus.textContent = '';
+        });
     }
 
     window.EmptyBoxSettings = {
