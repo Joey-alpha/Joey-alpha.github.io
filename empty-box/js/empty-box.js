@@ -122,6 +122,7 @@ const searchInput = document.getElementById('searchInput');
 const searchResults = document.getElementById('searchResults');
 const addInput = document.getElementById('addInput');
 const addInputWordingHint = document.getElementById('addInputWordingHint');
+const rewriteAddInputBtn = document.getElementById('rewriteAddInputBtn');
 const confirmAddBtn = document.getElementById('confirmAddBtn');
 
 const blindboxTaskText = document.getElementById('blindboxTaskText');
@@ -1015,6 +1016,55 @@ async function handleAiRewriteTask({ task, rerender }) {
     }
 }
 
+async function handleAiRewriteAddInput() {
+    const task = addInput.value.trim();
+    if (!task) {
+        window.EmptyBoxTaskWording?.updateInputHint(addInputWordingHint, addInput.value);
+        addInput.focus();
+        return;
+    }
+    try {
+        if (!AI.hasApiKey()) {
+            await openConfirmDialog({
+                title: '需要 API Key',
+                message: '请先在设置里填写 DeepSeek API Key。',
+                confirmText: '知道了'
+            });
+            return;
+        }
+        rewriteAddInputBtn.disabled = true;
+        rewriteAddInputBtn.textContent = 'AI...';
+        const result = await AI.rewriteTask(task);
+        if (result.text === task) return;
+        const ok = await openConfirmDialog({
+            title: '使用 AI 改写？',
+            message: [
+                task,
+                '',
+                '改为：',
+                result.text,
+                result.reason ? `\n原因：${result.reason}` : ''
+            ].join('\n'),
+            confirmText: '使用'
+        });
+        if (!ok) return;
+        addInput.value = result.text;
+        window.EmptyBoxTaskWording?.updateInputHint(addInputWordingHint, addInput.value);
+        addInput.focus();
+        placeInputCursorAtEnd(addInput);
+    } catch (error) {
+        console.error(error);
+        await openConfirmDialog({
+            title: 'AI 改写失败',
+            message: formatErrorMessage(error),
+            confirmText: '知道了'
+        });
+    } finally {
+        rewriteAddInputBtn.disabled = false;
+        rewriteAddInputBtn.textContent = 'AI';
+    }
+}
+
 function isDailyTask(task) {
     return TaskModel.isDailyTask(task);
 }
@@ -1668,6 +1718,8 @@ confirmAddBtn.addEventListener('click', () => {
     window.EmptyBoxTaskWording?.updateInputHint(addInputWordingHint, addInput.value);
     closeOverlay(addOverlay);
 });
+
+rewriteAddInputBtn.addEventListener('click', handleAiRewriteAddInput);
 
 addInput.addEventListener('input', () => {
     window.EmptyBoxTaskWording?.updateInputHint(addInputWordingHint, addInput.value);

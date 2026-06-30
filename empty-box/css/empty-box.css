@@ -976,6 +976,19 @@
         transform: translateY(-50%) translateX(0);
     }
 
+    .item-manager-list .candidate-item.is-menu-open {
+        z-index: var(--layer-priority);
+    }
+
+    .item-manager-list .candidate-item:first-child .candidate-actions {
+        top: 0;
+        transform: translateY(0) translateX(6px);
+    }
+
+    .item-manager-list .candidate-item:first-child.is-menu-open .candidate-actions {
+        transform: translateY(0) translateX(0);
+    }
+
     .item-manager-list .candidate-actions .btn,
     .candidate-list .candidate-actions .btn,
     .star-list .candidate-actions .btn,

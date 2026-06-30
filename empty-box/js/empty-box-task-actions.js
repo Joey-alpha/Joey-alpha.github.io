@@ -63,7 +63,7 @@
 
         const editButton = createButton('编辑');
         const copyButton = createButton('复制');
-        const rewriteButton = createButton('AI改写');
+        const rewriteButton = createButton('AI');
         const moveButton = createButton('移动');
         const completeButton = createButton(taskState.dailyDoneToday ? '今日已完成' : '完成');
         completeButton.disabled = taskState.dailyDoneToday;
