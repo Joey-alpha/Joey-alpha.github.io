@@ -1103,15 +1103,11 @@
         const scaledHeight = pos.height * view.scale;
         const gap = 8;
         const menuWidth = nodeQuickActions.offsetWidth || 148;
-        const menuHeight = nodeQuickActions.offsetHeight || 72;
         const viewportPadding = 8;
-        let left = scaledLeft + scaledWidth + gap;
-        if (left + menuWidth > window.innerWidth - viewportPadding) {
-            left = scaledLeft - menuWidth - gap;
-        }
-        let top = scaledTop + scaledHeight / 2 - menuHeight / 2;
+        let left = scaledLeft + scaledWidth / 2 - menuWidth / 2;
+        let top = scaledTop + scaledHeight + gap;
         left = clamp(left, viewportPadding, window.innerWidth - menuWidth - viewportPadding);
-        top = clamp(top, viewportPadding, window.innerHeight - menuHeight - viewportPadding);
+        top = Math.max(top, viewportPadding);
 
         nodeQuickActions.style.setProperty('--quick-x', `${Math.round(left)}px`);
         nodeQuickActions.style.setProperty('--quick-y', `${Math.round(top)}px`);
@@ -2075,6 +2071,13 @@
         updateNodeQuickActions();
     }
 
+    function clearNodeSelection() {
+        selectedId = null;
+        nodeEls.forEach(el => el.classList.remove('selected'));
+        updateStatus();
+        updateNodeQuickActions();
+    }
+
     function setParentImpact(id, impact) {
         const node = getNode(id);
         if (!node || !findParentId(id)) return;
@@ -2556,6 +2559,7 @@
 
     viewport.addEventListener('pointerdown', function (e) {
         if (e.target !== viewport && e.target !== scene && e.target !== nodesLayer && e.target !== edges) return;
+        clearNodeSelection();
         viewport.setPointerCapture(e.pointerId);
         panState = {
             pointerId: e.pointerId,
@@ -2867,9 +2871,7 @@
 
     viewport.addEventListener('click', function (e) {
         if (e.target === viewport || e.target === scene || e.target === nodesLayer || e.target === edges) {
-            selectedId = null;
-            nodeEls.forEach(el => el.classList.remove('selected'));
-            updateStatus();
+            clearNodeSelection();
         }
     });
 
